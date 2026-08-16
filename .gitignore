@@ -24,3 +24,9 @@ results/
 # stronger v2 held-out answer is evaluator-local and only its hash is public.
 benchmarks/perturbseq_norman/data/source/
 benchmarks/perturbseq_norman/v2/private/expected.json
+
+# The re:SOLUTION frontend. `dist/` is already ignored above, but the UI is
+# built from source on every checkout -- there is no committed bundle, so the
+# Python server serves the "not built yet" page until `npm run build` runs.
+web/node_modules/
+web/dist/

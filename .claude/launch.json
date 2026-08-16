@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "resolution-ui",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "web", "run", "dev"],
+      "port": 5273
+    },
+    {
+      "name": "resolution-api",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "resolution", "--port", "8787"],
+      "port": 8787
+    }
+  ]
+}

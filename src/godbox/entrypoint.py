@@ -44,6 +44,7 @@ from godbox.layout import (
     out_volume_name,
 )
 from godbox.status import Phase, StatusWriter
+from godbox.trace_channel import QueueTracer
 
 MAX_SOLUTION_CHARS = 60_000
 """Cap on what goes into the Dict copy of the solution. `Dict.put` raises
@@ -189,6 +190,18 @@ async def _solve(
     from reagents.god.orchestrator import God
     from reagents.llm.client import make_llm
 
+    # The orchestrator's own event stream, shipped out of the sandbox on a
+    # queue. `_instrument` below reports PHASES into the status Dict, which is
+    # the right channel for state; this is the finer-grained trace -- tool
+    # calls, per-demigod lanes, artifacts -- that a Dict capped at 200 entries
+    # cannot hold. Best-effort: `QueueTracer` swallows its own failures, so a
+    # trace channel that breaks cannot fail a paid-for run.
+    tracer: Any = None
+    try:
+        tracer = QueueTracer(request.run_id)
+    except Exception as exc:
+        print(f"[trace] no live trace channel: {exc}", flush=True)
+
     toolbox = None
     if request.use_broker:
         from broker.session import modal_session
@@ -226,10 +239,18 @@ async def _solve(
             wall_time_s=min(request.max_turns * 75, 1800),
             max_tool_calls=24,
         ),
+        tracer=tracer,
     )
     _instrument(god, status)
 
-    solution = await god.solve(request.problem)
+    try:
+        solution = await god.solve(request.problem)
+    finally:
+        # Flush before the sandbox goes away. Whatever the run did, the last
+        # events are the ones a watcher most wants and the ones most likely to
+        # be sitting in the buffer.
+        if tracer is not None:
+            tracer.close()
     trace = god.last_trace
 
     warning = _persist(request.run_id, solution, trace)

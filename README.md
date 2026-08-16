@@ -408,3 +408,58 @@ files hardlinked into `data/`. Return the answer dict, or text containing
 `<EVAL_ANSWER>...</EVAL_ANSWER>`. This repo has 12 public evals; the
 leaderboard is 100, withheld. Public scores are harness checks, not official
 numbers. See `TRAJECTORY_ANALYSIS.md` for what winning public trajectories do.
+
+## re:SOLUTION — the same run, in a browser
+
+`src/resolution/` is the fourth consumer of that trace stream, and the only one
+with a UI. It subscribes to the same `TraceSink` the terminal renderer uses,
+reshapes each record into an event addressed to a *node* (`god`, or
+`demi:<domain>`), and serves the lot over SSE. It owns no orchestration: delete
+the package and the runtime is unchanged.
+
+```bash
+uv sync --extra ui                       # uvicorn; add --extra llm for live runs
+npm --prefix web install
+npm --prefix web run build
+uv run resolution                        # http://127.0.0.1:8787
+```
+
+For frontend work, run the two servers separately — Vite proxies `/api` to the
+Python process, so the client never hard-codes a port:
+
+```bash
+uv run resolution --port 8787 &
+npm --prefix web run dev                 # http://127.0.0.1:5273
+```
+
+Three views over one run:
+
+* **Stream** — GOD's phases, its model output arriving as it is generated, and
+  every demigod's tool calls interleaved at the moment they happened. `God only`
+  narrows it to the orchestration narrative.
+* **Tree** — GOD at the root, one child per invented domain. A demigod appears
+  the moment the planner names it and changes state in place: planned → sealed →
+  reasoning → complete.
+* **Transcript** — click any node for its whole history in a drawer: axis,
+  invented language, granted tools, budget, each tool call with its payload, and
+  the artifact it returned.
+
+**Two modes, and the UI never blurs them.** `Replay` runs `ScriptedLLM` — no key,
+no tokens, no inference — and every replayed text block is labelled REPLAY,
+because a typing animation over a recorded answer is otherwise indistinguishable
+from live generation. Since the recording is keyed by phase name rather than by
+problem, replay is restricted to the one problem it actually covers; a free-text
+replay is refused instead of being answered from the wrong recording. `Live`
+streams genuinely from Anthropic and is disabled, with the reason in its
+tooltip, unless the server has both the key and the `llm` extra.
+
+The landing page's artwork is Michelangelo's *Creation of Adam* (1512, public
+domain) reduced to solid/dither/nothing on a 140x55 grid. The bitmap is
+committed as source — no image pipeline in the build — and
+`scripts/pixelate_fresco.py` regenerates it, including why the reduction
+segments on saturation rather than brightness.
+
+`entities` is the only field with teeth on a live run: `isolation.native_terms`
+reads it and nothing else, so it is exactly the list of words no demigod may
+see. The UI asks for it rather than guessing — a guessed seal reports a run as
+sealed against terms the user never named.
