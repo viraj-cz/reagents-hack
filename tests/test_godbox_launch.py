@@ -148,10 +148,15 @@ def test_launch_does_not_mount_the_out_volume():
 
 def test_launch_defaults_are_the_cheap_ones():
     """Every turn is an Anthropic call. The defaults must be the ones you can
-    afford to run by accident."""
+    afford to run by accident.
+
+    `--domains` is the one lever no longer defaulted low: GOD sizes the fan-out
+    to the problem, which is cheaper than a fixed 2 on something trivial and
+    dearer on something hard. `--turns` still caps the per-demigod spend, and it
+    is what keeps a surprising domain count from being an unbounded bill."""
     args = build_parser().parse_args(["launch"])
     assert args.problem == "simple"
-    assert args.domains == 2
+    assert args.domains is None
     assert args.turns == 12
     assert args.keep_alive == 0
     # Brokered tools are not a cost worth defaulting away from: a tool-less run

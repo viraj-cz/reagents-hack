@@ -80,6 +80,14 @@ def _instrument(god: Any, status: StatusWriter) -> None:
         )
         specs = await planner_plan(*args, **kwargs)
         await status.set_domains([s.name for s in specs])
+        if not specs:
+            # An empty plan is GOD deciding the problem does not need a demigod,
+            # and it skips every phase after this one. Without a note the status
+            # trail reads `planning -> done` with no domains and no demigods,
+            # which looks exactly like a planner that fell over.
+            await status.note(
+                "no domain earns a demigod; GOD is answering this directly"
+            )
         for spec in specs:
             axes = ", ".join(a.value for a in spec.axes)
             await status.note(f"planned {spec.name!r} [{axes}] tools={spec.tool_ids}")
@@ -285,12 +293,17 @@ async def _solve(
         }
 
     summary = (
-        f"complete: {len(trace.artifacts)} artifact(s), "
-        f"{len(trace.failures)} failure(s), {len(trace.leaks)} leak(s)"
+        "complete: answered directly, no DEMI_GOD was worth spawning"
+        if trace.direct
+        else (
+            f"complete: {len(trace.artifacts)} artifact(s), "
+            f"{len(trace.failures)} failure(s), {len(trace.leaks)} leak(s)"
+        )
     )
     # Exit code mirrors `scripts/e2e_live.py`: no artifact means no usable
-    # answer, whatever the integrator wrote.
-    return payload, summary, 0 if trace.artifacts else 1
+    # answer, whatever the integrator wrote -- UNLESS the run was direct, where
+    # having no artifact is the decision rather than the failure.
+    return payload, summary, 0 if (trace.artifacts or trace.direct) else 1
 
 
 def _self_terminate(sandbox_id: str, keep_alive_s: int) -> None:

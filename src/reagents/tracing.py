@@ -222,11 +222,22 @@ class TerminalTracer:
             confidence = None if not isinstance(data, dict) else data.get("confidence")
             artifacts = None if not isinstance(data, dict) else data.get("artifacts")
             failures = None if not isinstance(data, dict) else data.get("failures")
-            summary = "  The integrated answer is ready"
+            # "integrated" is a claim about how the answer was produced, and a
+            # direct run integrated nothing -- GOD judged the problem not worth
+            # a demigod and answered it. Saying otherwise would describe
+            # comparison of candidates that never existed.
+            direct = isinstance(data, dict) and data.get("domains") == 0
+            summary = (
+                "  God answered this one directly"
+                if direct
+                else "  The integrated answer is ready"
+            )
             if isinstance(confidence, (int, float)):
                 summary += f" at {confidence:.0%} confidence"
             facts = []
-            if isinstance(artifacts, int):
+            if direct:
+                facts.append("no demigod was worth spawning")
+            elif isinstance(artifacts, int):
                 facts.append(f"{artifacts} artifacts combined")
             if isinstance(failures, int):
                 facts.append(f"{failures} failures")

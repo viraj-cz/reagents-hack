@@ -20,6 +20,7 @@ from reagents.demigod.runtime import (
     DemigodRuntimeProtocol,
     IsolationGuard,
 )
+from reagents.god.direct import answer_directly
 from reagents.god.integrator import Integrator
 from reagents.god.planner import Planner
 from reagents.god.transformer import (
@@ -51,7 +52,7 @@ class God:
         self,
         llm: LLMClient,
         registry: ToolRegistry | None = None,
-        domain_count: int = 3,
+        domain_count: int | None = None,
         approved_write_tools: set[str] | None = None,
         runtime: DemigodRuntimeProtocol | None = None,
         tracer: TraceSink | None = None,
@@ -61,6 +62,18 @@ class God:
         self.llm = llm
         self.registry = registry or default_registry()
         self.domain_count = domain_count
+        """How many domains to invent, or None to let the planner decide.
+
+        NONE IS THE DEFAULT, and it is the interesting setting: the number of
+        demigods becomes a judgement about the problem rather than a constant
+        applied to every problem alike. A simple question can be answered with
+        no demigod at all; a hard one can be attacked from as many independent
+        representations as genuinely differ.
+
+        An integer pins it, which is worth having for cost control (`preflight`
+        wants exactly one sandbox) but is a ceiling and a floor at once: it
+        will spawn three demigods on arithmetic if it is told three."""
+
         self.tracer = tracer or NullTracer()
         self.verifier = verifier
         self.budget = budget or Budget()
@@ -99,6 +112,81 @@ class God:
             forbidden=list(spec.forbidden) or list(ABSTRACT_FORBIDDEN),
         )
 
+    async def _check_natively(
+        self,
+        problem: NativeProblem,
+        solution: NativeSolution,
+        artifacts: list[DemiGodResult],
+    ) -> NativeSolution:
+        """Optional benchmark-owned finalization and verification.
+
+        Shared by both endings -- an integrated multi-domain answer and a direct
+        one -- because the check is on the answer in the native field and knows
+        nothing about how many demigods produced it. A direct answer passes
+        `artifacts=[]`, which a finalizer sees as "nothing to copy from" and
+        leaves alone; the verifier still runs, which is the point. Skipping
+        verification for direct answers would exempt the least-scrutinised path
+        in the system from the only deterministic check it has.
+        """
+        if self.verifier is None:
+            return solution
+        self.tracer.emit(
+            GOD_LANE,
+            "FINALIZE",
+            "Projecting accepted artifacts into the required native schema",
+        )
+        solution = await finalize_solution(self.verifier, problem, solution, artifacts)
+        self.tracer.emit(
+            GOD_LANE,
+            "VERIFY",
+            "Checking the candidate in the original problem domain",
+        )
+        report = await verify_solution(self.verifier, problem, solution)
+        solution.verification = report.model_dump(mode="json")
+        if not report.passed:
+            solution.confidence = min(solution.confidence, 0.5)
+            solution.gaps = [
+                *solution.gaps,
+                *[f"native verification: {error}" for error in report.errors],
+            ]
+        self.tracer.emit(
+            GOD_LANE,
+            "VERIFY",
+            "native checks passed" if report.passed else "native checks found gaps",
+            data={
+                "passed": report.passed,
+                "score": report.score,
+                "checks": report.checks,
+                "errors": report.errors,
+            },
+        )
+        return solution
+
+    async def _answer_directly(self, problem: NativeProblem) -> NativeSolution:
+        """The zero-domain ending: God answers, nothing is spawned.
+
+        Reached only when the planner returns an empty set, which it does when
+        no invented representation would earn the sandbox it costs. See
+        `god/direct.py` for why this is not the integrator with no artifacts.
+        """
+        rationale = self.planner.last_rationale
+        self.tracer.emit(
+            GOD_LANE,
+            "DIRECT",
+            "answering in the native field without spawning a demigod",
+            data=rationale or None,
+        )
+        solution = await answer_directly(self.llm, problem, rationale=rationale)
+        solution = await self._check_natively(problem, solution, [])
+        self.last_trace = OrchestrationTrace(solution=solution, direct=True)
+        self.tracer.emit(
+            GOD_LANE,
+            "DONE",
+            "direct answer ready",
+            data={"confidence": solution.confidence, "artifacts": 0, "domains": 0},
+        )
+        return solution
+
     async def solve(self, problem: NativeProblem) -> NativeSolution:
         self.tracer.emit(
             GOD_LANE,
@@ -117,10 +205,22 @@ class God:
         self.tracer.emit(
             GOD_LANE,
             "PLAN",
-            f"Looking for {self.domain_count} coordinate systems that each "
-            "preserve and simplify the complete objective",
+            (
+                "Deciding how many coordinate systems, if any, this problem is "
+                "worth splitting into"
+                if self.domain_count is None
+                else f"Looking for {self.domain_count} coordinate systems that "
+                "each preserve and simplify the complete objective"
+            ),
         )
         specs = await self.planner.plan(problem, n=self.domain_count)
+        if not specs:
+            # NO DOMAIN EARNED ITS SANDBOX. Answer natively and return; there is
+            # nothing to transform, seal, spawn or integrate. The trace still
+            # gets written, with empty spec/artifact lists, so a consumer can
+            # tell this apart from a run whose demigods all failed by the fact
+            # that `failures` is empty too.
+            return await self._answer_directly(problem)
         self.tracer.emit(
             GOD_LANE,
             "PLAN",
@@ -341,42 +441,8 @@ class God:
                 gaps=[f.error or "unspecified failure" for f in failures],
             )
 
-        if artifacts and self.verifier is not None:
-            self.tracer.emit(
-                GOD_LANE,
-                "FINALIZE",
-                "Projecting accepted artifacts into the required native schema",
-            )
-            solution = await finalize_solution(
-                self.verifier,
-                problem,
-                solution,
-                artifacts,
-            )
-            self.tracer.emit(
-                GOD_LANE,
-                "VERIFY",
-                "Checking the integrated candidate in the original problem domain",
-            )
-            report = await verify_solution(self.verifier, problem, solution)
-            solution.verification = report.model_dump(mode="json")
-            if not report.passed:
-                solution.confidence = min(solution.confidence, 0.5)
-                solution.gaps = [
-                    *solution.gaps,
-                    *[f"native verification: {error}" for error in report.errors],
-                ]
-            self.tracer.emit(
-                GOD_LANE,
-                "VERIFY",
-                "native checks passed" if report.passed else "native checks found gaps",
-                data={
-                    "passed": report.passed,
-                    "score": report.score,
-                    "checks": report.checks,
-                    "errors": report.errors,
-                },
-            )
+        if artifacts:
+            solution = await self._check_natively(problem, solution, artifacts)
 
         self.last_trace = OrchestrationTrace(
             specs=specs,

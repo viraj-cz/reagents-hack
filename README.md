@@ -206,7 +206,8 @@ Or run GOD in **its own long-lived Modal sandbox**, so the run survives closing
 the laptop:
 
 ```bash
-uv run god launch --problem simple --domains 2 --turns 12   # returns in seconds
+uv run god launch --problem simple --turns 12   # returns in seconds
+uv run god launch --problem simple --domains 2  # pin the DEMI_GOD count
 uv run god status <run_id>      # a snapshot, from anywhere
 uv run god watch  <run_id>      # follow it to completion
 uv run god list                 # what did I leave running?
@@ -399,8 +400,9 @@ uv run python main.py CTRL01_no_cc1_gate_for_crizotinib_hits
 ```
 
 God's loop needs `ANTHROPIC_API_KEY` in `.env`. Demigods read theirs from the
-Modal secret `demigod-anthropic`. Defaults are 2 domains and 10 turns
-(`REAGENTS_TXBENCH_DOMAINS`, `REAGENTS_TXBENCH_TURNS`).
+Modal secret `demigod-anthropic`. The domain count is God's own call by default
+— a question it can just answer spawns nothing at all — and 10 turns per demigod
+(`REAGENTS_TXBENCH_DOMAINS` pins the count, `REAGENTS_TXBENCH_TURNS` the turns).
 
 `load_eval` splits each eval into a public `Task` and a private grader spec.
 Only the task reaches `run_agent`. The workspace is a temp directory with eval
