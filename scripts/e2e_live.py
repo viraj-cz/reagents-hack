@@ -57,27 +57,34 @@ def instrument(god: God) -> None:
     integrator_integrate = god.integrator.integrate
     runtime_run = god.runtime.run
 
-    async def plan(problem, n):
+    # Every wrapper takes *args/**kwargs and forwards verbatim. Pinning a
+    # positional signature here means any new parameter on the wrapped method
+    # raises TypeError at that phase -- and for `integrate` that is the LAST
+    # phase, after every model call and every sandbox has already been paid
+    # for. That is exactly what happened when orchestrator.solve() grew a
+    # `failed_domains=` keyword.
+    async def plan(problem, *args, **kwargs):
+        n = kwargs.get("n", args[0] if args else None)
         stage(f"PLAN: inventing {n} orthogonal domains")
-        specs = await planner_plan(problem, n=n)
+        specs = await planner_plan(problem, *args, **kwargs)
         for s in specs:
             axes = ", ".join(a.value for a in s.axes)
             stage(f"PLAN: '{s.name}' [{axes}] tools={s.tool_ids}")
         return specs
 
-    async def forward(problem, spec):
+    async def forward(problem, spec, *args, **kwargs):
         stage(f"TRANSFORM: projecting problem into '{spec.name}'")
-        result = await transformer_forward(problem, spec)
+        result = await transformer_forward(problem, spec, *args, **kwargs)
         # NOT "sealed" -- assert_sealed and find_spec_leaks run in the
         # orchestrator, outside this hook. Saying "sealed" here printed a
         # reassuring lie on a run whose envelope was rejected moments later.
         stage(f"TRANSFORM: '{spec.name}' projected (seal check pending)")
         return result
 
-    async def run(envelope, tools, guard=None):
+    async def run(envelope, tools, *args, **kwargs):
         name = envelope.domain.name
         stage(f"SPAWN: '{name}' -> sandbox")
-        result = await runtime_run(envelope, tools, guard=guard)
+        result = await runtime_run(envelope, tools, *args, **kwargs)
         if result.status == "ok":
             stage(
                 f"DONE: '{name}' status=ok confidence={result.confidence} "
@@ -87,9 +94,9 @@ def instrument(god: God) -> None:
             stage(f"DONE: '{name}' status={result.status} error={result.error}")
         return result
 
-    async def integrate(problem, artifacts, inverse_maps):
+    async def integrate(problem, artifacts, *args, **kwargs):
         stage(f"INTEGRATE: recombining {len(artifacts)} artifact(s)")
-        return await integrator_integrate(problem, artifacts, inverse_maps)
+        return await integrator_integrate(problem, artifacts, *args, **kwargs)
 
     god.planner.plan = plan
     god.transformer.forward = forward
