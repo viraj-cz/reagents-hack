@@ -190,9 +190,19 @@ class Run:
             # network lookup -- hence the thread. Without the toolbox a demigod
             # is told its whole toolset is unreachable and reasons with nothing,
             # so the broker is not optional decoration here.
+            #
+            # `require_toolbox` is the difference between a run that fails and a
+            # run that lies. Passing a session is not enough: publishing the
+            # lease can still fail per demigod, and the default prints one line
+            # to stdout and carries on tool-less. The artifact that comes back
+            # is confident, schema-valid, and reasoned with nothing -- which is
+            # how this went unnoticed three times. Someone who picked "demigod
+            # sandboxes with brokered tools" asked for the tools; if the lease
+            # cannot be published, say so instead of answering anyway.
             return SandboxDemigodRuntime(
                 run_id=self.run_id,
                 toolbox=modal_session(),
+                require_toolbox=True,
                 tracer=self,
             )
 

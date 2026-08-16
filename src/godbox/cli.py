@@ -329,9 +329,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     launch.add_argument("--approve-write", nargs="*", default=[], metavar="TOOL_ID")
     launch.add_argument(
-        "--broker",
-        action="store_true",
-        help="Publish scoped leases to the deployed TOOLBOX_BROKER. Off by default.",
+        "--no-broker",
+        dest="broker",
+        action="store_false",
+        help=(
+            "Do not publish leases; demigods reason with no tools. "
+            "The broker is used by default."
+        ),
     )
     launch.set_defaults(func=cmd_launch)
 

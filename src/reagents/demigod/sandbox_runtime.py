@@ -115,7 +115,13 @@ class SandboxDemigodRuntime:
         max_turns: int | None = None,
         model: str | None = None,
         agent_model: str | None = None,
-        require_toolbox: bool = False,
+        # TRUE BY DEFAULT. False meant a lease that failed to publish printed
+        # one line to stdout and the demigod ran on with no tools -- returning a
+        # confident, schema-valid artifact that had reasoned with nothing. That
+        # shape was shipped three times before anyone read `tool_trace`. A
+        # caller that genuinely wants a tool-less demigod now has to say so,
+        # which is the direction the cost of being wrong points.
+        require_toolbox: bool = True,
         tracer: TraceSink | None = None,
         # Restored: dropped from this signature by the PR #4 merge resolution
         # (81b2198) while `self.restrict_egress = restrict_egress` below was

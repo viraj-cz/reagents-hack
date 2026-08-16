@@ -13,6 +13,9 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import sys
+import types
+from unittest import mock
 
 import pytest
 
@@ -401,3 +404,39 @@ def test_godbox_requests_the_broker() -> None:
 
     request = build_request("run-x", toy_problem(), domain_count=2, max_turns=4)
     assert request.use_broker is True
+
+
+async def test_sandbox_execution_requires_the_lease() -> None:
+    """A lease that cannot be published must fail the run, not be worked around.
+
+    The default prints one line and continues tool-less, and the artifact that
+    comes back is confident and schema-valid. That is the shape of every
+    tool-less run found so far.
+    """
+    import resolution.runs as runs_module
+    from reagents.toy import toy_problem
+
+    captured: dict[str, object] = {}
+
+    class _Runtime:
+        def __init__(self, **kwargs: object) -> None:
+            captured.update(kwargs)
+
+    run = runs_module.Run(
+        "run-x",
+        toy_problem(),
+        mode="live",
+        domain_count=2,
+        execution=runs_module.EXECUTION_SANDBOX,
+    )
+    module = types.ModuleType("reagents.demigod.sandbox_runtime")
+    module.SandboxDemigodRuntime = _Runtime  # type: ignore[attr-defined]
+    session = types.ModuleType("broker.session")
+    session.modal_session = lambda: object()  # type: ignore[attr-defined]
+    with mock.patch.dict(
+        sys.modules,
+        {"reagents.demigod.sandbox_runtime": module, "broker.session": session},
+    ):
+        await run._build_runtime()
+
+    assert captured["require_toolbox"] is True
