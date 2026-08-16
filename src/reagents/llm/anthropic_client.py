@@ -73,16 +73,24 @@ class AnthropicLLM:
             )
             if message.stop_reason == "tool_use":
                 tool_results = []
+                aliases = {_anthropic_tool_name(tool_id): tool_id for tool_id in tools.ids()}
                 for block in message.content:
                     if getattr(block, "type", None) != "tool_use":
                         continue
                     try:
-                        result = tools.call(block.name, **dict(block.input))
+                        canonical_name = aliases.get(block.name, block.name)
+                        result = await tools.acall(canonical_name, **dict(block.input))
                     except UnboundToolError:
                         raise
                     except Exception as exc:  # noqa: BLE001
                         result = {"error": str(exc)}
-                    trace.append({"tool": block.name, "input": dict(block.input), "result": result})
+                    trace.append(
+                        {
+                            "tool": canonical_name,
+                            "input": dict(block.input),
+                            "result": result,
+                        }
+                    )
                     tool_results.append(
                         {
                             "type": "tool_result",
@@ -100,15 +108,30 @@ class AnthropicLLM:
 
 def _to_anthropic_tools(tools: BoundToolPack) -> list[dict[str, Any]]:
     converted = []
+    used_names: set[str] = set()
     for spec in tools.specs():
+        transport_name = _anthropic_tool_name(spec.id)
+        if transport_name in used_names:
+            raise LLMError(
+                f"tool IDs collide after Anthropic name normalization: {spec.id!r}"
+            )
+        used_names.add(transport_name)
         converted.append(
             {
-                "name": spec.id,
+                "name": transport_name,
                 "description": spec.description,
                 "input_schema": spec.parameters_schema or {"type": "object", "properties": {}},
             }
         )
     return converted
+
+
+def _anthropic_tool_name(tool_id: str) -> str:
+    """Map canonical capability IDs to Anthropic's portable tool-name alphabet."""
+    safe = re.sub(r"[^a-zA-Z0-9_-]", "__", tool_id)
+    if len(safe) > 64:
+        raise LLMError(f"tool id is too long for Anthropic: {tool_id!r}")
+    return safe
 
 
 def _text_blocks(message: Any) -> str:
