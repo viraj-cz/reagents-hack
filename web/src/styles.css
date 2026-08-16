@@ -838,6 +838,24 @@ button {
   color: var(--w-52);
 }
 
+/*
+ * The word is the only thing moving on a quiet screen, so it carries the
+ * wordmark's weight -- full white after a dimmed "re:", same as the topbar.
+ *
+ * `.mono` would uppercase the prefix into RE:, and the whole joke is that this
+ * is the wordmark. The words are already capitals in the source, so the cast
+ * is simply turned off rather than fought with a second rule.
+ */
+.reflecting {
+  color: var(--white);
+  font-size: 12px;
+  text-transform: none;
+}
+
+.reflecting .re {
+  opacity: 0.62;
+}
+
 .answer {
   border: 1px solid var(--white);
   background: var(--white);
