@@ -44,11 +44,22 @@ def _preflight(spec: DemiGodSpec, run_id: str) -> None:
     """
     image = resolve_image(spec.tools)
     layout = RunLayout(run_id=run_id, demigod_name=spec.name)
+    # Two tool paths, printed separately because they fail differently: an
+    # image key that is missing fails here, while a broker lease that is missing
+    # fails at the agent's first `toolbox` call, inside a billed sandbox.
+    toolbox = (
+        f"{spec.toolbox.base} lease={spec.toolbox.lease_id} "
+        f"tools={spec.toolbox.tool_ids or '[]'}"
+        if spec.toolbox
+        else "(none)"
+    )
     print(
         f"[preflight] ok\n"
         f"  demigod : {spec.name}\n"
         f"  domain  : {spec.domain}\n"
         f"  tools   : {spec.tools or '(none)'}\n"
+        f"  toolbox : {toolbox}\n"
+        f"  egress  : {spec.egress_domains or '(unrestricted)'}\n"
         f"  image   : {image.name} covers {sorted(image.tool_keys) or '[]'}\n"
         f"  volumes : {layout.shared_volume_name} (ro)\n"
         f"            {layout.out_volume_name} -> {layout.out_subpath}/\n"

@@ -87,6 +87,65 @@ def _install_agent_runtime(image: modal.Image) -> modal.Image:
     )
 
 
+TOOLBOX_BIN = "/usr/local/bin/toolbox"
+"""Where the brokered-tool CLI lands in every image.
+
+A shell command, not a Python module invocation, because the caller is an agent
+composing bash: `toolbox call x -i args.json` is something it can build up,
+echo, pipe and retry, whereas `python -m demigod.toolbox call ...` invites it to
+`import demigod.toolbox` and reason about the transport instead of the tool.
+
+Two lines of shim rather than a console-script entry point: images get the
+package via `add_local_python_source`, which copies source and never runs pip,
+so `[project.scripts]` would produce nothing here.
+"""
+
+
+TOOLBOX_SMOKE_TEST = (TOOLBOX_BIN, "--help")
+"""Proves the shim resolves AND that `demigod.toolbox` imports in the image.
+
+Run by `scripts/smoke_test.py` against a built image, NOT during the build.
+The build cannot check it: the shim has to be written before
+`add_local_python_source`, so at build time there is no `demigod` package for
+`--help` to import.
+
+WHY IT IS WORTH RUNNING AT ALL. `claude --version` passing on an image where
+every real query died is this repo's own precedent -- a binary existing is not a
+binary working. Here the failure mode is `toolbox: command not found` inside a
+live, already-billed sandbox, which an agent reads as "I have no tools".
+"""
+
+
+def _install_toolbox_cli(image: modal.Image) -> modal.Image:
+    """Put `toolbox` on PATH. One tiny layer, no dependencies, never changes.
+
+    Applied FIRST, before apt and pip and before the source is added. Two
+    reasons, and the second is not optional:
+
+    * The shim is two static lines, so as the earliest layer it is a cache hit
+      forever -- adding a registry tool does not rewrite it.
+    * Modal REJECTS a build step after `add_local_*`:
+          InvalidError: An image tried to run a build step after using
+          `image.add_local_*` to include local files.
+      Verified live, by trying it. The alternative it suggests (`copy=True`)
+      would make every edit to our own source rebuild the whole layer instead of
+      being mounted at container startup -- a real cost, to move a check that
+      belongs in the smoke test anyway.
+
+    Installed in EVERY image, including `demigod-base`. The CLI is inert without
+    a grant -- it exits 2 with an explanation -- and an image that lacks it
+    cannot be given brokered tools later without a re-bake.
+    """
+    import shlex
+
+    shim = ("#!/bin/sh", 'exec python -m demigod.toolbox "$@"')
+    write = "printf '%s\\n' " + " ".join(shlex.quote(line) for line in shim)
+    return image.run_commands(
+        f"{write} > {TOOLBOX_BIN}",
+        f"chmod +x {TOOLBOX_BIN}",
+    )
+
+
 @dataclass(frozen=True)
 class PrebakedImage:
     """One image in the catalog.
@@ -136,6 +195,10 @@ class PrebakedImage:
             pip.extend(e.install)
 
         image = modal.Image.debian_slim(python_version=PYTHON_VERSION)
+        # First: two static lines that never change, so this layer is a cache
+        # hit forever. It must also precede add_local_python_source -- Modal
+        # rejects any build step after that. See _install_toolbox_cli.
+        image = _install_toolbox_cli(image)
         if apt:
             image = image.apt_install(*sorted(set(apt)))
         image = _install_agent_runtime(image)
@@ -149,8 +212,7 @@ class PrebakedImage:
         # registry/docs/*.md -- the agent-facing tool usage docs. The failure
         # mode is a live agent with no idea how to use its tools, and a
         # traceback pointing at a missing file rather than at this line.
-        image = image.add_local_python_source("demigod", ignore=[])
-        return image
+        return image.add_local_python_source("demigod", ignore=[])
 
 
 # --- The catalog. Ordered by nothing; the resolver sorts. -------------------
