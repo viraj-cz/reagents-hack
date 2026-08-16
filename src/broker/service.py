@@ -92,6 +92,7 @@ BROKER_ENV: dict[str, str] = {
     "REAGENTS_ENABLE_NORMAN_BENCHMARK": "1",
     # Fresh split exposing only training primitives and source-free compute labs.
     "REAGENTS_ENABLE_NORMAN_V2_BENCHMARK": "1",
+    "REAGENTS_ENABLE_PERTURBSEQ_DESIGN": "1",
     # Representation-neutral primitives over the public HG004 evidence. The
     # generated module contains no private expected phase, and tool outputs
     # strip all native metadata before crossing the Broker boundary.
@@ -121,6 +122,14 @@ NORMAN_V2_DATA_SOURCE = (
     / "training_data.json"
 )
 NORMAN_V2_DATA_REMOTE = "/opt/reagents/norman_v2_training.json"
+PERTURBSEQ_DESIGN_DATA_SOURCE = (
+    pathlib.Path(__file__).resolve().parents[2]
+    / "benchmarks"
+    / "perturbseq_design"
+    / "public"
+    / "training_data.json"
+)
+PERTURBSEQ_DESIGN_DATA_REMOTE = "/opt/reagents/perturbseq_design_training.json"
 
 
 def broker_image(
@@ -380,6 +389,30 @@ NORMAN_V2 = ExecutorClass(
     timeout_s=300,
 )
 
+PERTURBSEQ_DESIGN = ExecutorClass(
+    name="perturbseq_design",
+    tool_ids=frozenset(
+        {
+            "portfolio.algebra_lab",
+            "portfolio.geometry_lab",
+            "portfolio.graph_lab",
+            "portfolio.optimization_lab",
+        }
+    ),
+    extras=(
+        "numpy>=2,<3",
+        "scipy>=1.14,<2",
+        "pandas>=2,<3",
+        "statsmodels>=0.14,<1",
+        "scikit-learn>=1.6,<2",
+        "networkx>=3.3,<4",
+    ),
+    env=(("REAGENTS_PERTURBSEQ_DESIGN_PATH", PERTURBSEQ_DESIGN_DATA_REMOTE),),
+    local_files=((str(PERTURBSEQ_DESIGN_DATA_SOURCE), PERTURBSEQ_DESIGN_DATA_REMOTE),),
+    memory_mb=8192,
+    timeout_s=360,
+)
+
 ENGINEERING = ExecutorClass(
     name="engineering",
     # `engineering.python` was registered and reachable and had NO tier at all:
@@ -490,6 +523,7 @@ SPONSOR = ExecutorClass(
 ALL_EXECUTOR_CLASSES: tuple[ExecutorClass, ...] = (
     ESM,
     NORMAN_V2,
+    PERTURBSEQ_DESIGN,
     REASONING,
     LEAN,
     BIOLOGY,

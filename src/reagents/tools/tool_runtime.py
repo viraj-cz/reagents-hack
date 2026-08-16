@@ -160,6 +160,8 @@ def python_exec(payload: dict[str, Any]) -> dict[str, Any]:
 
 NORMAN_TRAINING_PATH_ENV = "REAGENTS_NORMAN_TRAINING_PATH"
 NORMAN_TRAINING_DEFAULT = "/opt/reagents/norman_v2_training.json"
+PERTURBSEQ_DESIGN_PATH_ENV = "REAGENTS_PERTURBSEQ_DESIGN_PATH"
+PERTURBSEQ_DESIGN_DEFAULT = "/opt/reagents/perturbseq_design_training.json"
 
 
 def norman_training_python(payload: dict[str, Any]) -> dict[str, Any]:
@@ -199,6 +201,43 @@ def norman_training_python(payload: dict[str, Any]) -> dict[str, Any]:
         "stderr": completed.stderr[-30000:],
         "training_bundle_version": 2,
         "heldout_outcomes_present": False,
+    }
+
+
+def perturbseq_design_python(payload: dict[str, Any]) -> dict[str, Any]:
+    """Execute agent code against public batch-design evidence only."""
+
+    data_path = Path(
+        os.environ.get(PERTURBSEQ_DESIGN_PATH_ENV, PERTURBSEQ_DESIGN_DEFAULT)
+    )
+    if not data_path.is_file():
+        raise FileNotFoundError(f"frozen design bundle missing at {data_path}")
+    source = str(payload["source"])
+    prelude = (
+        "import json as _json\n"
+        f"with open({str(data_path)!r}, encoding='utf-8') as _handle:\n"
+        "    DATA = _json.load(_handle)\n"
+        "assert DATA.get('version') == 1\n"
+        "assert 'candidates' not in DATA and 'oracle_selection' not in DATA\n"
+    )
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "program.py"
+        path.write_text(prelude + "\n" + source)
+        completed = subprocess.run(
+            [sys.executable, "-I", str(path)],
+            cwd=directory,
+            capture_output=True,
+            text=True,
+            timeout=210,
+            check=False,
+        )
+    return {
+        "ok": completed.returncode == 0,
+        "returncode": completed.returncode,
+        "stdout": completed.stdout[-250000:],
+        "stderr": completed.stderr[-30000:],
+        "training_bundle_version": 1,
+        "candidate_outcomes_present": False,
     }
 
 
@@ -301,6 +340,7 @@ OPERATIONS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "proto_check": proto_check,
     "python_exec": python_exec,
     "norman_training_python": norman_training_python,
+    "perturbseq_design_python": perturbseq_design_python,
     "esm_embed": esm_embed,
     "esm_contacts": esm_contacts,
 }
