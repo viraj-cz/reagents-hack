@@ -15,7 +15,7 @@ Rewrite the native problem into the given domain language.
 
 Rules:
 - The representation, task, and notation_guide MUST use only invented symbols.
-- Never copy native entity names, gene names, protein names, or metabolite names.
+- Never copy a native entity name, or any recognisable variant of one.
 - Put the mapping from invented symbols back to native names in symbol_to_native only.
 - representation is structured data in the domain language (graph, equations, measures, ...).
 - task is what the demigod must produce, stated only in domain notation."""

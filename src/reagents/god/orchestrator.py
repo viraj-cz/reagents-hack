@@ -28,9 +28,16 @@ from reagents.llm.client import LLMClient
 from reagents.tools.registry import ToolRegistry, default_registry
 from reagents.tracing import GOD_LANE, NullTracer, TraceSink, demigod_lane, summarize
 
+# Deliberately domain-AGNOSTIC. These once named genes, proteins and
+# metabolites, from when this system was biology-only. That was wrong twice
+# over: GOD invents the domain at runtime, so naming one field's vocabulary
+# does not generalise -- and repeating that vocabulary in every transform
+# prompt tripped Anthropic's `bio` safety classifier, which refused the call
+# and truncated the response. The system's own anti-leak instruction was the
+# thing causing the refusal, on a problem about water tanks.
 ABSTRACT_FORBIDDEN = [
     "Use only symbols defined in the representation.",
-    "Do not refer to biological proper names, genes, proteins, or metabolites.",
+    "Do not refer to any entity by its name from the original problem.",
 ]
 
 
@@ -240,7 +247,7 @@ class God:
             self.tracer.emit(
                 GOD_LANE,
                 "INTEGRATE",
-                f"Translating {len(artifacts)} domain artifacts back into the original biology problem",
+                f"Translating {len(artifacts)} domain artifacts back into the original problem",
             )
             solution = await self.integrator.integrate(
                 problem,
