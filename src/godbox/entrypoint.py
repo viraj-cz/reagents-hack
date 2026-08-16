@@ -257,12 +257,14 @@ async def _solve(
             agent_model=request.model,
         ),
         verifier=verifier,
-        budget=Budget(
-            max_tokens=4096,
-            max_steps=request.max_turns,
-            wall_time_s=min(request.max_turns * 75, 1800),
-            max_tool_calls=24,
-        ),
+        # The Budget DEFAULTS, not a tighter local copy. This used to derive
+        # `max_steps` from `--turns`, which conflated two different things: how
+        # many turns an operator wants to pay for, and the point past which a
+        # demigod is presumed stuck. At `--turns 8` that killed demigods
+        # mid-answer and threw away everything they had already spent.
+        # `SandboxDemigodRuntime` still receives `max_turns` and overrides
+        # `max_steps` per demigod, so `--turns` keeps its cost-lever meaning.
+        budget=Budget(),
         tracer=tracer,
     )
     _instrument(god, status)

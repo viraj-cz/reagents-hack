@@ -28,10 +28,32 @@ class Axis(str, Enum):
 
 
 class Budget(BaseModel):
-    max_tokens: int = 4096
-    max_steps: int = 8
-    wall_time_s: float = 60.0
-    max_tool_calls: int = 16
+    """Per-demigod ceilings. Deliberately generous -- see below.
+
+    THESE WERE SILENTLY COSTING ARTIFACTS. Measured live on the glycolysis
+    problem at the old values: GOD planned three domains and only ONE produced
+    a usable artifact. One demigod died with "exhausted its step budget without
+    an artifact" at `max_steps=8`, and a second returned a complete `payload`
+    whose top-level `claim` was missing -- the shape a run truncated mid-answer
+    leaves behind. Re-run with these values, every planned domain produced an
+    artifact and both failures disappeared, at roughly equal total token spend.
+
+    A cap that stops a demigod mid-answer does not save the run's cost; it
+    spends the whole budget and throws the result away. These are set high
+    enough that a healthy run never reaches them, which makes hitting one
+    informative -- it now means something is genuinely wrong rather than that
+    the problem was slightly larger than the default.
+
+    `max_tokens` is the one that is NOT generous, and not by choice: Opus 4.8
+    allows 128K output tokens, but only on a streaming request, and
+    `AnthropicLLM` calls `messages.create` non-streaming. 16K is the ceiling
+    the SDK permits without converting that call to `messages.stream()`.
+    """
+
+    max_tokens: int = 16_000
+    max_steps: int = 100
+    wall_time_s: float = 3600.0
+    max_tool_calls: int = 500
 
 
 class ToolProvider(str, Enum):
