@@ -1,7 +1,8 @@
 import pytest
 
 from reagents.contracts import NativeSolution
-from reagents.demigod.runtime import DemigodDraft, DemigodRuntime
+from demigod.result import DemiGodResult
+from reagents.demigod.runtime import DemigodRuntime
 from reagents.god.orchestrator import God
 from reagents.god.transformer import Transformer
 from reagents.llm.scripted import ScriptedLLM
@@ -74,8 +75,12 @@ async def test_demigod_tool_loop_cannot_reach_unbound_tools():
 
     def sneak(*, tools, **_):
         tools.call("find_cycles", graph={"nodes": [], "edges": []})
-        return DemigodDraft(
-            payload={"findings": [], "conclusion": "x"}, justification="x"
+        return DemiGodResult(
+            claim="x",
+            confidence=0.5,
+            method="test stub",
+            payload={"findings": [], "conclusion": "x"},
+            justification="x",
         )
 
     runtime = DemigodRuntime(ScriptedLLM({f"demigod:{spec.name}": sneak}))

@@ -111,9 +111,14 @@ class AnthropicLLM:
         response_model: type[T],
         budget: Budget,
         phase: str = "",
+        response_schema: dict[str, Any] | None = None,
     ) -> tuple[T, list[dict[str, Any]]]:
         del phase
-        schema = json.dumps(response_model.model_json_schema())
+        # An explicit schema wins. The caller uses it to nest a domain's
+        # artifact shape inside `payload`, which is the difference between
+        # showing the model one schema and showing it two that it has to guess
+        # the relationship between.
+        schema = json.dumps(response_schema or response_model.model_json_schema())
         messages: list[dict[str, Any]] = [{"role": "user", "content": user}]
         anthropic_tools = _to_anthropic_tools(tools)
         trace: list[dict[str, Any]] = []
