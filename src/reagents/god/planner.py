@@ -173,6 +173,9 @@ class Planner:
         n: int = DEFAULT_DOMAIN_COUNT,
         max_rounds: int = MAX_PLAN_ROUNDS,
     ) -> list[DomainSpec]:
+        # Namespace loaders are inert until planning. Provider failures are recorded
+        # on the registry so local reasoning remains available during outages.
+        await self.registry.load_deferred()
         specs = await self.invent(problem, n)
         for _ in range(max_rounds):
             structural = structural_critic(specs, self.registry)
