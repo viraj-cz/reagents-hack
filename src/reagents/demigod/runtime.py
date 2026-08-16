@@ -112,10 +112,12 @@ class DemigodRuntime:
         if schema_errors:
             return fail(f"artifact failed schema: {schema_errors}")
 
+        # Graded, not fatal -- see SandboxDemigodRuntime for why. The envelope
+        # check above stays a hard gate; this one is a quality signal, because
+        # by now the reasoning has already happened.
+        artifact_leaks: list[str] = []
         if guard:
-            leaks = guard.check(f"{draft.justification}\n{draft.payload}")
-            if leaks:
-                return fail("artifact leaked native terms", leaks)
+            artifact_leaks = guard.check(f"{draft.justification}\n{draft.payload}")
 
         return DemiGodResult(
             claim=draft.justification,
@@ -128,6 +130,15 @@ class DemigodRuntime:
             method="in-process demigod runtime (reagents.demigod.runtime)",
             justification=draft.justification,
             tool_trace=trace,
+            isolation_violations=artifact_leaks,
+            blockers=(
+                [
+                    f"used native terms {artifact_leaks}; some reasoning may "
+                    f"have left the domain"
+                ]
+                if artifact_leaks
+                else []
+            ),
             demigod_name=slugify_domain_name(name),
             domain_name=name,
             status="ok",

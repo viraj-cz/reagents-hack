@@ -143,7 +143,12 @@ class God:
                 failures.append(result)
 
         if artifacts:
-            solution = await self.integrator.integrate(problem, artifacts, inverse_maps)
+            solution = await self.integrator.integrate(
+                problem,
+                artifacts,
+                inverse_maps,
+                failed_domains=[f.domain_name for f in failures if f.domain_name],
+            )
         else:
             solution = NativeSolution(
                 problem_id=problem.id,

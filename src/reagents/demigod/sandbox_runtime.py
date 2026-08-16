@@ -40,6 +40,16 @@ from reagents.demigod.runtime import IsolationGuard
 from reagents.tools.registry import BoundToolPack
 
 
+LEAKED_CONFIDENCE_CEILING = 0.5
+"""Confidence cap for an artifact that used native terms.
+
+A ceiling rather than a multiplier: the claim itself may well be correct (it
+was, in the run that motivated this), but nothing about a leaked artifact
+justifies *high* confidence, and scaling a 0.9 down to 0.45 would understate a
+genuinely good result as much as leaving it at 0.9 overstates a bad one.
+"""
+
+
 class SandboxDemigodRuntime:
     """Spawns one `modal.Sandbox` per demigod. Satisfies the runtime interface."""
 
@@ -113,14 +123,30 @@ class SandboxDemigodRuntime:
         # The seal is checked on what came back. Everything the agent wrote is
         # in the manifest, so this is the same check the in-process runtime
         # applies to its draft -- just later.
+        #
+        # GRADED, NOT FATAL -- and the distinction is the point. The ENVELOPE
+        # check before spawn is a hard gate: it stops a demigod reasoning in the
+        # native field at all. By the time an artifact comes back the reasoning
+        # has already happened, so a native term here is evidence about quality,
+        # not proof of contamination.
+        #
+        # This was fatal, and it discarded a correct artifact that had reasoned
+        # entirely in its invented notation and used one generic English noun
+        # ("outlet") once. Two demigods independently reached the right answer
+        # and the system reported one. Record the violation, cap the confidence,
+        # and let the integrator weigh it.
         if guard:
             leaks = guard.check(
                 "\n".join([result.claim, result.justification, str(result.payload)])
             )
             if leaks:
                 result.isolation_violations = leaks
-                result.status = "failed"
-                result.error = "artifact leaked native terms"
+                result.confidence = min(result.confidence, LEAKED_CONFIDENCE_CEILING)
+                result.blockers = [
+                    *result.blockers,
+                    f"used native terms {leaks}; some reasoning may have left "
+                    f"the domain",
+                ]
 
         if result.status == "ok" and envelope.artifact_schema:
             schema_errors = result.validate_against(envelope.artifact_schema)

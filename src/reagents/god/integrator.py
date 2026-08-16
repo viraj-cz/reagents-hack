@@ -16,7 +16,13 @@ INTEGRATE_SYSTEM = """You are God integrating demigod artifacts.
 You have the inverse maps from domain symbols back to native entities.
 Translate each artifact into the native field, resolve conflicts, and answer the
 original question. Do not invent new domain reasoning. Integration is translation
-plus conflict resolution, not concatenation of essays."""
+plus conflict resolution, not concatenation of essays.
+
+`domain_contributions` must contain an entry ONLY for a domain whose artifact
+appears below. Domains listed as failed produced nothing: do not describe what
+they found, do not infer what they would have found, and do not give them an
+entry. Attributing a finding to a domain that produced no artifact presents
+unvalidated reasoning as if it had been checked."""
 
 
 class IntegrationDraft(BaseModel):
@@ -36,8 +42,19 @@ class Integrator:
         problem: NativeProblem,
         artifacts: list[DemiGodResult],
         inverse_maps: list[InverseMap],
+        failed_domains: list[str] | None = None,
     ) -> NativeSolution:
-        maps = {m.domain_name: m.symbol_to_native for m in inverse_maps}
+        # Only the inverse maps of domains that actually produced an artifact.
+        # inverse_maps carries an entry per SEALED domain while artifacts carries
+        # one per SUCCESSFUL domain, so passing them raw showed the integrator a
+        # domain name with no artifact behind it -- and it filled the blank in,
+        # attributing invented findings to a demigod that had failed.
+        produced = {a.domain_name for a in artifacts}
+        maps = {
+            m.domain_name: m.symbol_to_native
+            for m in inverse_maps
+            if m.domain_name in produced
+        }
         user = (
             f"Native problem id: {problem.id}\n"
             f"Statement: {problem.statement}\n"
@@ -57,6 +74,19 @@ class Integrator:
                 f"justification: {artifact.justification}\n"
                 f"confidence: {artifact.confidence}\n"
                 f"unknowns: {artifact.unknowns}\n"
+            )
+            if artifact.isolation_violations:
+                user += (
+                    f"CAUTION: this artifact used native terms "
+                    f"{artifact.isolation_violations}, so part of its reasoning "
+                    f"may have left its domain. Weigh it accordingly.\n"
+                )
+
+        # Named explicitly so the integrator does not have to infer absence.
+        if failed_domains:
+            user += (
+                f"\nThese domains produced NO artifact and must not appear in "
+                f"domain_contributions: {sorted(failed_domains)}\n"
             )
         draft = await self.llm.complete(
             system=INTEGRATE_SYSTEM,

@@ -274,3 +274,84 @@ def test_clean_spec_has_no_leaks():
     from reagents.isolation import find_spec_leaks
 
     assert find_spec_leaks(make_envelope().domain, {"ATP", "hexokinase"}) == {}
+
+
+# --- integration attribution -------------------------------------------------
+
+
+def test_integrator_only_sees_inverse_maps_for_domains_that_produced_artifacts():
+    """The bug this pins: inverse_maps carries an entry per SEALED domain while
+    artifacts carries one per SUCCESSFUL domain. Passing them raw showed the
+    integrator a domain name with no artifact behind it, and it filled the blank
+    in -- attributing invented findings to a demigod that had failed."""
+    import asyncio
+
+    from demigod.result import DemiGodResult
+    from reagents.contracts import InverseMap, NativeProblem
+    from reagents.god.integrator import Integrator
+
+    captured = {}
+
+    class SpyLLM:
+        async def complete(self, *, system, user, response_model, phase=""):
+            captured["user"] = user
+            captured["system"] = system
+            return response_model(answer="a", confidence=0.5)
+
+    problem = NativeProblem(id="p", statement="s", question="q", entities=["x"])
+    artifacts = [
+        DemiGodResult(
+            claim="c", confidence=0.9, method="m", domain_name="succeeded_domain"
+        )
+    ]
+    inverse_maps = [
+        InverseMap(domain_name="succeeded_domain", symbol_to_native={"a": "x"}),
+        InverseMap(domain_name="failed_domain", symbol_to_native={"b": "y"}),
+    ]
+
+    asyncio.run(
+        Integrator(SpyLLM()).integrate(
+            problem, artifacts, inverse_maps, failed_domains=["failed_domain"]
+        )
+    )
+
+    # The failed domain's inverse map must not be offered as context...
+    assert "succeeded_domain" in captured["user"]
+    assert '"b": "y"' not in captured["user"]
+    # ...and the failure is named explicitly rather than left to be inferred.
+    assert "must not appear in domain_contributions" in captured["user"]
+    assert "failed_domain" in captured["user"]
+
+
+def test_leaked_artifacts_are_flagged_to_the_integrator():
+    import asyncio
+
+    from demigod.result import DemiGodResult
+    from reagents.contracts import NativeProblem
+    from reagents.god.integrator import Integrator
+
+    captured = {}
+
+    class SpyLLM:
+        async def complete(self, *, system, user, response_model, phase=""):
+            captured["user"] = user
+            return response_model(answer="a", confidence=0.5)
+
+    artifacts = [
+        DemiGodResult(
+            claim="c",
+            confidence=0.5,
+            method="m",
+            domain_name="d",
+            isolation_violations=["outlet"],
+        )
+    ]
+    asyncio.run(
+        Integrator(SpyLLM()).integrate(
+            NativeProblem(id="p", statement="s", question="q", entities=["outlet"]),
+            artifacts,
+            [],
+        )
+    )
+    assert "CAUTION" in captured["user"]
+    assert "outlet" in captured["user"]
