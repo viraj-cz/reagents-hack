@@ -49,6 +49,24 @@ class DemiGodSpec(BaseModel):
             "to stay inside it and to report anything outside it as an unknown."
         ),
     )
+    domain_name: str | None = Field(
+        None,
+        description=(
+            "The domain's own identifier, when one exists upstream (reagents' "
+            "DomainSpec.name). Kept alongside `name` because the two differ: "
+            "`name` is the slugified infrastructure identity (no underscores -- "
+            "it becomes a directory and a sandbox name), while reagents' domain "
+            "names are snake_case identifiers. Defaults to `name` when absent."
+        ),
+    )
+    artifact_schema: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "JSON Schema the agent's `payload` must satisfy. Invented per-domain "
+            "by the planner; embedded in the system prompt and checked on the way "
+            "out. Empty means no structural requirement beyond the fixed contract."
+        ),
+    )
     tools: list[str] = Field(
         default_factory=list,
         description=(

@@ -17,7 +17,12 @@ from pydantic import ValidationError
 from demigod.images import CATALOG, ImageResolutionError, resolve_image
 from demigod.layout import RunLayout
 from demigod.registry import RegistryError, all_keys, validate_tool_keys
-from demigod.result import DemiGodResult, ResultMissingError, result_json_schema
+from demigod.result import (
+    ENVELOPE_FIELDS,
+    DemiGodResult,
+    ResultMissingError,
+    result_json_schema,
+)
 from demigod.spec import DemiGodSpec, Problem
 
 
@@ -154,20 +159,71 @@ def test_confidence_is_bounded():
 def test_failure_manifest_surfaces_error_in_blockers():
     """A consumer reading only the contract fields must still see the failure."""
     r = DemiGodResult.failure(
-        name="alpha", domain="d", status="timeout", error="exceeded wall clock"
+        demigod_name="alpha",
+        domain_name="alpha_domain",
+        run_id="r1",
+        status="timeout",
+        error="exceeded wall clock",
     )
     assert r.status == "timeout"
     assert r.confidence == 0.0
     assert "exceeded wall clock" in r.blockers
 
 
+def test_success_and_failure_share_one_shape():
+    """The consolidation's whole point: reagents returned a union, so every
+    consumer had to isinstance-branch. One shape means one parse path."""
+    ok = DemiGodResult(claim="x", confidence=0.5, method="m")
+    bad = DemiGodResult.failure(status="failed", error="boom")
+    assert set(ok.model_dump()) == set(bad.model_dump())
+    assert ok.status == "ok" and bad.status == "failed"
+
+
+def test_payload_validates_against_a_domain_artifact_schema():
+    schema = {
+        "type": "object",
+        "required": ["findings", "conclusion"],
+        "properties": {
+            "findings": {"type": "array", "items": {"type": "string"}},
+            "conclusion": {"type": "string"},
+        },
+    }
+    good = DemiGodResult(
+        claim="c",
+        confidence=0.9,
+        method="m",
+        payload={"findings": ["a"], "conclusion": "done"},
+    )
+    assert good.validate_against(schema) == []
+
+    missing = DemiGodResult(claim="c", confidence=0.9, method="m", payload={})
+    assert missing.validate_against(schema)  # names the absent properties
+
+    wrong_type = DemiGodResult(
+        claim="c",
+        confidence=0.9,
+        method="m",
+        payload={"findings": "x", "conclusion": 1},
+    )
+    assert len(wrong_type.validate_against(schema)) == 2
+
+
+def test_domain_artifact_schema_replaces_the_payload_slot_in_the_prompt():
+    """A per-domain output shape rides inside the otherwise fixed contract."""
+    domain_schema = {"type": "object", "required": ["flux"]}
+    props = result_json_schema(domain_schema)["properties"]
+    assert props["payload"] == domain_schema
+    # ...and the fixed fields are still there alongside it.
+    assert "claim" in props and "unknowns" in props
+
+
 def test_prompt_schema_hides_runner_owned_envelope():
     """The agent must not think it can set its own status -- otherwise a model
     can self-report ok on a run that crashed."""
     props = result_json_schema()["properties"]
-    for envelope in ("name", "domain", "status", "error"):
+    for envelope in ENVELOPE_FIELDS:
         assert envelope not in props
-    for authored in ("claim", "confidence", "evidence", "method"):
+    for authored in ("claim", "confidence", "evidence", "method", "payload"):
         assert authored in props
 
 

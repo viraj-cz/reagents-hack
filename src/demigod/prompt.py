@@ -89,14 +89,24 @@ Field notes, in the order people get them wrong:
   you did -- the answer.
 - `confidence`: 0.0-1.0, calibrated. Low confidence honestly reported is
   useful. High confidence wrongly reported poisons the recombination.
+- `payload`: the same finding, machine-readable, in exactly the shape the
+  schema above gives. `claim` is read by a person; `payload` is read by code.
+  They must agree.
+- `method`: enough that someone could reproduce your result without you. The
+  procedure.
+- `justification`: why the claim actually follows, argued in your domain's own
+  terms. The argument, not the procedure -- whatever reads your output has to
+  weigh it against other findings, and it can only do that if you show why.
 - `evidence`: paths relative to `{out}` that back `claim` specifically.
-- `method`: enough that someone could reproduce your result without you.
 - `unknowns`: what you could not determine, including everything you deferred
   as out-of-domain. An empty `unknowns` on a hard problem reads as a failure to
   notice, not as thoroughness.
 - `blockers`: what actively stopped you. Missing data, missing tool, ambiguous
   spec.
 - `files`: everything you wrote, relative to `{out}`.
+
+Do not set `demigod_name`, `domain_name`, `run_id`, `status` or `error`. They
+are not yours to write and will be overwritten.
 
 Write it even if you failed. A manifest with an empty `claim`, confidence 0.0
 and a populated `blockers` is a useful result. Silence is not.
@@ -149,7 +159,10 @@ def build_system_prompt(spec: DemiGodSpec) -> str:
         files_section=files_section,
         tools_section=tools_section,
         result_filename=RESULT_FILENAME,
-        schema=json.dumps(result_json_schema(), indent=2),
+        # The domain's artifact_schema replaces the generic `payload` slot, so
+        # the agent is shown the exact structure it must produce rather than a
+        # bare "object". Envelope fields are excluded either way.
+        schema=json.dumps(result_json_schema(spec.artifact_schema or None), indent=2),
         misc_section=misc_section,
     )
 

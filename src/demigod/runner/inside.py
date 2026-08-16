@@ -118,7 +118,7 @@ class InsideSandboxRunner:
             _write_spec(sandbox, spec)
             returncode = _exec_agent(sandbox, spec)
 
-            return _collect(sandbox, spec, returncode)
+            return _collect(sandbox, spec, returncode, run_id)
         finally:
             if sandbox is not None:
                 # Unconditional. A leaked sandbox bills until max_lifetime_s.
@@ -175,26 +175,28 @@ def _exec_agent(sandbox: modal.Sandbox, spec: DemiGodSpec) -> int:
 
 
 def _collect(
-    sandbox: modal.Sandbox, spec: DemiGodSpec, returncode: int
+    sandbox: modal.Sandbox, spec: DemiGodSpec, returncode: int, run_id: str
 ) -> DemiGodResult:
     """Read back the manifest, stamping the envelope fields ourselves.
 
-    The agent authors claim/confidence/evidence/... ; the runner owns
-    name/domain/status/error. Overwriting them here means a model cannot
-    self-report `status="ok"` on a run that crashed.
+    The agent authors claim/confidence/payload/... ; the runner owns
+    demigod_name/domain_name/run_id/status/error. Overwriting them here means a
+    model cannot self-report `status="ok"` on a run that crashed.
     """
+    envelope = {
+        "demigod_name": spec.name,
+        "domain_name": spec.domain_name or spec.name,
+        "run_id": run_id,
+    }
     raw = _read_result_json(sandbox)
 
     if raw is None:
         # 137 = SIGKILL, which is what Modal uses for timeout/idle termination.
         status = "timeout" if returncode in (124, 137) else "failed"
         return DemiGodResult.failure(
-            name=spec.name,
-            domain=spec.domain,
             status=status,
-            error=(
-                f"agent exited {returncode} without writing {OUT_MOUNT}/result.json"
-            ),
+            error=f"agent exited {returncode} without writing {OUT_MOUNT}/result.json",
+            **envelope,
         )
 
     try:
@@ -203,15 +205,16 @@ def _collect(
         # Artifacts still exist on the volume; only the index is broken. Say so
         # rather than discarding a run's worth of work.
         return DemiGodResult.failure(
-            name=spec.name,
-            domain=spec.domain,
             status="failed",
-            error=f"result.json failed validation ({e}). Artifacts remain in "
-            f"out/{spec.name}/.",
+            error=(
+                f"result.json failed validation ({e}). Artifacts remain in "
+                f"out/{spec.name}/."
+            ),
+            **envelope,
         )
 
-    result.name = spec.name
-    result.domain = spec.domain
+    for field, value in envelope.items():
+        setattr(result, field, value)
     result.status = "ok" if returncode == 0 else "failed"
     if returncode != 0:
         result.error = f"agent exited {returncode} but wrote a manifest"
