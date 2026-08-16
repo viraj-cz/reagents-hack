@@ -120,7 +120,10 @@ being audited.
 Deploy it, then point GOD at it:
 
 ```bash
-uv run modal deploy src/broker/service.py
+# -m, not a file path: deploying `src/broker/service.py` builds fine, exits 0,
+# and then crash-loops every replica with "No module named 'service'".
+uv run modal deploy -m broker.service
+curl -s https://<your-workspace>--toolbox-broker-router.modal.run/v1/health
 uv run python scripts/preflight_toolbox.py    # cheap live check, no tokens
 ```
 

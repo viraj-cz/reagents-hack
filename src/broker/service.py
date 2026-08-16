@@ -1,7 +1,20 @@
 """THE THIRD SANDBOX TYPE. GOD spawns, DEMI_GOD reasons, BROKER executes.
 
-    uv run modal serve src/broker/service.py     # ephemeral, for development
-    uv run modal deploy src/broker/service.py    # persistent
+    uv run modal serve -m broker.service     # ephemeral, for development
+    uv run modal deploy -m broker.service    # persistent
+
+DEPLOY WITH `-m`, NOT A FILE PATH. `modal deploy src/broker/service.py` names
+the module after the FILE, so `router` is serialized referencing a top-level
+`service` module. The image ships `broker` as a package, where it is
+`broker.service` -- so the reference does not resolve in the container and
+every replica dies on startup with:
+
+    ModuleNotFoundError: No module named 'service'
+    Function .router is crash-looping
+
+The deploy itself still prints "App deployed" and exits 0, because the failure
+happens later when a container tries to start. Check `/v1/health` returns 200
+after deploying; a green deploy is not a running service.
 
 WHY A MODAL FUNCTION AND NOT A LONG-LIVED SANDBOX
 -------------------------------------------------
@@ -678,7 +691,9 @@ def endpoint_url() -> str:
     if not url:
         raise RuntimeError(
             f"{APP_NAME}/router has no web URL. Deploy it with "
-            f"`uv run modal deploy src/broker/service.py`, or set "
+            f"`uv run modal deploy -m broker.service` (the -m matters: a file "
+            f"path deploys a module named `service` that does not exist in the "
+            f"image, and every replica crash-loops), or set "
             f"TOOLBOX_BROKER_URL to a `modal serve` URL."
         )
     return url.rstrip("/")

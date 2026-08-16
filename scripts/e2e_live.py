@@ -293,7 +293,7 @@ def main() -> int:
         action="store_true",
         help="publish each demigod's lease to the deployed TOOLBOX_BROKER and "
         "hand it the URL, so it can call brokered tools instead of writing its "
-        "own Python. Requires `uv run modal deploy src/broker/service.py` (or "
+        "own Python. Requires `uv run modal deploy -m broker.service` (or "
         "TOOLBOX_BROKER_URL pointing at a `modal serve` URL). Off by default: "
         "minting a live credential should be an explicit act.",
     )
