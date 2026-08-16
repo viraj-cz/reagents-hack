@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -81,6 +82,38 @@ def language_overlap(a: str, b: str) -> float:
     return len(ta & tb) / len(ta | tb)
 
 
+def distinctive_tools(specs: list[DomainSpec]) -> dict[str, list[str]]:
+    """Each spec's tools with the set's shared infrastructure removed.
+
+    A tool that most domains pick carries no information about whether any two
+    of them are orthogonal. Raw Jaccard cannot tell that apart: it scores
+    sharing `solve` -- which 8 of 11 invented domains reached for -- exactly
+    like sharing `entropy`, which one did.
+
+    That is not hypothetical. On the water-tank problem with a 14-tool local
+    catalog, three domains with primary axes conservation / dynamics /
+    causality and completely unrelated languages (a min-algebra semiring, a
+    ledger graph, a system of rate equations) were rejected round after round
+    until the planner gave up, solely because two of them both picked
+    `build_graph` and `solve`. The metric was measuring how small the catalog
+    is, not how similar the approaches are.
+
+    So overlap is judged on what is left after removing tools at least half the
+    set uses. If that leaves a spec with nothing distinctive, the caller falls
+    back to raw Jaccard -- otherwise domains that genuinely picked identical
+    toolsets would score 0 and pass, which is the opposite of the intent.
+    """
+    if not specs:
+        return {}
+    counts: dict[str, int] = {}
+    for spec in specs:
+        for tool in set(spec.tool_ids):
+            counts[tool] = counts.get(tool, 0) + 1
+    shared_threshold = max(2, (len(specs) + 1) // 2)
+    common = {t for t, c in counts.items() if c >= shared_threshold}
+    return {s.name: [t for t in s.tool_ids if t not in common] for s in specs}
+
+
 def structural_critic(
     specs: list[DomainSpec],
     registry: ToolRegistry,
@@ -143,9 +176,18 @@ def structural_critic(
             reasons.append(f"{spec.name}: bad tools ({exc})")
             colliding.add(spec.name)
 
+    distinctive = distinctive_tools(specs)
     for i, a in enumerate(specs):
         for b in specs[i + 1 :]:
-            jac = tool_jaccard(a.tool_ids, b.tool_ids)
+            # Judged on distinctive tools, not raw ones -- see distinctive_tools
+            # for the run this cost. Falls back to raw when either side has
+            # nothing distinctive, so two domains that picked the SAME toolset
+            # are still caught rather than scoring a vacuous 0.
+            da, db = distinctive.get(a.name, []), distinctive.get(b.name, [])
+            if da and db:
+                jac = tool_jaccard(da, db)
+            else:
+                jac = tool_jaccard(a.tool_ids, b.tool_ids)
             if jac > jaccard_threshold:
                 reasons.append(
                     f"tool Jaccard {jac:.2f} > {jaccard_threshold}: {a.name} vs {b.name}"
@@ -169,6 +211,12 @@ class Planner:
     def __init__(self, llm: LLMClient, registry: ToolRegistry) -> None:
         self.llm = llm
         self.registry = registry
+        self.last_plan_compromises: list[str] = []
+        """Critic objections the returned plan still carries, or empty.
+
+        Non-empty means `plan` ran out of rounds and returned its best set
+        anyway. Readable by a caller that would rather fail than proceed."""
+
         self.last_symbol_map: dict[str, str] = {}
         """Symbol -> native entity for the most recent plan. GOD's alone.
 
@@ -256,13 +304,20 @@ class Planner:
         terms = native_terms(problem)
         planning_problem, self.last_symbol_map = anonymize_problem(problem)
         specs = await self.invent(planning_problem, n)
+        # Best seen so far, so exhausting the rounds returns something rather
+        # than nothing. Scored by how many objections the critic raised.
+        best: list[DomainSpec] = specs
+        best_reasons: list[str] = ["not yet judged"]
         for _ in range(max_rounds):
             structural = structural_critic(specs, self.registry, terms=terms)
             verdict = structural
             if structural.ok:
                 verdict = await self.llm_critic(specs)
                 if verdict.ok:
+                    self.last_plan_compromises = []
                     return specs
+            if len(verdict.reasons) < len(best_reasons):
+                best, best_reasons = specs, verdict.reasons
             colliding = set(verdict.colliding_names)
             if not colliding:
                 colliding = {s.name for s in specs}
@@ -280,4 +335,32 @@ class Planner:
                 rejected_because=verdict.reasons,
             )
             specs = kept + replacements
-        raise PlanError("could not invent an orthogonal domain set")
+
+        # ROUNDS EXHAUSTED, AND THAT IS NOT A REASON TO RETURN NOTHING. This
+        # used to `raise PlanError`, throwing away every domain invented across
+        # every round -- five model calls and eighty seconds, for a set whose
+        # only remaining objection was a tool-overlap proxy.
+        #
+        # Seen live on the water-tank problem with containers off: the three
+        # domains had primary axes conservation / dynamics / causality, all
+        # distinct, and languages that shared nothing. They were rejected solely
+        # because two of them both picked `solve` and `build_graph` out of a
+        # 14-tool catalog. Orthogonal by every criterion that matters, discarded
+        # for a metric artifact.
+        #
+        # The compromises are recorded rather than swallowed: a caller that
+        # wants strictness can read `last_plan_compromises` and refuse, but the
+        # default is a usable plan with its flaws stated. A partial answer beats
+        # a stack trace.
+        if not best:
+            raise PlanError(
+                f"the planner returned no domains at all across {max_rounds} rounds"
+            )
+        self.last_plan_compromises = best_reasons
+        print(
+            f"[planner] returning a best-effort domain set after {max_rounds} "
+            f"rounds; unresolved: {best_reasons}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return best
