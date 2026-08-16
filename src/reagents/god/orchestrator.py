@@ -442,7 +442,7 @@ async def _spawn(
     pack = god.registry.bind(
         envelope.domain.tool_ids,
         subject_id=envelope.domain.name,
-        budget=envelope.budget,
+        budget=budget,
         allow_write=bool(write_tools),
         tracer=god.tracer,
     )

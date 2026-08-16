@@ -81,9 +81,7 @@ def test_overflow_drops_the_oldest_and_counts_it() -> None:
     """An unread trace must not grow GOD's memory without bound."""
 
     queue = FakeQueue()
-    tracer = QueueTracer(
-        "run-4", queue=queue, flush_interval_s=3600, max_pending=3
-    )
+    tracer = QueueTracer("run-4", queue=queue, flush_interval_s=3600, max_pending=3)
     for i in range(6):
         tracer.emit("GOD", "NOTE", f"event-{i}")
     tracer.close()

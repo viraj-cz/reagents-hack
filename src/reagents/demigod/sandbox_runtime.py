@@ -44,6 +44,7 @@ from typing import Any, Protocol
 
 from demigod.result import DemiGodResult
 from demigod.spawn import spawn_demigod
+from demigod.spec import DemiGodSpec
 from demigod.toolbox.protocol import ToolboxGrant
 from reagents.contracts import ContextEnvelope
 from reagents.demigod.adapter import envelope_to_spec, slugify_domain_name
@@ -123,6 +124,7 @@ class SandboxDemigodRuntime:
         # hosts beyond *.anthropic.com, so enabling it untested would break
         # every live run.
         restrict_egress: bool = False,
+        lease_wall_time_s: float | None = None,
     ) -> None:
         self.run_id = run_id
         self.tool_map = tool_map or {}
@@ -154,6 +156,32 @@ class SandboxDemigodRuntime:
         self.model = model or agent_model
         self.require_toolbox = require_toolbox
         self.tracer = tracer or NullTracer()
+        # THE LEASE CLOCK, and why it is not `Budget.wall_time_s`.
+        #
+        # That default is 60s, and it is right for the in-process runtime, where
+        # a bound pack is called microseconds after it is minted. Here the same
+        # 60s starts when GOD mints the lease -- BEFORE the sandbox is created,
+        # before the image is pulled, before the agent has read its envelope.
+        # A demigod that thinks for a minute and then reaches for a tool finds
+        # its authority already expired.
+        #
+        # Observed twice in one live run: "Toolbox lease expired (60s budget)
+        # before any tool call could be made", and a demigod that diagnosed its
+        # own malformed call and ran out of lease before the corrected one could
+        # land. The wall clock was not bounding authority, it was randomly
+        # denying it.
+        #
+        # So it expires WITH the sandbox rather than before it: authority for
+        # exactly as long as the holder exists. The bound that actually limits a
+        # demigod is `max_calls`, which is untouched, along with the tool set and
+        # the write flag. And `_finish_lease` revokes explicitly the moment the
+        # sandbox returns, so the ceiling only matters when something has already
+        # gone wrong.
+        self.lease_wall_time_s = float(
+            lease_wall_time_s
+            if lease_wall_time_s is not None
+            else DemiGodSpec.model_fields["max_lifetime_s"].default
+        )
 
     def set_tracer(self, tracer: TraceSink) -> None:
         """Use God's sink so sandbox and in-process runtimes stream alike."""
@@ -244,6 +272,7 @@ class SandboxDemigodRuntime:
         # what it called. A demigod that called a tool, disliked the answer, and
         # omitted it cannot hide here.
         await self._finish_lease(grant, result)
+        self._replay_tool_trace(lane, result)
 
         minimum_tool_calls = int(envelope.artifact_schema.get("x-min-tool-calls") or 0)
         if result.status == "ok" and len(result.tool_trace) < minimum_tool_calls:
@@ -341,6 +370,43 @@ class SandboxDemigodRuntime:
                 "TOOLBOX",
                 f"no reachable broker; this demigod gets no brokered tools ({exc})",
             )
+
+    def _replay_tool_trace(self, lane: str, result: DemiGodResult) -> None:
+        """Emit the brokered calls, once the broker has told us what they were.
+
+        The in-process runtime traces a tool call as it happens, because it IS
+        the caller. A sandboxed demigod calls the broker directly over HTTPS, so
+        nothing here sees a call until `_finish_lease` reads the audited trace
+        back -- and a consumer counting live TOOL CALL events therefore reported
+        zero while the broker had recorded six. Real calls, invisible.
+
+        Replayed after the fact rather than not at all: the timestamps are the
+        broker's, so the ORDER is honest even though the arrival is late. A
+        refused call is reported as a denial, not skipped -- the broker records
+        those precisely so a demigod probing for tools it was not granted is
+        visible rather than silent.
+        """
+
+        for entry in result.tool_trace or []:
+            row = entry if isinstance(entry, dict) else {}
+            tool = str(row.get("tool") or "unknown")
+            self.tracer.emit(
+                lane,
+                "TOOL CALL",
+                tool,
+                data={"arguments": row.get("input") or {}},
+            )
+            if row.get("ok", True):
+                self.tracer.emit(
+                    lane, "TOOL RESULT", tool, data={"result": row.get("result")}
+                )
+                continue
+            error = row.get("error") or {}
+            detail = error.get("message") if isinstance(error, dict) else str(error)
+            # `metered=False` is the broker's marker for a call it refused
+            # rather than ran, which is a denial and not a tool that failed.
+            kind = "TOOL DENY" if row.get("metered") is False else "TOOL ERROR"
+            self.tracer.emit(lane, kind, f"{tool}: {detail or 'refused'}")
 
     # --- lease lifecycle ----------------------------------------------------
 

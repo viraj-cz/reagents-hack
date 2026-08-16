@@ -189,6 +189,7 @@ async def _solve(
     from reagents.demigod.sandbox_runtime import SandboxDemigodRuntime
     from reagents.god.orchestrator import God
     from reagents.llm.client import make_llm
+    from reagents.llm.streaming import StreamingAnthropicLLM
 
     # The orchestrator's own event stream, shipped out of the sandbox on a
     # queue. `_instrument` below reports PHASES into the status Dict, which is
@@ -216,8 +217,23 @@ async def _solve(
     elif request.verifier_id is not None:
         raise ValueError(f"unknown native verifier {request.verifier_id!r}")
 
+    # Streamed when there is a channel to stream to. Without this the sandbox
+    # used the non-streaming client and the whole planning phase -- 57 seconds
+    # in the run that prompted this -- arrived as nothing at all between two
+    # phase lines, which reads as a hang. `make_llm()` remains the fallback so
+    # a run without a trace channel, or without a key, behaves as it always did.
+    llm: Any = make_llm(request.model)
+    if tracer is not None and os.environ.get("ANTHROPIC_API_KEY"):
+        try:
+            llm = StreamingAnthropicLLM(tracer, request.model)
+        except Exception as exc:
+            print(
+                f"[trace] falling back to the non-streaming client: {exc}",
+                flush=True,
+            )
+
     god = God(
-        make_llm(request.model),
+        llm,
         domain_count=request.domain_count,
         # Operator approval arrives in the request and cannot be widened from
         # in here. An empty set means no write tool spawns.

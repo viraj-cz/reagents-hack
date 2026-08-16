@@ -9,7 +9,10 @@ output as it is produced.
 Two paths, and the difference between them is visible in the UI rather than
 hidden:
 
-* `StreamingAnthropicLLM` streams genuinely, from the Anthropic API.
+* `reagents.llm.streaming.StreamingAnthropicLLM` streams genuinely, from the
+  Anthropic API. It lives in `reagents` rather than here so a GOD running in
+  its own Modal sandbox -- whose image ships `reagents` and not this package --
+  streams too. Re-exported below for callers that already import it from here.
 * `ReplayLLM` wraps a non-streaming client (in practice `ScriptedLLM`) and
   replays its already-complete answer in chunks. Every event it emits is
   tagged `simulated: true` and the frontend labels the run REPLAY, because a
@@ -20,15 +23,15 @@ hidden:
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
 from reagents.contracts import Budget
 from reagents.llm.client import LLMClient
+from reagents.llm.streaming import StreamingAnthropicLLM, lane_for_phase
 from reagents.tools.registry import BoundToolPack
-from reagents.tracing import GOD_LANE, NullTracer, TraceSink, demigod_lane
+from reagents.tracing import NullTracer, TraceSink
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -36,14 +39,6 @@ T = TypeVar("T", bound=BaseModel)
 # enough that the text visibly flows rather than landing in paragraphs.
 REPLAY_CHUNK_CHARS = 18
 REPLAY_CHUNK_DELAY_S = 0.012
-
-
-def lane_for_phase(phase: str) -> str:
-    """`demigod:catalytic_dag` belongs to that demigod's lane; the rest is GOD's."""
-
-    if phase.startswith("demigod:"):
-        return demigod_lane(phase.removeprefix("demigod:"))
-    return GOD_LANE
 
 
 class _TextEmitter:
@@ -144,101 +139,6 @@ class ReplayLLM(_TextEmitter):
         self.emit_close(phase, simulated=True)
 
 
-class StreamingAnthropicLLM:
-    """`AnthropicLLM` with the planning call streamed instead of awaited whole.
-
-    Only `complete()` is overridden. That is where GOD does its own thinking --
-    inventing domains, projecting the problem, integrating the artifacts -- and
-    it is the text a user actually wants to watch. `run_tool_loop` is inherited
-    unchanged; a demigod's visible progress is its tool calls, which the
-    registry already traces.
-    """
-
-    def __init__(
-        self, tracer: TraceSink | None = None, model: str | None = None
-    ) -> None:
-        from reagents.llm.anthropic_client import DEFAULT_MODEL, AnthropicLLM
-
-        self.inner = AnthropicLLM(model or DEFAULT_MODEL)
-        self.emitter = _TextEmitter(tracer)
-
-    def set_tracer(self, tracer: TraceSink) -> None:
-        self.emitter = _TextEmitter(tracer)
-
-    async def complete(
-        self,
-        *,
-        system: str,
-        user: str,
-        response_model: type[T],
-        phase: str = "",
-    ) -> T:
-        from reagents.llm.anthropic_client import (
-            PLANNING_MAX_TOKENS,
-            REFUSAL_RETRIES,
-            _describe_refusal,
-            _parse_model,
-            _text_blocks,
-        )
-        from reagents.llm.client import LLMError
-
-        schema = json.dumps(response_model.model_json_schema())
-        system_full = (
-            f"{system}\n\nRespond with JSON only matching this schema:\n{schema}"
-        )
-
-        last_refusal: str | None = None
-        for _ in range(REFUSAL_RETRIES + 1):
-            self.emitter.emit_open(phase, simulated=False)
-            async with self.inner._client.messages.stream(
-                model=self.inner.model,
-                max_tokens=PLANNING_MAX_TOKENS,
-                system=system_full,
-                messages=[{"role": "user", "content": user}],
-            ) as stream:
-                async for delta in stream.text_stream:
-                    self.emitter.emit_text(phase, delta, simulated=False)
-                message = await stream.get_final_message()
-            self.emitter.emit_close(phase, simulated=False)
-
-            if getattr(message, "stop_reason", None) != "refusal":
-                return _parse_model(_text_blocks(message), response_model, message)
-            # Same false-positive handling as the non-streaming client: a
-            # refusal truncates the JSON, so parsing it would report a
-            # malformed response and hide the real cause.
-            last_refusal = _describe_refusal(message)
-
-        raise LLMError(
-            f"{response_model.__name__}: the model refused "
-            f"{REFUSAL_RETRIES + 1} times ({last_refusal})."
-        )
-
-    async def run_tool_loop(
-        self,
-        *,
-        system: str,
-        user: str,
-        tools: BoundToolPack,
-        response_model: type[T],
-        budget: Budget,
-        phase: str = "",
-        response_schema: dict[str, Any] | None = None,
-    ) -> tuple[T, list[dict[str, Any]]]:
-        result, trace = await self.inner.run_tool_loop(
-            system=system,
-            user=user,
-            tools=tools,
-            response_model=response_model,
-            budget=budget,
-            phase=phase,
-            response_schema=response_schema,
-        )
-        self.emitter.emit_open(phase, simulated=False)
-        self.emitter.emit_text(phase, _render(result), simulated=False)
-        self.emitter.emit_close(phase, simulated=False)
-        return result, trace
-
-
 def _render(value: Any) -> str:
     dump = getattr(value, "model_dump_json", None)
     if callable(dump):
@@ -254,3 +154,11 @@ def make_llm(mode: str, tracer: TraceSink | None = None) -> LLMClient:
     from reagents.llm.scripted import ScriptedLLM
 
     return ReplayLLM(ScriptedLLM.for_toy_pathway(), tracer)
+
+
+__all__ = [
+    "ReplayLLM",
+    "StreamingAnthropicLLM",
+    "lane_for_phase",
+    "make_llm",
+]
