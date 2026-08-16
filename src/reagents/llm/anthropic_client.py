@@ -17,8 +17,29 @@ T = TypeVar("T", bound=BaseModel)
 _JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
 
 
+DEFAULT_MODEL = "claude-opus-4-8"
+"""GOD's own loop: planner, transformer, integrator.
+
+Was `claude-sonnet-4-20250514`, which is deprecated and now 404s:
+
+    NotFoundError: Error code: 404 - {'type': 'not_found_error',
+    'message': 'model: claude-sonnet-4-20250514'}
+
+Use the bare alias, never a date-suffixed variant -- the suffixed forms are
+snapshot IDs and guessing one 404s the same way. Note this model rejects
+`temperature`/`top_p`/`top_k` and `thinking.budget_tokens` with a 400; this
+client passes none of them, so no other change was needed.
+"""
+
+PLANNING_MAX_TOKENS = 16000
+"""Was 4096. A planner turn emits N full DomainSpecs -- axes, invented
+language, transform prompt, tool ids, and a JSON artifact_schema each -- and
+truncating one mid-object surfaces as a JSON parse failure, not as a token
+error. 16k is the non-streaming default; above that the SDK needs streaming."""
+
+
 class AnthropicLLM:
-    def __init__(self, model: str = "claude-sonnet-4-20250514") -> None:
+    def __init__(self, model: str = DEFAULT_MODEL) -> None:
         try:
             import anthropic
         except ImportError as exc:
@@ -38,7 +59,7 @@ class AnthropicLLM:
         schema = json.dumps(response_model.model_json_schema())
         message = await self._client.messages.create(
             model=self.model,
-            max_tokens=4096,
+            max_tokens=PLANNING_MAX_TOKENS,
             system=f"{system}\n\nRespond with JSON only matching this schema:\n{schema}",
             messages=[{"role": "user", "content": user}],
         )

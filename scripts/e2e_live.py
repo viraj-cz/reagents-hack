@@ -30,6 +30,7 @@ import os
 import sys
 import time
 import uuid
+from pathlib import Path
 
 from reagents.demigod.sandbox_runtime import SandboxDemigodRuntime
 from reagents.god.orchestrator import God
@@ -132,6 +133,25 @@ async def run_once(domains: int, turns: int, run_id: str) -> int:
     return 0 if trace.artifacts else 1
 
 
+def load_env_file() -> None:
+    """Load .env if present, so the key does not have to live in the shell.
+
+    An exported variable only exists in the shell that exported it, which makes
+    the run unrepeatable and un-delegatable -- anyone (or anything) driving this
+    script from a different process has no key. A gitignored .env fixes that
+    once. Existing environment variables win, so an explicit export still
+    overrides the file.
+    """
+    env_path = Path(__file__).parent.parent / ".env"
+    if not env_path.exists():
+        return
+    try:
+        from dotenv import load_dotenv
+    except ModuleNotFoundError:
+        return
+    load_dotenv(env_path, override=False)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--domains", type=int, default=2)
@@ -139,11 +159,33 @@ def main() -> int:
     parser.add_argument("--run-id", default=None)
     args = parser.parse_args()
 
+    load_env_file()
+
     if not os.environ.get("ANTHROPIC_API_KEY"):
         print(
-            "error: ANTHROPIC_API_KEY must be set for God's own loop (planner, "
+            "error: ANTHROPIC_API_KEY not found for God's own loop (planner, "
             "transformer, integrator). The DEMI_GODs read theirs from the Modal "
-            "secret `demigod-anthropic` instead.",
+            "secret `demigod-anthropic` instead -- Modal secrets are write-only, "
+            "so that one cannot be reused here.\n"
+            "Put it in a gitignored .env at the repo root (preferred -- any "
+            "process can then run this):\n"
+            "  echo 'ANTHROPIC_API_KEY=sk-ant-...' >> .env\n"
+            "or export it in your shell:\n"
+            "  export ANTHROPIC_API_KEY=sk-ant-...",
+            file=sys.stderr,
+        )
+        return 2
+
+    # `anthropic` lives in the optional `llm` extra, so a plain `uv sync` leaves
+    # it out and make_llm() explodes on its first call -- AFTER a run_id and
+    # volumes have been created. Fail here instead, with the fix.
+    try:
+        import anthropic  # noqa: F401
+    except ModuleNotFoundError:
+        print(
+            "error: the `anthropic` package is not installed. It is in the "
+            "optional `llm` extra, which `uv sync` does not install by default:\n"
+            "  uv sync --extra llm",
             file=sys.stderr,
         )
         return 2
