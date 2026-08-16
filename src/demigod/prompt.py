@@ -75,9 +75,21 @@ read by something that never saw you work. So:
 - Write intermediate results as you go, not in one pass at the end. If you are
   cut off, whatever is on disk is what you produced.
 
-# Finishing
+# Your manifest: write it EARLY, then keep it current
 
-Your LAST action is to write `{out}/{result_filename}`, matching this schema:
+`{out}/{result_filename}` is the one file that must exist. Write it **within
+your first few actions** — as soon as you have any claim at all, even a bad one
+— and rewrite it each time your answer improves.
+
+Do NOT save it for the end. You have a limited number of turns and you will not
+be warned before they run out. A manifest written early and refined twice beats
+a perfect one you never got to write: if you are cut off, whatever is on disk at
+that moment is your entire contribution.
+
+A first pass with `confidence` 0.1 and a rough `claim` is a good use of an early
+turn. Overwrite it as you learn more.
+
+It must match this schema:
 
 ```json
 {schema}
@@ -172,6 +184,8 @@ def build_task_prompt(spec: DemiGodSpec) -> str:
     is just the kick-off, kept short so it does not restate and contradict it."""
     return (
         f"Begin. Your goal: {spec.problem.goal.strip()}\n\n"
-        f"Work in {OUT_MOUNT}. When you are done, write "
-        f"{OUT_MOUNT}/{RESULT_FILENAME}."
+        f"Work in {OUT_MOUNT}. Write an initial {OUT_MOUNT}/{RESULT_FILENAME} "
+        f"early -- a rough claim at low confidence is fine -- then refine it as "
+        f"you go. You have {spec.max_turns} turns and will not be warned before "
+        f"they run out."
     )

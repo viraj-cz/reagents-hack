@@ -23,7 +23,7 @@ from reagents.demigod.runtime import (
 from reagents.god.integrator import Integrator
 from reagents.god.planner import Planner
 from reagents.god.transformer import LeakError, Transformer
-from reagents.isolation import assert_sealed, native_terms
+from reagents.isolation import assert_sealed, find_spec_leaks, native_terms
 from reagents.llm.client import LLMClient
 from reagents.tools.registry import ToolRegistry, default_registry
 
@@ -86,6 +86,24 @@ class God:
         failures: list[DemiGodResult] = []
 
         for spec in specs:
+            # Check the PLANNER's own output first. assert_sealed below scans
+            # the whole envelope, so a term the planner wrote into `language`
+            # or `artifact_schema` would otherwise only surface after a
+            # transform call had been spent -- and would read as a transform
+            # leak, which it is not.
+            spec_leaks = find_spec_leaks(spec, terms)
+            if spec_leaks:
+                flat = sorted({t for ts in spec_leaks.values() for t in ts})
+                leaks.extend(flat)
+                detail = ", ".join(f"{f}={ts}" for f, ts in spec_leaks.items())
+                failures.append(
+                    _sealing_failure(
+                        spec.name,
+                        f"planner leaked native terms into the domain spec ({detail})",
+                        flat,
+                    )
+                )
+                continue
             try:
                 domain_problem, inverse = await self.transformer.forward(problem, spec)
             except LeakError as exc:

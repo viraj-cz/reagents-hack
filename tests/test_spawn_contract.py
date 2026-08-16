@@ -242,3 +242,36 @@ def test_example_spec_validates_and_resolves():
 def test_spec_is_json_serializable_for_transport_into_the_sandbox():
     spec = make_spec()
     assert DemiGodSpec.model_validate(json.loads(spec.model_dump_json())) == spec
+
+
+# --- turn-budget truncation --------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Claude Code returned an error result: Reached maximum number of turns (6)",
+        "reached MAXIMUM NUMBER OF TURNS (12)",
+        "max_turns exceeded",
+    ],
+)
+def test_turn_limit_errors_are_recognized(message):
+    """The SDK raises a bare Exception carrying the CLI's error string, with no
+    typed subclass. Before this was caught, hitting the cap killed the process
+    before the manifest was written and a demigod that had done real work
+    returned nothing."""
+    from demigod.entrypoint import _is_turn_limit
+
+    assert _is_turn_limit(Exception(message))
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["CLINotFoundError: Claude Code not found", "connection reset", "401 unauthorized"],
+)
+def test_other_errors_are_not_swallowed_as_turn_limits(message):
+    """Deliberately narrow: any error that is NOT the turn cap must still
+    propagate and fail the run loudly."""
+    from demigod.entrypoint import _is_turn_limit
+
+    assert not _is_turn_limit(Exception(message))

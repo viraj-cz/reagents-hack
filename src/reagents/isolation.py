@@ -6,7 +6,12 @@ import json
 import re
 from typing import Any
 
-from reagents.contracts import ContextEnvelope, DomainProblem, NativeProblem
+from reagents.contracts import (
+    ContextEnvelope,
+    DomainProblem,
+    DomainSpec,
+    NativeProblem,
+)
 
 # Tokens this short collide with algebra (A, B, x) and are not treated as leaks.
 _MIN_TERM_LEN = 3
@@ -72,3 +77,46 @@ def envelope_visible_text(envelope: ContextEnvelope) -> str:
 def assert_sealed(envelope: ContextEnvelope, terms: set[str]) -> list[str]:
     """Return leak terms found in demigod-visible envelope text."""
     return find_leaks(envelope_visible_text(envelope), terms)
+
+
+def spec_visible_text(spec: DomainSpec) -> str:
+    """The PLANNER-authored text a demigod will eventually see.
+
+    Deliberately excludes `transform_prompt`: it is God's instruction to itself,
+    describes the native problem by design, and the orchestrator blanks it
+    before it ever reaches an envelope.
+    """
+    return "\n".join(
+        [
+            spec.name,
+            spec.language,
+            *spec.forbidden,
+            _flatten(spec.artifact_schema),
+        ]
+    )
+
+
+def find_spec_leaks(spec: DomainSpec, terms: set[str]) -> dict[str, list[str]]:
+    """Leaks in the planner's own output, attributed to the field they came from.
+
+    Worth checking separately, and early. `assert_sealed` scans the whole
+    envelope, so a term the PLANNER wrote into `language` or `artifact_schema`
+    is only caught after a transform call has already been spent on that domain
+    -- and the failure reads as if the transform leaked, which it did not.
+
+    Attribution matters because the fix differs by field: a leak in `language`
+    means the invented representation is not actually abstract, while one in
+    `artifact_schema` usually means a property was named after a native entity.
+    """
+    fields = {
+        "name": [spec.name],
+        "language": [spec.language],
+        "forbidden": list(spec.forbidden),
+        "artifact_schema": [_flatten(spec.artifact_schema)],
+    }
+    found: dict[str, list[str]] = {}
+    for field, texts in fields.items():
+        leaks = find_leaks("\n".join(texts), terms)
+        if leaks:
+            found[field] = leaks
+    return found

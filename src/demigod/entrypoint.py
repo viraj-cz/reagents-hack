@@ -52,13 +52,45 @@ async def run_agent(spec: DemiGodSpec) -> int:
 
     print(f"[entrypoint] {spec.name}: domain={spec.domain!r} tools={spec.tools}")
 
-    async for message in query(prompt=build_task_prompt(spec), options=options):
-        # Coarse but useful: this is what streams back to the caller's console.
-        # TODO: structured logging + token/cost accounting once the GOD needs to
-        # budget across many DEMI_GODs.
-        print(f"[agent] {_summarize(message)}", flush=True)
+    truncated = False
+    try:
+        async for message in query(prompt=build_task_prompt(spec), options=options):
+            # Coarse but useful: this is what streams back to the caller's
+            # console. TODO: structured logging + token/cost accounting once the
+            # GOD needs to budget across many DEMI_GODs.
+            print(f"[agent] {_summarize(message)}", flush=True)
+    except Exception as e:
+        if not _is_turn_limit(e):
+            raise
+        # Running out of turns is a BUDGET event, not a crash. The SDK raises
+        # on the cap, which -- before this was handled -- killed the process
+        # before the manifest was ever verified, so a demigod that had done six
+        # turns of real work returned literally nothing. Cap and keep whatever
+        # exists instead.
+        truncated = True
+        print(
+            f"[entrypoint] turn limit ({spec.max_turns}) reached -- keeping "
+            f"partial work",
+            file=sys.stderr,
+            flush=True,
+        )
 
-    return _verify_manifest(spec)
+    return _verify_manifest(spec, truncated=truncated)
+
+
+_TURN_LIMIT_MARKERS = ("maximum number of turns", "max_turns")
+
+
+def _is_turn_limit(exc: Exception) -> bool:
+    """Is this the SDK's turn-cap error rather than a genuine failure?
+
+    Matched on message text because the SDK raises a bare `Exception` carrying
+    the CLI's error string ("Claude Code returned an error result: Reached
+    maximum number of turns (N)") with no typed subclass to catch. If a future
+    SDK adds one, match on that instead -- this is deliberately narrow so any
+    other error still propagates and fails the run loudly.
+    """
+    return any(m in str(exc).lower() for m in _TURN_LIMIT_MARKERS)
 
 
 def _summarize(message: object) -> str:
@@ -72,18 +104,41 @@ def _summarize(message: object) -> str:
     return type(message).__name__
 
 
-def _verify_manifest(spec: DemiGodSpec) -> int:
+def _verify_manifest(spec: DemiGodSpec, *, truncated: bool = False) -> int:
     """Confirm the agent wrote a valid result.json before we exit 0.
 
     Checked here, inside, as well as by the runner outside. Duplication is
     intentional: in here we can still say something useful about *which* field
     is wrong, and the exit code gives the runner an unambiguous signal.
+
+    `truncated` means the turn budget ran out. In that case a missing manifest
+    is not a failure to report -- it is work to salvage: whatever files the
+    agent wrote are still on the volume, so we synthesize a manifest indexing
+    them rather than discarding the run.
     """
     try:
         result = DemiGodResult.read(OUT_MOUNT)
     except Exception as e:
+        if truncated:
+            return _salvage(spec, reason=str(e))
         print(f"[entrypoint] FAIL: {e}", file=sys.stderr)
         return 2
+
+    if truncated:
+        # The agent wrote a manifest early (as instructed) but never got to
+        # finalize it. Keep its content; mark it as incomplete so a consumer
+        # weights it accordingly rather than treating it as a finished answer.
+        result.status = "timeout"
+        result.blockers = [
+            *result.blockers,
+            f"turn budget ({spec.max_turns}) exhausted before the agent finished",
+        ]
+        result.write(OUT_MOUNT)
+        print(
+            f"[entrypoint] {spec.name}: TRUNCATED but manifest kept "
+            f"(confidence={result.confidence}, {len(result.files)} artifact(s))"
+        )
+        return 0
 
     missing = [
         p for p in result.evidence + result.files if not (Path(OUT_MOUNT) / p).exists()
@@ -100,6 +155,41 @@ def _verify_manifest(spec: DemiGodSpec) -> int:
     print(
         f"[entrypoint] {spec.name}: ok, confidence={result.confidence}, "
         f"{len(result.files)} artifact(s)"
+    )
+    return 0
+
+
+def _salvage(spec: DemiGodSpec, *, reason: str) -> int:
+    """Synthesize a manifest for a run that ran out of turns before writing one.
+
+    The agent's files are still on the volume. Indexing them turns a total loss
+    into a low-confidence partial result that an orchestrator can still weigh,
+    and that a human can still read.
+    """
+    out = Path(OUT_MOUNT)
+    produced = sorted(
+        p.name for p in out.iterdir() if p.is_file() and p.name != RESULT_FILENAME
+    )
+    result = DemiGodResult(
+        claim="",
+        confidence=0.0,
+        method=(
+            "Run was cut off by the turn budget before the agent wrote its own "
+            "manifest. This manifest was synthesized by the entrypoint and "
+            "indexes whatever files survived."
+        ),
+        files=produced,
+        blockers=[
+            f"turn budget ({spec.max_turns}) exhausted before any manifest was "
+            f"written ({reason})"
+        ],
+        status="timeout",
+    )
+    result.write(out)
+    print(
+        f"[entrypoint] {spec.name}: TRUNCATED, salvaged {len(produced)} file(s) "
+        f"into a synthesized manifest",
+        file=sys.stderr,
     )
     return 0
 

@@ -12,8 +12,8 @@ COST. Every God phase and every demigod turn is an Anthropic call; Modal
 compute is cents beside that. Defaults are deliberately small: 2 domains, 6
 turns. Rough shape of one run at defaults:
 
-    1 planner call + 2 transform calls + 1 integrate call   (God, sonnet)
-    2 sandboxes x <=6 turns                                 (the demigods)
+    1 planner call + 2 transform calls + 1 integrate call   (God)
+    2 sandboxes x <=12 turns                                (the demigods)
 
 Raise --domains/--turns only once the pipeline is known to work.
 
@@ -35,7 +35,7 @@ from pathlib import Path
 from reagents.demigod.sandbox_runtime import SandboxDemigodRuntime
 from reagents.god.orchestrator import God
 from reagents.llm.client import make_llm
-from reagents.toy import toy_problem
+from reagents.toy import simple_problem, toy_problem
 
 _T0 = time.monotonic()
 
@@ -68,7 +68,10 @@ def instrument(god: God) -> None:
     async def forward(problem, spec):
         stage(f"TRANSFORM: projecting problem into '{spec.name}'")
         result = await transformer_forward(problem, spec)
-        stage(f"TRANSFORM: '{spec.name}' sealed")
+        # NOT "sealed" -- assert_sealed and find_spec_leaks run in the
+        # orchestrator, outside this hook. Saying "sealed" here printed a
+        # reassuring lie on a run whose envelope was rejected moments later.
+        stage(f"TRANSFORM: '{spec.name}' projected (seal check pending)")
         return result
 
     async def run(envelope, tools, guard=None):
@@ -94,8 +97,8 @@ def instrument(god: God) -> None:
     god.runtime.run = run
 
 
-async def run_once(domains: int, turns: int, run_id: str) -> int:
-    problem = toy_problem()
+async def run_once(domains: int, turns: int, run_id: str, problem_name: str) -> int:
+    problem = simple_problem() if problem_name == "simple" else toy_problem()
     stage(f"START run_id={run_id} domains={domains} turns={turns}")
     stage(f"PROBLEM: {problem.id} -- {problem.question}")
 
@@ -155,7 +158,14 @@ def load_env_file() -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--domains", type=int, default=2)
-    parser.add_argument("--turns", type=int, default=6)
+    parser.add_argument("--turns", type=int, default=12)
+    parser.add_argument(
+        "--problem",
+        choices=("simple", "pathway"),
+        default="simple",
+        help="simple = 5-entity valve pipeline (default, for testing the "
+        "pipeline); pathway = the 9-entity glycolysis problem",
+    )
     parser.add_argument("--run-id", default=None)
     args = parser.parse_args()
 
@@ -191,7 +201,7 @@ def main() -> int:
         return 2
 
     run_id = args.run_id or f"e2e{uuid.uuid4().hex[:6]}"
-    return asyncio.run(run_once(args.domains, args.turns, run_id))
+    return asyncio.run(run_once(args.domains, args.turns, run_id, args.problem))
 
 
 if __name__ == "__main__":

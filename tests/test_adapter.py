@@ -207,3 +207,70 @@ def test_both_identities_are_preserved():
     spec = envelope_to_spec(make_envelope())
     assert spec.name == "stoichiometric-flow"  # infrastructure identity
     assert spec.domain_name == "stoichiometric_flow"  # domain identity
+
+
+# --- planner-side leak detection --------------------------------------------
+
+
+def test_find_spec_leaks_attributes_the_leak_to_its_field():
+    """The planner authors `language` and `artifact_schema` BEFORE any
+    transform. A leak there was previously only caught by assert_sealed, one
+    full transform call later, and reported as if the transform had leaked."""
+    from reagents.isolation import find_spec_leaks
+
+    spec = make_envelope().domain.model_copy(
+        update={
+            "language": "token multiset conserving ATP across edges",
+            "artifact_schema": {
+                "type": "object",
+                "properties": {"hexokinase": {"type": "number"}},
+            },
+        }
+    )
+    leaks = find_spec_leaks(spec, {"ATP", "hexokinase"})
+    assert leaks["language"] == ["ATP"]
+    assert leaks["artifact_schema"] == ["hexokinase"]
+
+
+def test_compound_identifiers_evade_the_seal():
+    """KNOWN GAP, pinned so it is visible rather than surprising.
+
+    `find_leaks` matches whole tokens, and `_` is a word character, so a native
+    entity embedded in a compound identifier is NOT detected. A planner naming a
+    schema property `hexokinase_rate` -- which is exactly how schema properties
+    get named -- leaks the entity past the seal.
+
+    Same family as `_MIN_TERM_LEN = 3` silently not sealing 1-2 character
+    entity names. Change this test when the matcher is tightened; do not delete
+    it, and note that loosening the match risks false positives on ordinary
+    words that merely contain a short entity name.
+    """
+    from reagents.isolation import find_spec_leaks
+
+    spec = make_envelope().domain.model_copy(
+        update={
+            "artifact_schema": {
+                "type": "object",
+                "properties": {"hexokinase_rate": {"type": "number"}},
+            }
+        }
+    )
+    assert find_spec_leaks(spec, {"hexokinase"}) == {}  # NOT caught
+
+
+def test_find_spec_leaks_ignores_the_transform_prompt():
+    """transform_prompt is God's instruction to itself, describes the native
+    problem by design, and is blanked before it reaches an envelope. Flagging
+    it would reject every domain."""
+    from reagents.isolation import find_spec_leaks
+
+    spec = make_envelope().domain.model_copy(
+        update={"transform_prompt": "Project ATP and hexokinase to symbols."}
+    )
+    assert find_spec_leaks(spec, {"ATP", "hexokinase"}) == {}
+
+
+def test_clean_spec_has_no_leaks():
+    from reagents.isolation import find_spec_leaks
+
+    assert find_spec_leaks(make_envelope().domain, {"ATP", "hexokinase"}) == {}
