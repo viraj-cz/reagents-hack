@@ -56,11 +56,16 @@ def test_broker_and_verifier_authority_round_trip_explicitly():
 
 def test_approvals_default_to_empty():
     """Write tools require an operator decision. Defaulting to
-    anything else would let a planner grant itself authority."""
+    anything else would let a planner grant itself authority. The broker is a
+    separate question -- see the assertion below."""
     request = _request()
     assert request.approved_write_tools == []
-    assert request.use_broker is False
     assert request.verifier_id is None
+    # The broker is NOT in that category. Write authority defaults to nothing
+    # because granting it by accident widens what a demigod may do; the broker
+    # only decides whether the tools it was already granted are reachable, and
+    # defaulting that to off produced confident artifacts with `tool_trace=0`.
+    assert request.use_broker is True
 
 
 def test_sandbox_id_is_stamped_by_the_launcher_not_the_caller():
@@ -149,7 +154,10 @@ def test_launch_defaults_are_the_cheap_ones():
     assert args.domains == 2
     assert args.turns == 12
     assert args.keep_alive == 0
-    assert args.broker is False
+    # Brokered tools are not a cost worth defaulting away from: a tool-less run
+    # is cheaper only in the sense that it answers without checking anything.
+    # `--no-broker` is the opt-out.
+    assert args.broker is True
 
 
 @pytest.mark.parametrize(

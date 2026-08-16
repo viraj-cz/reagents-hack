@@ -30,7 +30,7 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from godbox.images import god_image
 from godbox.layout import (
@@ -54,6 +54,19 @@ mounted secret rather than from the caller's `.env`, because there is no caller
 process by the time GOD runs."""
 
 MODAL_TOKEN_SECRET_NAME = "demigod-modal-token"
+
+TOOLING_SECRET_NAME = "reagents-tooling"
+"""Feature flags and sponsor credentials for GOD's capability catalog.
+
+OPTIONAL, and absent is a supported state: a workspace without this secret gets
+the built-in tools and a note saying so, exactly as before. What is not
+supported is the previous silence -- a laptop with REAGENTS_ENABLE_MCP set
+reported "1 remote catalogs will be checked" while the sandbox running the same
+code reported none, and nothing connected the two.
+
+Scope: what GOD needs to DISCOVER a catalog, not what the broker needs to call
+into it. A sponsor key here would let GOD call the sponsor directly, which is
+the broker's job precisely so every call is leased and audited."""
 """MODAL_TOKEN_ID / MODAL_TOKEN_SECRET, so GOD can spawn DEMI_GOD sandboxes
 from inside its own. Create once per workspace:
 
@@ -112,6 +125,33 @@ class GodRunHandle:
             f"artifacts: volume {self.artifact_volume} -> {self.artifact_path}\n"
             f"          uv run modal volume ls {self.artifact_volume}"
         )
+
+
+def _secrets(*, verbose: bool = True) -> list[Any]:
+    """Anthropic and the Modal token are required; tooling is not.
+
+    Anthropic for GOD's own reasoning, the Modal token so GOD can spawn
+    demigods from in here -- a DEMI_GOD gets only the first, and its image
+    cannot use the second anyway. `reagents-tooling` is looked up separately
+    because a missing optional secret must not fail every launch.
+    """
+    import modal
+
+    secrets = [
+        modal.Secret.from_name(ANTHROPIC_SECRET_NAME),
+        modal.Secret.from_name(MODAL_TOKEN_SECRET_NAME),
+    ]
+    try:
+        tooling = modal.Secret.from_name(TOOLING_SECRET_NAME)
+        tooling.hydrate()
+        secrets.append(tooling)
+    except Exception as exc:
+        if verbose:
+            print(
+                f"[god] no {TOOLING_SECRET_NAME!r} secret ({type(exc).__name__}); "
+                f"GOD will plan against built-in tools only"
+            )
+    return secrets
 
 
 def sandbox_name(run_id: str) -> str:
@@ -202,10 +242,7 @@ def launch_god(
             # BOTH secrets. Anthropic for GOD's own reasoning; the Modal token
             # so GOD can spawn demigods from in here. A DEMI_GOD gets only the
             # first, and its image cannot use the second anyway.
-            secrets=[
-                modal.Secret.from_name(ANTHROPIC_SECRET_NAME),
-                modal.Secret.from_name(MODAL_TOKEN_SECRET_NAME),
-            ],
+            secrets=_secrets(verbose=verbose),
             # No `volumes=`. GOD reaches the out volume through the Volume
             # client API instead, which is the only way a Sandbox can make a
             # write visible before it terminates -- godbox/layout.py has the

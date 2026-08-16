@@ -562,6 +562,10 @@ def build_router(
     )
 
 
+TOOLING_SECRET_NAME = "reagents-tooling"
+"""Sponsor credentials and catalog flags, shared with `godbox.launch`. GOD uses
+it to DISCOVER a catalog; the executors here use it to CALL one."""
+
 app = modal.App(APP_NAME)
 
 
@@ -623,6 +627,17 @@ def execute_operation(operation: str, arguments: dict[str, Any]) -> Any:
     return module.run_operation(operation, arguments)
 
 
+def _tooling_secrets() -> list[Any]:
+    """`reagents-tooling`, if the workspace has it. Absent is a supported state."""
+
+    try:
+        secret = modal.Secret.from_name(TOOLING_SECRET_NAME)
+        secret.hydrate()
+        return [secret]
+    except Exception:
+        return []
+
+
 def _make_executor(klass: ExecutorClass) -> modal.Function:
     if klass.source_free:
         # SELF-CONTAINED ON PURPOSE. Every name this closure needs is either a
@@ -668,6 +683,14 @@ def _make_executor(klass: ExecutorClass) -> modal.Function:
     return app.function(
         name=execute.__name__,
         image=klass.image(),
+        # Sponsor credentials live HERE and only here. A remote MCP tool
+        # authenticates with a key, and the broker is the one component that
+        # should hold it: every call through it is leased, counted and audited,
+        # while a key in GOD's sandbox or a demigod's would be a second, silent
+        # path to the same endpoint. Optional -- a workspace without the secret
+        # runs every other tier exactly as before, and a sponsor call fails with
+        # the registry's own "set PAPERCLIP_API_KEY" message.
+        secrets=_tooling_secrets(),
         gpu=klass.gpu,
         cpu=klass.cpu,
         memory=klass.memory_mb,

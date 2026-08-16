@@ -18,6 +18,12 @@ dependencies = [
 # needed by whichever tool image actually uses them.
 [project.optional-dependencies]
 llm = ["anthropic>=0.40"]
+# The re:SOLUTION web interface. `src/resolution` is a plain ASGI app for the
+# same reason `src/broker/router.py` is one -- no framework -- so this extra is
+# just the server that runs it. Modal already pulls uvicorn in, but a UI that
+# depends on another package's transitive dependency breaks the day that
+# package drops it.
+ui = ["uvicorn>=0.30"]
 mcp = ["mcp>=1.27,<2", "httpx>=0.28,<1"]
 reasoning = [
     "numpy>=2,<3",
@@ -57,6 +63,8 @@ spawn-demigod = "demigod.spawn:main"
 toolbox = "demigod.toolbox.cli:main"
 # GOD in its own long-lived sandbox: launch and detach, then check in whenever.
 god = "godbox.cli:main"
+# The web interface: watch a GOD run stream, and read any demigod's transcript.
+resolution = "resolution.__main__:main"
 
 # Dev-only, via PEP 735 so `uv sync --no-dev` cleanly excludes it from any image
 # bake -- a test dependency must never land in a DEMI_GOD's environment where it
@@ -81,11 +89,14 @@ build-backend = "hatchling.build"
 # it needs and neither half imports them, so neither is ever added to a DEMI_GOD
 # image -- see src/broker/__init__.py and src/godbox/__init__.py.
 [tool.hatch.build.targets.wheel]
+# `resolution` is the web interface. It imports `reagents` and nothing
+# imports it, so it never reaches a GOD or DEMI_GOD image.
 packages = [
     "src/reagents",
     "src/demigod",
     "src/broker",
     "src/godbox",
+    "src/resolution",
     "benchmarks",
 ]
 

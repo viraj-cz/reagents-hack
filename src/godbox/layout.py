@@ -105,8 +105,14 @@ class GodRequest(BaseModel):
     a write tool that is not named here, so leaving these empty is
     the safe default rather than a missing feature."""
 
-    use_broker: bool = False
-    """Publish each demigod's already-approved lease to TOOLBOX_BROKER."""
+    use_broker: bool = True
+    """Publish each demigod's already-approved lease to TOOLBOX_BROKER.
+
+    TRUE BY DEFAULT. This one field gates three things -- lease publication,
+    whether the runtime insists on one, and egress pinning -- so leaving it
+    unset produced runs that finished with high confidence and `tool_trace=0`,
+    every artifact carrying a blocker saying its tools were unreachable. The
+    broker is deployed precisely so that is not the state a run lands in."""
 
     verifier_id: str | None = None
     """Closed God-side native verifier name. Never a module path or callable."""

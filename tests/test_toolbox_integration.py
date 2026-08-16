@@ -221,9 +221,11 @@ class FakeRuntimeEnv:
         )
 
 
-def build_runtime(monkeypatch, session, env: FakeRuntimeEnv):
+def build_runtime(monkeypatch, session, env: FakeRuntimeEnv, *, require_toolbox=True):
     monkeypatch.setattr("reagents.demigod.sandbox_runtime.spawn_demigod", env.spawn)
-    return SandboxDemigodRuntime(run_id="r1", toolbox=session)
+    return SandboxDemigodRuntime(
+        run_id="r1", toolbox=session, require_toolbox=require_toolbox
+    )
 
 
 def bind(registry: ToolRegistry, ids: list[str]):
@@ -375,7 +377,10 @@ def test_a_broker_outage_does_not_stop_the_demigod(monkeypatch, pack_registry):
             raise AssertionError("never reached")
 
     env = FakeRuntimeEnv()
-    runtime = build_runtime(monkeypatch, DeadSession(), env)
+    # Explicit: degrading is still supported and still tested, it is simply no
+    # longer what a caller gets by not deciding. Its opposite is
+    # `test_required_broker_outage_fails_closed`, which is now the default.
+    runtime = build_runtime(monkeypatch, DeadSession(), env, require_toolbox=False)
 
     result = asyncio.run(
         runtime.run(make_envelope(), bind(pack_registry, ["formal.z3_solve"]))
@@ -429,7 +434,7 @@ def test_without_a_toolbox_the_runtime_behaves_exactly_as_before(
     """
     env = FakeRuntimeEnv()
     monkeypatch.setattr("reagents.demigod.sandbox_runtime.spawn_demigod", env.spawn)
-    runtime = SandboxDemigodRuntime(run_id="r1", toolbox=None)
+    runtime = SandboxDemigodRuntime(run_id="r1", toolbox=None, require_toolbox=False)
 
     result = asyncio.run(
         runtime.run(make_envelope(), bind(pack_registry, ["formal.z3_solve"]))
@@ -474,7 +479,7 @@ def test_an_unreachable_broker_degrades_instead_of_failing_the_run(
         "broker.session.modal_session", lambda *a, **k: explode(), raising=False
     )
 
-    runtime = SandboxDemigodRuntime(run_id="r1")  # AUTO
+    runtime = SandboxDemigodRuntime(run_id="r1", require_toolbox=False)  # AUTO
     result = asyncio.run(
         runtime.run(make_envelope(), bind(pack_registry, ["formal.z3_solve"]))
     )

@@ -196,6 +196,10 @@ class God:
                 "TRANSFORM",
                 f"projecting native problem into {spec.name} "
                 f"({spec.primary_axis.value})",
+                # Structured, not only in the sentence: a non-terminal consumer
+                # builds a node per domain and must not have to parse a name
+                # back out of prose.
+                data={"domain_name": spec.name, "axis": spec.primary_axis.value},
             )
             try:
                 domain_problem, inverse = await self.transformer.forward(problem, spec)
@@ -263,6 +267,7 @@ class God:
                 "SEALED",
                 f"{spec.name} ready",
                 data={
+                    "domain_name": spec.name,
                     "axis": spec.primary_axis.value,
                     "language": spec.language,
                     "representation_keys": sorted(domain_problem.representation),

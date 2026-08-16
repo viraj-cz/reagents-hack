@@ -4630,6 +4630,9 @@ reasoning = [
 txbench = [
     { name = "latch-eval-tools" },
 ]
+ui = [
+    { name = "uvicorn" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -4663,9 +4666,10 @@ requires-dist = [
     { name = "scipy", marker = "extra == 'reasoning'", specifier = ">=1.14,<2" },
     { name = "statsmodels", marker = "extra == 'biology'", specifier = ">=0.14,<1" },
     { name = "sympy", marker = "extra == 'reasoning'", specifier = ">=1.13,<2" },
+    { name = "uvicorn", marker = "extra == 'ui'", specifier = ">=0.30" },
     { name = "z3-solver", marker = "extra == 'reasoning'", specifier = ">=4.15.4,<4.15.5" },
 ]
-provides-extras = ["llm", "mcp", "reasoning", "biology", "engineering", "txbench"]
+provides-extras = ["llm", "ui", "mcp", "reasoning", "biology", "engineering", "txbench"]
 
 [package.metadata.requires-dev]
 dev = [
