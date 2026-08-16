@@ -1,27 +1,63 @@
 [project]
-name = "demigod"
+name = "reagents"
 version = "0.1.0"
-description = "Reliably spawn a single DEMI_GOD agent in an isolated Modal sandbox."
+description = "God-to-demigod orchestration: decompose a problem into orthogonal invented domains, solve each in an isolated Modal sandbox, recombine."
 requires-python = ">=3.11"
 dependencies = [
-    # Sandbox / volume / secret primitives.
-    "modal>=1.0",
-    # Specs and the output contract.
+    # Contracts, on both sides of the seam.
     "pydantic>=2.7",
-    # The agent loop. Only imported by runner/ and entrypoint.py -- never by the
-    # runner-independent core (spec, result, registry, images, layout, prompt).
+    # Sandbox / volume / secret primitives. Base, not optional: GOD spawns
+    # DEMI_GODs into Modal sandboxes, so orchestration cannot run without it.
+    "modal>=1.0",
+    # The agent loop. Imported only by demigod/runner/ and demigod/entrypoint.py
+    # -- never by the runner-independent core.
     "claude-agent-sdk>=0.1.0",
 ]
 
+# Science stacks stay optional: they are heavy, platform-sensitive, and only
+# needed by whichever tool image actually uses them.
+[project.optional-dependencies]
+llm = ["anthropic>=0.40"]
+mcp = ["mcp>=1.27,<2", "httpx>=0.28,<1"]
+reasoning = [
+    "numpy>=2,<3",
+    "scipy>=1.14,<2",
+    "sympy>=1.13,<2",
+    "networkx>=3.3,<4",
+    "pint>=0.24,<1",
+    "cvxpy>=1.6,<2",
+    # 4.16 ARM wheels require macOS 15; 4.15.4 supports macOS 13+.
+    "z3-solver>=4.15.4,<4.15.5",
+    "control>=0.10,<1",
+]
+biology = [
+    "biopython>=1.84,<2",
+    "rdkit>=2025.3,<2027",
+    "cobra>=0.29,<1",
+    "scanpy>=1.11,<2",
+    "pymc>=5.20,<6",
+    "statsmodels>=0.14,<1",
+    "scikit-learn>=1.6,<2",
+]
+engineering = [
+    "cantera>=3.1,<4",
+    "openmm>=8.2,<9",
+]
+
 [project.scripts]
+reagents = "reagents.__main__:main"
 spawn-demigod = "demigod.spawn:main"
 
-# Dev-only. Not installed into the sandbox image -- `uv sync --no-dev` is what
-# the bake path uses, so a test dependency can never end up in a DEMI_GOD's
-# environment and be mistaken for a granted tool.
+# Dev-only, via PEP 735 so `uv sync --no-dev` cleanly excludes it from any image
+# bake -- a test dependency must never land in a DEMI_GOD's environment where it
+# could be mistaken for a granted tool.
+#
+# pytest-asyncio is required: reagents' orchestrator tests are async and depend
+# on asyncio_mode = "auto" below.
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "pytest-asyncio>=0.24",
     "ruff>=0.6",
 ]
 
@@ -29,12 +65,32 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+# BOTH packages. Listing only one silently ships a wheel missing the other.
 [tool.hatch.build.targets.wheel]
-packages = ["src/demigod"]
+packages = ["src/reagents", "src/demigod"]
 
 [tool.ruff]
 line-length = 88
 target-version = "py312"
+
+# TODO: drop these exclusions. The reagents tree predates this ruff config and
+# trips it 117 times (mostly E501). Reformatting it inside the merge commit
+# would bury the integration diff in noise and conflict with anyone working on
+# that code, so the gate is scoped for now and the cleanup is its own change.
+extend-exclude = [
+    "src/reagents",
+    "tooling",
+    "tests/test_planner.py",
+    "tests/test_registry.py",
+    "tests/test_mcp.py",
+    "tests/test_isolation.py",
+    "tests/test_orchestrator.py",
+    "tests/test_tool_broker.py",
+    "tests/test_write_approval.py",
+    "tests/test_anthropic_tool_names.py",
+    "tests/test_god_framework_smoke.py",
+    "examples/toy_pathway.py",
+]
 
 # Selected explicitly. Ruff's implicit default set changes between releases,
 # so leaving it unset means two collaborators on two ruff versions see two
@@ -44,3 +100,6 @@ select = ["E", "F", "I", "UP", "B", "SIM", "C4", "RUF"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
+# reagents' God-loop tests are async. Without this they are silently skipped.
+asyncio_mode = "auto"
