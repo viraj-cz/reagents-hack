@@ -52,7 +52,17 @@ PYDANTIC = "pydantic==2.13.4"
 """Every contract on both sides of the seam. Matches demigod's AGENT_RUNTIME
 pin, so a DemiGodResult serialized by a demigod validates in GOD."""
 
-GOD_PIP = (MODAL_CLIENT, ANTHROPIC_SDK, PYDANTIC)
+MCP_CLIENT = ("mcp==1.29.0", "httpx==0.28.1")
+"""Sponsor MCP catalogs, for DISCOVERY only.
+
+`reagents.tools.mcp` is imported by `default_registry()` whenever
+REAGENTS_ENABLE_MCP is set, so without these a GOD sandbox with the flag on
+would fail the import and plan against the local tools alone -- which is what a
+GOD sandbox was silently doing: "no remote catalogs configured", while the same
+code on a laptop reported one. GOD needs the catalog to plan with; the calls
+themselves are the broker's sponsor tier, which pins these separately."""
+
+GOD_PIP = (MODAL_CLIENT, ANTHROPIC_SDK, PYDANTIC, *MCP_CLIENT)
 
 GOD_LOCAL_SOURCES = ("reagents", "demigod", "broker", "godbox", "benchmarks")
 """All five packages, because GOD is the one place they meet: it reasons
