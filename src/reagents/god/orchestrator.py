@@ -13,6 +13,8 @@ from reagents.contracts import (
     NativeProblem,
     NativeSolution,
     OrchestrationTrace,
+    RiskTier,
+    ToolAccess,
 )
 from reagents.demigod.runtime import DemigodRuntime, IsolationGuard
 from reagents.god.integrator import Integrator
@@ -34,10 +36,18 @@ class God:
         llm: LLMClient,
         registry: ToolRegistry | None = None,
         domain_count: int = 3,
+        approved_write_tools: set[str] | None = None,
+        approved_high_risk_tools: set[str] | None = None,
     ) -> None:
         self.llm = llm
         self.registry = registry or default_registry()
         self.domain_count = domain_count
+        # Write authority is an operator decision, never something the planner or
+        # demigod can grant itself. IDs must match the discovered catalog exactly.
+        self.approved_write_tools = frozenset(approved_write_tools or set())
+        self.approved_high_risk_tools = frozenset(
+            approved_high_risk_tools or set()
+        )
         self.planner = Planner(llm, self.registry)
         self.transformer = Transformer(llm)
         self.integrator = Integrator(llm)
@@ -45,13 +55,13 @@ class God:
         self.last_trace = OrchestrationTrace()
 
     def build_envelope(self, spec: DomainSpec, problem: DomainProblem) -> ContextEnvelope:
-        pack = self.registry.bind(spec.tool_ids)
+        tool_specs = self.registry.specs(spec.tool_ids)
         # transform_prompt is God's instruction to itself; it must not enter the envelope.
         sealed_spec = spec.model_copy(update={"transform_prompt": ""})
         return ContextEnvelope(
             domain=sealed_spec,
             problem=problem,
-            tools=pack.specs(),
+            tools=tool_specs,
             artifact_schema=spec.artifact_schema,
             forbidden=list(spec.forbidden) or list(ABSTRACT_FORBIDDEN),
         )
@@ -125,5 +135,31 @@ class God:
 
 
 async def _spawn(god: God, envelope: ContextEnvelope, guard: IsolationGuard):
-    pack = god.registry.bind(envelope.domain.tool_ids)
+    write_tools = {
+        spec.id for spec in envelope.tools if spec.access == ToolAccess.WRITE
+    }
+    unapproved = write_tools - god.approved_write_tools
+    if unapproved:
+        return DemigodFailure(
+            domain_name=envelope.domain.name,
+            reason=f"write tools require operator approval: {sorted(unapproved)}",
+        )
+    high_risk_tools = {
+        spec.id for spec in envelope.tools if spec.risk_tier == RiskTier.HIGH
+    }
+    unapproved_high_risk = high_risk_tools - god.approved_high_risk_tools
+    if unapproved_high_risk:
+        return DemigodFailure(
+            domain_name=envelope.domain.name,
+            reason=(
+                "high-risk tools require operator approval: "
+                f"{sorted(unapproved_high_risk)}"
+            ),
+        )
+    pack = god.registry.bind(
+        envelope.domain.tool_ids,
+        subject_id=envelope.domain.name,
+        budget=envelope.budget,
+        allow_write=bool(write_tools),
+    )
     return await god.runtime.run(envelope, pack, guard=guard)
