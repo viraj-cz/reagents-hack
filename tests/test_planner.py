@@ -230,3 +230,91 @@ async def test_plan_regenerates_a_leaking_spec_and_says_why():
     # And what comes back is clean.
     for spec in specs:
         assert not find_spec_leaks(spec, terms), f"{spec.name} still leaks"
+
+
+def test_shared_infrastructure_does_not_count_as_tool_overlap():
+    """The exact domain set that made a live run give up entirely.
+
+    Primary axes conservation / dynamics / causality -- all distinct -- and
+    three unrelated languages. Rejected round after round until PlanError,
+    solely because two of them both picked `build_graph` and `solve` out of a
+    14-tool catalog. `solve` appeared in 8 of the 11 domains invented across
+    those rounds; sharing it says nothing about orthogonality.
+    """
+    specs = [
+        _spec(
+            "series_flux_ledger",
+            Axis.CONSERVATION,
+            "directed capacity graph with per-edge flux weights and a ledger",
+            ["build_graph", "simplify", "solve"],
+        ),
+        _spec(
+            "gain_regime_response",
+            Axis.DYNAMICS,
+            "piecewise transfer-function over an input-multiplier axis",
+            ["dimensional_check", "simulate", "solve"],
+        ),
+        _spec(
+            "cause_chain_propagation",
+            Axis.CAUSALITY,
+            "signed influence chain with propagation-blocking gates",
+            ["build_graph", "match_motif", "cut", "solve"],
+        ),
+    ]
+    verdict = structural_critic(specs, default_registry())
+    assert verdict.ok, verdict.reasons
+
+
+def test_identical_toolsets_are_still_a_collision():
+    """The fix must not become a way to pass by sharing EVERYTHING.
+
+    If every tool is shared infrastructure then nothing is distinctive, and a
+    naive implementation scores that as zero overlap -- exactly backwards. The
+    fallback to raw Jaccard is what stops it.
+    """
+    specs = [
+        _spec(
+            "alpha_min",
+            Axis.CONSERVATION,
+            "a semiring of nonnegative rate values under a min-operator",
+            ["solve", "simplify"],
+        ),
+        _spec(
+            "beta_min",
+            Axis.DYNAMICS,
+            "orbit decomposition over a finite permutation group action",
+            ["solve", "simplify"],
+        ),
+    ]
+    verdict = structural_critic(specs, default_registry())
+    assert not verdict.ok
+    assert any("Jaccard" in r for r in verdict.reasons)
+
+
+@pytest.mark.asyncio
+async def test_exhausted_rounds_returns_a_best_effort_plan_not_an_exception():
+    """Running out of rounds must not throw away every domain invented.
+
+    Live, this raised PlanError after five model calls and eighty seconds and
+    the operator got nothing at all -- for a set whose only objection was a
+    tool-overlap proxy. The compromises are reported instead, so a caller that
+    wants strictness can still refuse.
+    """
+    planner = Planner(ScriptedLLM.for_toy_pathway(), default_registry())
+
+    # A critic that is never satisfied, so the loop always exhausts.
+    import reagents.god.planner as mod
+
+    original = mod.structural_critic
+    try:
+        mod.structural_critic = lambda *a, **k: CriticVerdict(
+            ok=False, colliding_names=[], reasons=["synthetic objection"]
+        )
+        specs = await planner.plan(toy_problem(), n=3, max_rounds=2)
+    finally:
+        mod.structural_critic = original
+
+    assert specs, "returned nothing at all"
+    assert planner.last_plan_compromises, (
+        "returned a compromised plan without recording what was wrong"
+    )
