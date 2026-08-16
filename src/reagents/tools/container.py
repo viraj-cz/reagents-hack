@@ -229,7 +229,13 @@ def configure_container_tools(registry: ToolRegistry) -> None:
                 "additionalProperties": False,
             },
             executor=ContainerExecutor(
-                ContainerToolConfig("reagents/reasoning-core:latest", "lean_check")
+                # Minutes, not the 60s default: `import Mathlib` loads thousands
+                # of .olean files before the first tactic runs. Must stay above
+                # tool_runtime.LEAN_TIMEOUT_S so the inner timeout is the one
+                # that reports, with Lean's own diagnostics attached.
+                ContainerToolConfig(
+                    "reagents/reasoning-core:latest", "lean_check", timeout_s=360.0
+                )
             ),
             provider=ToolProvider.CONTAINER,
             access=ToolAccess.COMPUTE,

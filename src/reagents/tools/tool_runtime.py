@@ -34,18 +34,34 @@ from pathlib import Path
 from typing import Any
 
 
+MATHLIB = Path("/opt/mathlib")
+"""Where both the local reasoning image and the broker's `lean` tier put it."""
+
+LEAN_TIMEOUT_S = 300
+"""`import Mathlib` alone loads thousands of .olean files and takes minutes on a
+cold page cache. The previous 45s could not finish a one-line theorem, and
+reported it as a timeout rather than as "you did not give it enough time"."""
+
+
 def lean_check(payload: dict[str, Any]) -> dict[str, Any]:
     source = str(payload["source"])
+    # BOTH flavours. mathlib4 at v4.30.0 ships `lakefile.lean`; checking only
+    # for `lakefile.toml` silently fell through to a bare `lean`, which has no
+    # LEAN_PATH and fails every proof with "unknown module prefix 'Mathlib'" --
+    # a mathlib-less checker that looks like a working one. Found live.
+    in_project = any(
+        (MATHLIB / name).exists() for name in ("lakefile.toml", "lakefile.lean")
+    )
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "Main.lean"
         path.write_text(source)
-        command = ["lake", "env", "lean", str(path)] if Path("/opt/mathlib/lakefile.toml").exists() else ["lean", str(path)]
+        command = ["lake", "env", "lean", str(path)] if in_project else ["lean", str(path)]
         completed = subprocess.run(
             command,
-            cwd="/opt/mathlib" if Path("/opt/mathlib").exists() else None,
+            cwd=str(MATHLIB) if MATHLIB.exists() else None,
             capture_output=True,
             text=True,
-            timeout=45,
+            timeout=LEAN_TIMEOUT_S,
             check=False,
         )
     return {

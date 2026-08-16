@@ -195,6 +195,59 @@ def test_results_are_json_round_tripped(monkeypatch: pytest.MonkeyPatch) -> None
     json.dumps(result)  # would raise if the round trip had been skipped
 
 
+# --- lean_check picks the right command ---------------------------------------
+#
+# FOUND LIVE, on the built Lean tier. mathlib4 at v4.30.0 ships `lakefile.lean`;
+# `lean_check` tested only for `lakefile.toml`, fell through to a bare `lean`
+# with no LEAN_PATH, and reported "unknown module prefix 'Mathlib'" for a
+# one-line theorem. Nothing about that failure says "wrong command" -- it reads
+# like a broken image -- so it gets a test rather than a comment.
+
+
+@pytest.mark.parametrize("lakefile", ["lakefile.toml", "lakefile.lean"])
+def test_lean_check_uses_lake_env_for_either_lakefile(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, lakefile: str
+) -> None:
+    (tmp_path / lakefile).write_text("")
+    monkeypatch.setattr(tool_runtime, "MATHLIB", tmp_path)
+    command = _captured_lean_command(monkeypatch, tmp_path)
+    assert command[:3] == ["lake", "env", "lean"]
+
+
+def test_lean_check_falls_back_when_there_is_no_project(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setattr(tool_runtime, "MATHLIB", tmp_path)
+    command = _captured_lean_command(monkeypatch, tmp_path)
+    assert command[0] == "lean"
+
+
+def test_lean_check_allows_minutes(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """`import Mathlib` loads thousands of .olean files before the first tactic.
+
+    The original 45s could not finish a trivial theorem and reported the result
+    as a timeout, which points the reader at their proof instead of the clock.
+    """
+    assert tool_runtime.LEAN_TIMEOUT_S >= 300
+
+
+def _captured_lean_command(monkeypatch: pytest.MonkeyPatch, tmp_path) -> list[str]:
+    seen: dict[str, list[str]] = {}
+
+    class Completed:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(command, **_kwargs):
+        seen["command"] = command
+        return Completed()
+
+    monkeypatch.setattr(tool_runtime.subprocess, "run", fake_run)
+    tool_runtime.lean_check({"source": "theorem t : True := trivial"})
+    return seen["command"]
+
+
 # --- the Docker path is still the Docker path ---------------------------------
 
 
