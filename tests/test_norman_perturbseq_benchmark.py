@@ -11,6 +11,7 @@ from benchmarks.perturbseq_norman.benchmark import (
     load_problem,
     score_solution,
 )
+from benchmarks.perturbseq_norman.compare import _artifact_answer
 from reagents.contracts import NativeSolution
 from reagents.tools.registry import default_registry
 
@@ -145,3 +146,27 @@ def test_finalizer_copies_public_artifact_vectors_without_private_truth():
     report = NormanPerturbSeqVerifier().verify(load_problem(), finalized)
     assert report.passed
     assert len(finalized.structured_answer["predictions"][0]["predicted_delta"]) == 64
+
+
+def test_post_run_artifact_diagnostic_maps_opaque_ids_positionally():
+    answer = _answer("ridge")
+    artifact = {
+        "confidence": 0.6,
+        "payload": {
+            "candidate_solution": {
+                f"q{position:02d}": {
+                    "delta_vector": item["predicted_delta"],
+                    "interaction_class": item["interaction_class"],
+                    "confidence": item["confidence"],
+                    "falsifier": item["falsifier"],
+                }
+                for position, item in enumerate(answer["predictions"], start=1)
+            }
+        },
+    }
+    projected = _artifact_answer(artifact)
+    predictions = projected["structured_answer"]["predictions"]
+    assert [item["target_id"] for item in predictions] == [
+        f"T{position:02d}" for position in range(1, 13)
+    ]
+    assert len(predictions[0]["predicted_delta"]) == 64
