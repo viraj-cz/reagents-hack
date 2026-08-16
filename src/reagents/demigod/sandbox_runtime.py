@@ -52,6 +52,7 @@ class SandboxDemigodRuntime:
         runner_kind: str = "inside",
         cpu: float = 1.0,
         memory_mb: int = 2048,
+        max_turns: int | None = None,
     ) -> None:
         self.run_id = run_id
         self.tool_map = tool_map or {}
@@ -60,6 +61,10 @@ class SandboxDemigodRuntime:
         self.runner_kind = runner_kind
         self.cpu = cpu
         self.memory_mb = memory_mb
+        # Overrides Budget.max_steps. THE cost lever: every turn is an Anthropic
+        # call, and sandbox compute is cents next to that. Set it low when
+        # exercising the pipeline rather than trying to solve something.
+        self.max_turns = max_turns
 
     async def run(
         self,
@@ -84,6 +89,7 @@ class SandboxDemigodRuntime:
                 envelope,
                 tool_map=self.tool_map,
                 files=self.shared_files,
+                max_turns=self.max_turns,
                 cpu=self.cpu,
                 memory_mb=self.memory_mb,
             )
