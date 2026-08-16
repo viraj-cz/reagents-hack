@@ -169,7 +169,8 @@ async def run_once(
     turns: int,
     run_id: str,
     problem_name: str,
-    broker: bool = False,
+    broker: bool = True,
+    require_broker: bool = False,
     approve_high_risk: bool = False,
     result_out: Path | None = None,
     approved_high_risk_tools: set[str] | None = None,
@@ -255,8 +256,16 @@ async def run_once(
             max_turns=turns,
             shared_files=shared_files,
             toolbox=make_toolbox(broker),
-            require_toolbox=broker,
-            restrict_egress=broker,
+            # DECOUPLED from `broker` on purpose. Both of these were tied to it
+            # when `--broker` was an explicit opt-in, where "I asked for the
+            # broker" reasonably meant "and enforce it". The broker is the
+            # DEFAULT now, and defaulting these with it would mean every run
+            # without a deployed broker fails every demigod (require_toolbox)
+            # under an egress policy the code itself calls untested
+            # (restrict_egress: "enabling it untested would break every live
+            # run"). Strictness stays something you ask for: --require-broker.
+            require_toolbox=require_broker,
+            restrict_egress=require_broker,
             model=model,
         ),
         tracer=TerminalTracer(),
@@ -493,13 +502,20 @@ def main() -> int:
         ),
     )
     parser.add_argument(
-        "--broker",
+        "--require-broker",
         action="store_true",
-        help="publish each demigod's lease to the deployed TOOLBOX_BROKER and "
-        "hand it the URL, so it can call brokered tools instead of writing its "
-        "own Python. Requires `uv run modal deploy -m broker.service` (or "
-        "TOOLBOX_BROKER_URL pointing at a `modal serve` URL). Off by default: "
-        "minting a live credential should be an explicit act.",
+        help="fail a demigod outright if the broker is unreachable, and pin "
+        "sandbox egress to the agent API plus the broker. Off by default: "
+        "without it an absent broker costs the tools, not the run.",
+    )
+    parser.add_argument(
+        "--no-broker",
+        dest="broker",
+        action="store_false",
+        help="do NOT publish a lease; each demigod reasons from shared/ and "
+        "whatever Python it writes itself. The broker is on by default -- a "
+        "demigod that can reach its tools should. Use this to exercise the "
+        "spawn path alone, or when no broker is deployed.",
     )
     args = parser.parse_args()
 
@@ -553,6 +569,7 @@ def main() -> int:
             run_id,
             args.problem,
             broker=args.broker,
+            require_broker=args.require_broker,
             approve_high_risk=args.approve_high_risk,
             result_out=args.result_out,
             approved_high_risk_tools=set(args.approve_high_risk_tool),
