@@ -55,7 +55,9 @@ def lean_check(payload: dict[str, Any]) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "Main.lean"
         path.write_text(source)
-        command = ["lake", "env", "lean", str(path)] if in_project else ["lean", str(path)]
+        command = (
+            ["lake", "env", "lean", str(path)] if in_project else ["lean", str(path)]
+        )
         completed = subprocess.run(
             command,
             cwd=str(MATHLIB) if MATHLIB.exists() else None,
@@ -128,7 +130,10 @@ def proto_check(_: dict[str, Any]) -> dict[str, Any]:
         "available": True,
         "module": proto_language.__name__,
         "version": getattr(proto_language, "__version__", "unknown"),
-        "note": "Design execution remains approval-gated; this operation only validates the runtime.",
+        "note": (
+            "Design execution remains approval-gated; this operation only "
+            "validates the runtime."
+        ),
     }
 
 
@@ -150,6 +155,50 @@ def python_exec(payload: dict[str, Any]) -> dict[str, Any]:
         "returncode": completed.returncode,
         "stdout": completed.stdout[-100000:],
         "stderr": completed.stderr[-20000:],
+    }
+
+
+NORMAN_TRAINING_PATH_ENV = "REAGENTS_NORMAN_TRAINING_PATH"
+NORMAN_TRAINING_DEFAULT = "/opt/reagents/norman_v2_training.json"
+
+
+def norman_training_python(payload: dict[str, Any]) -> dict[str, Any]:
+    """Execute agent code with the frozen public training bundle preloaded.
+
+    The executor image contains only this runtime, scientific dependencies, and
+    the public training JSON. It contains neither repository source nor the
+    private expected fixture. ``DATA`` is injected before the submitted program.
+    """
+
+    data_path = Path(os.environ.get(NORMAN_TRAINING_PATH_ENV, NORMAN_TRAINING_DEFAULT))
+    if not data_path.is_file():
+        raise FileNotFoundError(f"frozen training bundle missing at {data_path}")
+    source = str(payload["source"])
+    prelude = (
+        "import json as _json\n"
+        f"with open({str(data_path)!r}, encoding='utf-8') as _handle:\n"
+        "    DATA = _json.load(_handle)\n"
+        "assert DATA.get('version') == 2\n"
+        "assert 'targets' not in DATA and 'expected' not in DATA\n"
+    )
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "program.py"
+        path.write_text(prelude + "\n" + source)
+        completed = subprocess.run(
+            [sys.executable, "-I", str(path)],
+            cwd=directory,
+            capture_output=True,
+            text=True,
+            timeout=150,
+            check=False,
+        )
+    return {
+        "ok": completed.returncode == 0,
+        "returncode": completed.returncode,
+        "stdout": completed.stdout[-250000:],
+        "stderr": completed.stderr[-30000:],
+        "training_bundle_version": 2,
+        "heldout_outcomes_present": False,
     }
 
 
@@ -251,6 +300,7 @@ OPERATIONS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "rdkit_descriptors": rdkit_descriptors,
     "proto_check": proto_check,
     "python_exec": python_exec,
+    "norman_training_python": norman_training_python,
     "esm_embed": esm_embed,
     "esm_contacts": esm_contacts,
 }

@@ -90,6 +90,8 @@ BROKER_ENV: dict[str, str] = {
     # Training-only, generated benchmark summaries. The private held-out values
     # are not in the reagents package and therefore cannot enter this image.
     "REAGENTS_ENABLE_NORMAN_BENCHMARK": "1",
+    # Fresh split exposing only training primitives and source-free compute labs.
+    "REAGENTS_ENABLE_NORMAN_V2_BENCHMARK": "1",
 }
 
 
@@ -105,6 +107,16 @@ which is exactly what a source-free image does not have."""
 
 TOOL_RUNTIME_REMOTE = "/opt/reagents/tool_runtime.py"
 
+NORMAN_V2_DATA_SOURCE = (
+    pathlib.Path(__file__).resolve().parents[2]
+    / "benchmarks"
+    / "perturbseq_norman"
+    / "v2"
+    / "public"
+    / "training_data.json"
+)
+NORMAN_V2_DATA_REMOTE = "/opt/reagents/norman_v2_training.json"
+
 
 def broker_image(
     *,
@@ -114,6 +126,7 @@ def broker_image(
     setup_commands: tuple[str, ...] = (),
     warm_commands: tuple[str, ...] = (),
     env: dict[str, str] | None = None,
+    local_files: tuple[tuple[str, str], ...] = (),
 ) -> modal.Image:
     """The router image, or an executor image with a tool class's dependencies.
 
@@ -159,9 +172,12 @@ def broker_image(
     # from `reagents` -- that is what makes this possible, and why that module
     # says so at the top. Anything running agent-authored code in this image
     # finds no GOD source to read back through a tool result.
-    return image.add_local_file(
+    image = image.add_local_file(
         str(TOOL_RUNTIME_SOURCE), TOOL_RUNTIME_REMOTE, copy=True
     )
+    for source, remote in local_files:
+        image = image.add_local_file(source, remote, copy=True)
+    return image
 
 
 @dataclass(frozen=True)
@@ -195,6 +211,9 @@ class ExecutorClass:
 
     env: tuple[tuple[str, str], ...] = ()
     """Extra image env, as pairs so the class stays hashable/frozen."""
+
+    local_files: tuple[tuple[str, str], ...] = ()
+    """Explicit public fixtures copied into a source-free executor image."""
 
     source_free: bool = True
     """Ship NO repo source into this tier's image. Default ON.
@@ -254,6 +273,7 @@ class ExecutorClass:
             setup_commands=self.setup_commands,
             warm_commands=self.warm_commands,
             env=dict(self.env),
+            local_files=self.local_files,
         )
 
 
@@ -329,6 +349,30 @@ BIOLOGY = ExecutorClass(
         "scikit-learn>=1.6,<2",
     ),
     memory_mb=8192,
+)
+
+NORMAN_V2 = ExecutorClass(
+    name="norman_v2",
+    tool_ids=frozenset(
+        {
+            "screen2.algebra_lab",
+            "screen2.geometry_lab",
+            "screen2.graph_lab",
+            "screen2.information_lab",
+        }
+    ),
+    extras=(
+        "numpy>=2,<3",
+        "scipy>=1.14,<2",
+        "pandas>=2,<3",
+        "statsmodels>=0.14,<1",
+        "scikit-learn>=1.6,<2",
+        "networkx>=3.3,<4",
+    ),
+    env=(("REAGENTS_NORMAN_TRAINING_PATH", NORMAN_V2_DATA_REMOTE),),
+    local_files=((str(NORMAN_V2_DATA_SOURCE), NORMAN_V2_DATA_REMOTE),),
+    memory_mb=8192,
+    timeout_s=300,
 )
 
 ENGINEERING = ExecutorClass(
@@ -440,6 +484,7 @@ SPONSOR = ExecutorClass(
 
 ALL_EXECUTOR_CLASSES: tuple[ExecutorClass, ...] = (
     ESM,
+    NORMAN_V2,
     REASONING,
     LEAN,
     BIOLOGY,

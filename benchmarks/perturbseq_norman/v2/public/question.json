@@ -1,0 +1,1080 @@
+{
+  "id": "norman-perturbseq-primitives-heldout-v2",
+  "statement": "Predict a fresh set of 12 held-out two-gene CRISPRa responses from the Norman K562 Perturb-seq screen. Raw training pseudobulk effects, opaque component relationships, and deterministic compute labs are available, but no target prediction is precomputed.",
+  "entities": [
+    "ACTG1",
+    "AHR",
+    "AIF1",
+    "ALAS2",
+    "APOC1",
+    "APOE",
+    "ARHGDIB",
+    "ARID1A",
+    "ARPC1B",
+    "ARRDC3",
+    "ATL1",
+    "AVP",
+    "BAK1",
+    "BCL2L11",
+    "BCORL1",
+    "BLVRB",
+    "BPGM",
+    "BTG1",
+    "C19orf26",
+    "C3orf72",
+    "CBFA2T3",
+    "CBL",
+    "CDKN1A",
+    "CDKN1B",
+    "CDKN1C",
+    "CEBPA",
+    "CEBPB",
+    "CEBPE",
+    "CELF2",
+    "CFD",
+    "CITED1",
+    "CKS1B",
+    "CLDN6",
+    "CNN1",
+    "CNNM4",
+    "COL18A1",
+    "COL1A1",
+    "COL2A1",
+    "CSF3R",
+    "CSRNP1",
+    "CYBA",
+    "DLX2",
+    "DUSP9",
+    "EGR1",
+    "ELMSAN1",
+    "ETS2",
+    "FEV",
+    "FOSB",
+    "FOXA1",
+    "FOXA3",
+    "FOXF1",
+    "FOXL2",
+    "FOXO4",
+    "GAL",
+    "GLB1L2",
+    "GSTP1",
+    "GYPA",
+    "GYPB",
+    "GYPC",
+    "HBA1",
+    "HBA2",
+    "HBG1",
+    "HBG2",
+    "HBZ",
+    "HES7",
+    "HIST1H1C",
+    "HIST1H4C",
+    "HK2",
+    "HNF4A",
+    "HOXA13",
+    "HOXB9",
+    "HOXC13",
+    "IER5L",
+    "IFITM2",
+    "IGDCC3",
+    "IKZF3",
+    "IRF1",
+    "ISL2",
+    "JUN",
+    "KIAA1804",
+    "KIF18B",
+    "KIF2C",
+    "KLF1",
+    "KMT2A",
+    "LAPTM4B",
+    "LAPTM5",
+    "LGALS1",
+    "LHX1",
+    "LMO4",
+    "LST1",
+    "LY6E",
+    "LYL1",
+    "MALAT1",
+    "MAML2",
+    "MAP2K3",
+    "MAP2K6",
+    "MAP4K3",
+    "MAP4K5",
+    "MAP7D1",
+    "MAPK1",
+    "MDK",
+    "MEIS1",
+    "MIDN",
+    "MS4A3",
+    "MSRB1",
+    "MYL4",
+    "NCL",
+    "NEAT1",
+    "NIT1",
+    "NME1",
+    "OSR2",
+    "PA2G4",
+    "PITX1",
+    "PLD3",
+    "PLK4",
+    "PNRC1",
+    "POU3F2",
+    "PRDM1",
+    "PRSS57",
+    "PRTG",
+    "PTMA",
+    "PTPN1",
+    "PTPN12",
+    "PTPN13",
+    "PTPN9",
+    "PYCARD",
+    "RANBP1",
+    "RHOXF2",
+    "RP11-301G19.1",
+    "RP11-717F1.1",
+    "RREB1",
+    "RUNX1T1",
+    "S100A11",
+    "S1PR2",
+    "SAMD1",
+    "SET",
+    "SGK1",
+    "SH3BGRL3",
+    "SLC25A37",
+    "SLC38A2",
+    "SLC4A1",
+    "SLC6A9",
+    "SNAI1",
+    "SPI1",
+    "SRM",
+    "STIL",
+    "TBX2",
+    "TBX3",
+    "TGFBR2",
+    "TMEM54",
+    "TMSB10",
+    "TMSB4X",
+    "TP73",
+    "TSC22D1",
+    "TYROBP",
+    "UBAC1",
+    "UBASH3A",
+    "UBASH3B",
+    "UBE2S",
+    "VAMP8",
+    "VIM",
+    "ZBTB1",
+    "ZBTB10",
+    "ZBTB25",
+    "ZC3HAV1",
+    "ZNF318"
+  ],
+  "sensitive_terms": [
+    "K562",
+    "CRISPRa",
+    "Norman"
+  ],
+  "constraints": [
+    "Held-out double-condition measurements are unavailable until private scoring.",
+    "Use only T01-T12, F001-F064, G identifiers, and D identifiers across the Broker boundary.",
+    "Every target requires 64 ordered values, one allowed interaction class, confidence, and a falsifier.",
+    "All fitting, model selection, and validation must use the frozen training folds only.",
+    "Do not claim a target prediction was supplied by a tool; agents must construct predictions through their representation."
+  ],
+  "question": "For every target T01-T12, construct its control-relative pseudobulk delta on F001-F064 and genetic-interaction class. Explore the complete problem in a transformed representation, compare models on training folds, perform a robustness check, and state a falsifier.",
+  "inputs": {
+    "study": {
+      "assay": "single-cell Perturb-seq",
+      "perturbation": "two-gene CRISPR activation",
+      "cell_context": "K562",
+      "source_accession": "GSE133344"
+    },
+    "split_protocol": {
+      "salt": "reagents-norman-v2-primitives",
+      "heldout_count": 12,
+      "prior_heldout_pairs_excluded": true,
+      "selection_uses_expression": false,
+      "feature_selection": "training-only top pseudobulk variance"
+    },
+    "target_catalog": [
+      {
+        "target_id": "T01",
+        "genes": [
+          "DLX2",
+          "SNAI1"
+        ],
+        "component_ids": [
+          "G028",
+          "G090"
+        ]
+      },
+      {
+        "target_id": "T02",
+        "genes": [
+          "CEBPE",
+          "ZC3HAV1"
+        ],
+        "component_ids": [
+          "G018",
+          "G104"
+        ]
+      },
+      {
+        "target_id": "T03",
+        "genes": [
+          "CBFA2T3",
+          "PRDM1"
+        ],
+        "component_ids": [
+          "G011",
+          "G074"
+        ]
+      },
+      {
+        "target_id": "T04",
+        "genes": [
+          "CBL",
+          "UBASH3B"
+        ],
+        "component_ids": [
+          "G012",
+          "G100"
+        ]
+      },
+      {
+        "target_id": "T05",
+        "genes": [
+          "IGDCC3",
+          "ZBTB25"
+        ],
+        "component_ids": [
+          "G048",
+          "G103"
+        ]
+      },
+      {
+        "target_id": "T06",
+        "genes": [
+          "UBASH3B",
+          "ZBTB25"
+        ],
+        "component_ids": [
+          "G100",
+          "G103"
+        ]
+      },
+      {
+        "target_id": "T07",
+        "genes": [
+          "PRTG",
+          "TGFBR2"
+        ],
+        "component_ids": [
+          "G075",
+          "G095"
+        ]
+      },
+      {
+        "target_id": "T08",
+        "genes": [
+          "FOXA1",
+          "KLF1"
+        ],
+        "component_ids": [
+          "G035",
+          "G056"
+        ]
+      },
+      {
+        "target_id": "T09",
+        "genes": [
+          "CBL",
+          "PTPN12"
+        ],
+        "component_ids": [
+          "G012",
+          "G077"
+        ]
+      },
+      {
+        "target_id": "T10",
+        "genes": [
+          "CNN1",
+          "UBASH3A"
+        ],
+        "component_ids": [
+          "G023",
+          "G099"
+        ]
+      },
+      {
+        "target_id": "T11",
+        "genes": [
+          "SAMD1",
+          "TGFBR2"
+        ],
+        "component_ids": [
+          "G084",
+          "G095"
+        ]
+      },
+      {
+        "target_id": "T12",
+        "genes": [
+          "ETS2",
+          "TGFBR2"
+        ],
+        "component_ids": [
+          "G032",
+          "G095"
+        ]
+      }
+    ],
+    "feature_catalog": [
+      {
+        "feature_id": "F001",
+        "gene": "HBZ"
+      },
+      {
+        "feature_id": "F002",
+        "gene": "HBG2"
+      },
+      {
+        "feature_id": "F003",
+        "gene": "GYPB"
+      },
+      {
+        "feature_id": "F004",
+        "gene": "HBG1"
+      },
+      {
+        "feature_id": "F005",
+        "gene": "LST1"
+      },
+      {
+        "feature_id": "F006",
+        "gene": "AVP"
+      },
+      {
+        "feature_id": "F007",
+        "gene": "TMSB4X"
+      },
+      {
+        "feature_id": "F008",
+        "gene": "AIF1"
+      },
+      {
+        "feature_id": "F009",
+        "gene": "RP11-301G19.1"
+      },
+      {
+        "feature_id": "F010",
+        "gene": "VIM"
+      },
+      {
+        "feature_id": "F011",
+        "gene": "SH3BGRL3"
+      },
+      {
+        "feature_id": "F012",
+        "gene": "GYPA"
+      },
+      {
+        "feature_id": "F013",
+        "gene": "HBA1"
+      },
+      {
+        "feature_id": "F014",
+        "gene": "ALAS2"
+      },
+      {
+        "feature_id": "F015",
+        "gene": "MALAT1"
+      },
+      {
+        "feature_id": "F016",
+        "gene": "TMSB10"
+      },
+      {
+        "feature_id": "F017",
+        "gene": "CFD"
+      },
+      {
+        "feature_id": "F018",
+        "gene": "APOE"
+      },
+      {
+        "feature_id": "F019",
+        "gene": "RP11-717F1.1"
+      },
+      {
+        "feature_id": "F020",
+        "gene": "APOC1"
+      },
+      {
+        "feature_id": "F021",
+        "gene": "S100A11"
+      },
+      {
+        "feature_id": "F022",
+        "gene": "SLC25A37"
+      },
+      {
+        "feature_id": "F023",
+        "gene": "NEAT1"
+      },
+      {
+        "feature_id": "F024",
+        "gene": "TYROBP"
+      },
+      {
+        "feature_id": "F025",
+        "gene": "HIST1H1C"
+      },
+      {
+        "feature_id": "F026",
+        "gene": "GAL"
+      },
+      {
+        "feature_id": "F027",
+        "gene": "CEBPE"
+      },
+      {
+        "feature_id": "F028",
+        "gene": "BLVRB"
+      },
+      {
+        "feature_id": "F029",
+        "gene": "CSF3R"
+      },
+      {
+        "feature_id": "F030",
+        "gene": "CYBA"
+      },
+      {
+        "feature_id": "F031",
+        "gene": "MYL4"
+      },
+      {
+        "feature_id": "F032",
+        "gene": "NME1"
+      },
+      {
+        "feature_id": "F033",
+        "gene": "SRM"
+      },
+      {
+        "feature_id": "F034",
+        "gene": "FEV"
+      },
+      {
+        "feature_id": "F035",
+        "gene": "PRSS57"
+      },
+      {
+        "feature_id": "F036",
+        "gene": "LAPTM4B"
+      },
+      {
+        "feature_id": "F037",
+        "gene": "GYPC"
+      },
+      {
+        "feature_id": "F038",
+        "gene": "LGALS1"
+      },
+      {
+        "feature_id": "F039",
+        "gene": "RANBP1"
+      },
+      {
+        "feature_id": "F040",
+        "gene": "PTMA"
+      },
+      {
+        "feature_id": "F041",
+        "gene": "MS4A3"
+      },
+      {
+        "feature_id": "F042",
+        "gene": "ARPC1B"
+      },
+      {
+        "feature_id": "F043",
+        "gene": "BTG1"
+      },
+      {
+        "feature_id": "F044",
+        "gene": "PA2G4"
+      },
+      {
+        "feature_id": "F045",
+        "gene": "TMEM54"
+      },
+      {
+        "feature_id": "F046",
+        "gene": "VAMP8"
+      },
+      {
+        "feature_id": "F047",
+        "gene": "PLD3"
+      },
+      {
+        "feature_id": "F048",
+        "gene": "ARHGDIB"
+      },
+      {
+        "feature_id": "F049",
+        "gene": "PNRC1"
+      },
+      {
+        "feature_id": "F050",
+        "gene": "MSRB1"
+      },
+      {
+        "feature_id": "F051",
+        "gene": "PYCARD"
+      },
+      {
+        "feature_id": "F052",
+        "gene": "IFITM2"
+      },
+      {
+        "feature_id": "F053",
+        "gene": "HBA2"
+      },
+      {
+        "feature_id": "F054",
+        "gene": "PITX1"
+      },
+      {
+        "feature_id": "F055",
+        "gene": "LMO4"
+      },
+      {
+        "feature_id": "F056",
+        "gene": "COL18A1"
+      },
+      {
+        "feature_id": "F057",
+        "gene": "HIST1H4C"
+      },
+      {
+        "feature_id": "F058",
+        "gene": "LAPTM5"
+      },
+      {
+        "feature_id": "F059",
+        "gene": "ACTG1"
+      },
+      {
+        "feature_id": "F060",
+        "gene": "LY6E"
+      },
+      {
+        "feature_id": "F061",
+        "gene": "UBE2S"
+      },
+      {
+        "feature_id": "F062",
+        "gene": "UBAC1"
+      },
+      {
+        "feature_id": "F063",
+        "gene": "MDK"
+      },
+      {
+        "feature_id": "F064",
+        "gene": "GSTP1"
+      }
+    ],
+    "gene_alias_catalog": [
+      {
+        "gene_id": "G001",
+        "gene": "AHR"
+      },
+      {
+        "gene_id": "G002",
+        "gene": "ARID1A"
+      },
+      {
+        "gene_id": "G003",
+        "gene": "ARRDC3"
+      },
+      {
+        "gene_id": "G004",
+        "gene": "ATL1"
+      },
+      {
+        "gene_id": "G005",
+        "gene": "BAK1"
+      },
+      {
+        "gene_id": "G006",
+        "gene": "BCL2L11"
+      },
+      {
+        "gene_id": "G007",
+        "gene": "BCORL1"
+      },
+      {
+        "gene_id": "G008",
+        "gene": "BPGM"
+      },
+      {
+        "gene_id": "G009",
+        "gene": "C19orf26"
+      },
+      {
+        "gene_id": "G010",
+        "gene": "C3orf72"
+      },
+      {
+        "gene_id": "G011",
+        "gene": "CBFA2T3"
+      },
+      {
+        "gene_id": "G012",
+        "gene": "CBL"
+      },
+      {
+        "gene_id": "G013",
+        "gene": "CDKN1A"
+      },
+      {
+        "gene_id": "G014",
+        "gene": "CDKN1B"
+      },
+      {
+        "gene_id": "G015",
+        "gene": "CDKN1C"
+      },
+      {
+        "gene_id": "G016",
+        "gene": "CEBPA"
+      },
+      {
+        "gene_id": "G017",
+        "gene": "CEBPB"
+      },
+      {
+        "gene_id": "G018",
+        "gene": "CEBPE"
+      },
+      {
+        "gene_id": "G019",
+        "gene": "CELF2"
+      },
+      {
+        "gene_id": "G020",
+        "gene": "CITED1"
+      },
+      {
+        "gene_id": "G021",
+        "gene": "CKS1B"
+      },
+      {
+        "gene_id": "G022",
+        "gene": "CLDN6"
+      },
+      {
+        "gene_id": "G023",
+        "gene": "CNN1"
+      },
+      {
+        "gene_id": "G024",
+        "gene": "CNNM4"
+      },
+      {
+        "gene_id": "G025",
+        "gene": "COL1A1"
+      },
+      {
+        "gene_id": "G026",
+        "gene": "COL2A1"
+      },
+      {
+        "gene_id": "G027",
+        "gene": "CSRNP1"
+      },
+      {
+        "gene_id": "G028",
+        "gene": "DLX2"
+      },
+      {
+        "gene_id": "G029",
+        "gene": "DUSP9"
+      },
+      {
+        "gene_id": "G030",
+        "gene": "EGR1"
+      },
+      {
+        "gene_id": "G031",
+        "gene": "ELMSAN1"
+      },
+      {
+        "gene_id": "G032",
+        "gene": "ETS2"
+      },
+      {
+        "gene_id": "G033",
+        "gene": "FEV"
+      },
+      {
+        "gene_id": "G034",
+        "gene": "FOSB"
+      },
+      {
+        "gene_id": "G035",
+        "gene": "FOXA1"
+      },
+      {
+        "gene_id": "G036",
+        "gene": "FOXA3"
+      },
+      {
+        "gene_id": "G037",
+        "gene": "FOXF1"
+      },
+      {
+        "gene_id": "G038",
+        "gene": "FOXL2"
+      },
+      {
+        "gene_id": "G039",
+        "gene": "FOXO4"
+      },
+      {
+        "gene_id": "G040",
+        "gene": "GLB1L2"
+      },
+      {
+        "gene_id": "G041",
+        "gene": "HES7"
+      },
+      {
+        "gene_id": "G042",
+        "gene": "HK2"
+      },
+      {
+        "gene_id": "G043",
+        "gene": "HNF4A"
+      },
+      {
+        "gene_id": "G044",
+        "gene": "HOXA13"
+      },
+      {
+        "gene_id": "G045",
+        "gene": "HOXB9"
+      },
+      {
+        "gene_id": "G046",
+        "gene": "HOXC13"
+      },
+      {
+        "gene_id": "G047",
+        "gene": "IER5L"
+      },
+      {
+        "gene_id": "G048",
+        "gene": "IGDCC3"
+      },
+      {
+        "gene_id": "G049",
+        "gene": "IKZF3"
+      },
+      {
+        "gene_id": "G050",
+        "gene": "IRF1"
+      },
+      {
+        "gene_id": "G051",
+        "gene": "ISL2"
+      },
+      {
+        "gene_id": "G052",
+        "gene": "JUN"
+      },
+      {
+        "gene_id": "G053",
+        "gene": "KIAA1804"
+      },
+      {
+        "gene_id": "G054",
+        "gene": "KIF18B"
+      },
+      {
+        "gene_id": "G055",
+        "gene": "KIF2C"
+      },
+      {
+        "gene_id": "G056",
+        "gene": "KLF1"
+      },
+      {
+        "gene_id": "G057",
+        "gene": "KMT2A"
+      },
+      {
+        "gene_id": "G058",
+        "gene": "LHX1"
+      },
+      {
+        "gene_id": "G059",
+        "gene": "LYL1"
+      },
+      {
+        "gene_id": "G060",
+        "gene": "MAML2"
+      },
+      {
+        "gene_id": "G061",
+        "gene": "MAP2K3"
+      },
+      {
+        "gene_id": "G062",
+        "gene": "MAP2K6"
+      },
+      {
+        "gene_id": "G063",
+        "gene": "MAP4K3"
+      },
+      {
+        "gene_id": "G064",
+        "gene": "MAP4K5"
+      },
+      {
+        "gene_id": "G065",
+        "gene": "MAP7D1"
+      },
+      {
+        "gene_id": "G066",
+        "gene": "MAPK1"
+      },
+      {
+        "gene_id": "G067",
+        "gene": "MEIS1"
+      },
+      {
+        "gene_id": "G068",
+        "gene": "MIDN"
+      },
+      {
+        "gene_id": "G069",
+        "gene": "NCL"
+      },
+      {
+        "gene_id": "G070",
+        "gene": "NIT1"
+      },
+      {
+        "gene_id": "G071",
+        "gene": "OSR2"
+      },
+      {
+        "gene_id": "G072",
+        "gene": "PLK4"
+      },
+      {
+        "gene_id": "G073",
+        "gene": "POU3F2"
+      },
+      {
+        "gene_id": "G074",
+        "gene": "PRDM1"
+      },
+      {
+        "gene_id": "G075",
+        "gene": "PRTG"
+      },
+      {
+        "gene_id": "G076",
+        "gene": "PTPN1"
+      },
+      {
+        "gene_id": "G077",
+        "gene": "PTPN12"
+      },
+      {
+        "gene_id": "G078",
+        "gene": "PTPN13"
+      },
+      {
+        "gene_id": "G079",
+        "gene": "PTPN9"
+      },
+      {
+        "gene_id": "G080",
+        "gene": "RHOXF2"
+      },
+      {
+        "gene_id": "G081",
+        "gene": "RREB1"
+      },
+      {
+        "gene_id": "G082",
+        "gene": "RUNX1T1"
+      },
+      {
+        "gene_id": "G083",
+        "gene": "S1PR2"
+      },
+      {
+        "gene_id": "G084",
+        "gene": "SAMD1"
+      },
+      {
+        "gene_id": "G085",
+        "gene": "SET"
+      },
+      {
+        "gene_id": "G086",
+        "gene": "SGK1"
+      },
+      {
+        "gene_id": "G087",
+        "gene": "SLC38A2"
+      },
+      {
+        "gene_id": "G088",
+        "gene": "SLC4A1"
+      },
+      {
+        "gene_id": "G089",
+        "gene": "SLC6A9"
+      },
+      {
+        "gene_id": "G090",
+        "gene": "SNAI1"
+      },
+      {
+        "gene_id": "G091",
+        "gene": "SPI1"
+      },
+      {
+        "gene_id": "G092",
+        "gene": "STIL"
+      },
+      {
+        "gene_id": "G093",
+        "gene": "TBX2"
+      },
+      {
+        "gene_id": "G094",
+        "gene": "TBX3"
+      },
+      {
+        "gene_id": "G095",
+        "gene": "TGFBR2"
+      },
+      {
+        "gene_id": "G096",
+        "gene": "TMSB4X"
+      },
+      {
+        "gene_id": "G097",
+        "gene": "TP73"
+      },
+      {
+        "gene_id": "G098",
+        "gene": "TSC22D1"
+      },
+      {
+        "gene_id": "G099",
+        "gene": "UBASH3A"
+      },
+      {
+        "gene_id": "G100",
+        "gene": "UBASH3B"
+      },
+      {
+        "gene_id": "G101",
+        "gene": "ZBTB1"
+      },
+      {
+        "gene_id": "G102",
+        "gene": "ZBTB10"
+      },
+      {
+        "gene_id": "G103",
+        "gene": "ZBTB25"
+      },
+      {
+        "gene_id": "G104",
+        "gene": "ZC3HAV1"
+      },
+      {
+        "gene_id": "G105",
+        "gene": "ZNF318"
+      }
+    ],
+    "broker_interfaces": {
+      "screen2.training_manifest": "training IDs, folds, and shapes",
+      "screen2.single_effects": "raw training single-condition vectors",
+      "screen2.training_pairs": "raw observed training double vectors",
+      "screen2.algebra_lab": "execute agent-authored training-only models",
+      "screen2.geometry_lab": "execute agent-authored training-only models",
+      "screen2.graph_lab": "execute agent-authored training-only models",
+      "screen2.information_lab": "execute agent-authored training-only models"
+    },
+    "reasoning_contract": {
+      "artifact_required_keys": [
+        "candidate_solution",
+        "constraint_results",
+        "certificate",
+        "conclusion",
+        "hypotheses",
+        "experiments",
+        "model_comparison",
+        "validation"
+      ],
+      "minimum_broker_calls": 4,
+      "minimum_model_configurations": 2,
+      "required_tool_prefix": "screen2.",
+      "required_compute_suffix": "_lab",
+      "requirements": [
+        "Fit or construct predictions during the run; no target candidate is available from a data tool.",
+        "Compare at least two configurations using only frozen training folds.",
+        "Perform at least one ablation, perturbation, or counterexample check.",
+        "Return one independently complete candidate for all targets."
+      ]
+    }
+  },
+  "required_outputs": [
+    "complete candidate_solution for T01-T12 with 64 values each",
+    "hypotheses considered in the invented representation",
+    "experiments backed by the Broker call ledger",
+    "comparison of at least two training-validated model configurations",
+    "ablation, counterexample, or robustness validation",
+    "constraint results, certificate, conclusion, confidence, and falsifiers"
+  ],
+  "answer_schema": {
+    "type": "object",
+    "required": [
+      "predictions",
+      "method_summary"
+    ],
+    "properties": {
+      "predictions": {
+        "type": "array",
+        "minItems": 12,
+        "maxItems": 12,
+        "items": {
+          "type": "object",
+          "required": [
+            "target_id",
+            "predicted_delta",
+            "interaction_class",
+            "confidence",
+            "falsifier"
+          ]
+        }
+      },
+      "method_summary": {
+        "type": "string"
+      }
+    }
+  }
+}
