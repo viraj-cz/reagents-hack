@@ -79,6 +79,10 @@ def load_problem(problem_name: str) -> tuple[NativeProblem, list[Path]]:
         # Public raw training primitives are mounted only inside the dedicated
         # Broker executor. No held-out response enters God or a demigod.
         return load_perturbseq_v2(), []
+    if problem_name == "perturbdesign":
+        from benchmarks.perturbseq_design import load_problem as load_design
+
+        return load_design(), []
     if problem_name == "phasing":
         from benchmarks.haplotype_phasing import load_problem as load_phasing
 
@@ -191,6 +195,8 @@ async def run_once(
         os.environ["REAGENTS_ENABLE_NORMAN_BENCHMARK"] = "1"
     elif problem_name == "perturbseq2":
         os.environ["REAGENTS_ENABLE_NORMAN_V2_BENCHMARK"] = "1"
+    elif problem_name == "perturbdesign":
+        os.environ["REAGENTS_ENABLE_PERTURBSEQ_DESIGN"] = "1"
     elif problem_name == "phasing":
         os.environ["REAGENTS_ENABLE_HAPLOTYPE_BENCHMARK"] = "1"
     elif problem_name == "polyphase":
@@ -199,7 +205,7 @@ async def run_once(
     runtime_contract = problem.inputs.get("reasoning_contract", {}).get(
         "runtime_budget", {}
     )
-    if problem_name in {"phasing", "polyphase"}:
+    if problem_name in {"perturbdesign", "phasing", "polyphase"}:
         # Benchmark contracts are lower bounds. The generic CLI defaults are
         # smoke-test limits and must not silently truncate a scientific run.
         turns = max(turns, int(runtime_contract.get("max_demigod_turns", turns)))
@@ -228,6 +234,10 @@ async def run_once(
         )
 
         verifier = NormanPerturbSeqV2Verifier()
+    elif problem_name == "perturbdesign":
+        from benchmarks.perturbseq_design import PerturbSeqDesignVerifier
+
+        verifier = PerturbSeqDesignVerifier()
     elif problem_name == "phasing":
         from benchmarks.haplotype_phasing import HaplotypePhasingVerifier
 
@@ -249,6 +259,14 @@ async def run_once(
         registry = ToolRegistry()
         for tool_id in discovered.ids():
             if tool_id.startswith("screen."):
+                registry.register(discovered.get(tool_id))
+    elif problem_name == "perturbdesign":
+        from reagents.tools.registry import ToolRegistry
+
+        discovered = default_registry()
+        registry = ToolRegistry()
+        for tool_id in discovered.ids():
+            if tool_id.startswith("portfolio."):
                 registry.register(discovered.get(tool_id))
     elif problem_name == "phasing":
         # Only abstract binary capabilities enter the planning catalog. Their
@@ -490,6 +508,7 @@ def main() -> int:
             "flareguard",
             "perturbseq",
             "perturbseq2",
+            "perturbdesign",
             "phasing",
             "polyphase",
         ),
@@ -500,7 +519,9 @@ def main() -> int:
         "the complete-objective living-diagnostic design benchmark; "
         "perturbseq = v1 candidate-selection Norman benchmark; perturbseq2 = "
         "real held-out Norman responses from raw training primitives and "
-        "demigod-authored models; phasing = real HG004 long-read evidence "
+        "demigod-authored models; perturbdesign = constrained selection of a "
+        "diverse high-interaction follow-up batch; phasing = real HG004 "
+        "long-read evidence "
         "sealed into abstract binary coordinate systems; polyphase = harder "
         "real-read four-factor reconstruction with dosage constraints",
     )

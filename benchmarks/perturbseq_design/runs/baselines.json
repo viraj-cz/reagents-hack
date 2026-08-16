@@ -1,0 +1,288 @@
+{
+  "kind": "deterministic_public_baselines",
+  "responses_committed_before_private_scoring": true,
+  "selections": {
+    "additive_magnitude": [
+      "C009",
+      "C010",
+      "C011",
+      "C013",
+      "C019",
+      "C025",
+      "C026",
+      "C042",
+      "C043",
+      "C062"
+    ],
+    "strong_singles": [
+      "C005",
+      "C009",
+      "C010",
+      "C011",
+      "C019",
+      "C025",
+      "C026",
+      "C031",
+      "C043",
+      "C062"
+    ],
+    "gene_interaction_prior": [
+      "C009",
+      "C010",
+      "C011",
+      "C012",
+      "C015",
+      "C021",
+      "C022",
+      "C026",
+      "C035",
+      "C039"
+    ],
+    "ridge_strength": [
+      "C005",
+      "C009",
+      "C010",
+      "C011",
+      "C013",
+      "C019",
+      "C026",
+      "C031",
+      "C043",
+      "C061"
+    ],
+    "geometry_knn": [
+      "C005",
+      "C009",
+      "C010",
+      "C013",
+      "C014",
+      "C015",
+      "C016",
+      "C021",
+      "C031",
+      "C043"
+    ],
+    "random_forest": [
+      "C009",
+      "C010",
+      "C013",
+      "C014",
+      "C015",
+      "C018",
+      "C021",
+      "C026",
+      "C043",
+      "C061"
+    ],
+    "diversity_only": [
+      "C011",
+      "C012",
+      "C020",
+      "C024",
+      "C030",
+      "C040",
+      "C046",
+      "C049",
+      "C052",
+      "C063"
+    ]
+  },
+  "scores": {
+    "additive_magnitude": {
+      "passed": true,
+      "score_10": 7.0327,
+      "metrics": {
+        "utility": 17.979998,
+        "oracle_utility": 25.566356,
+        "regret": 7.586358,
+        "strength_sum": 13.479998,
+        "mean_strength": 1.348,
+        "strong_hit_rate": 0.6,
+        "program_coverage": 3,
+        "oracle_overlap": 3
+      },
+      "selection": [
+        "C009",
+        "C010",
+        "C011",
+        "C013",
+        "C019",
+        "C025",
+        "C026",
+        "C042",
+        "C043",
+        "C062"
+      ],
+      "errors": []
+    },
+    "strong_singles": {
+      "passed": true,
+      "score_10": 7.9556,
+      "metrics": {
+        "utility": 20.339664,
+        "oracle_utility": 25.566356,
+        "regret": 5.226693,
+        "strength_sum": 14.339664,
+        "mean_strength": 1.433966,
+        "strong_hit_rate": 0.7,
+        "program_coverage": 4,
+        "oracle_overlap": 4
+      },
+      "selection": [
+        "C005",
+        "C009",
+        "C010",
+        "C011",
+        "C019",
+        "C025",
+        "C026",
+        "C031",
+        "C043",
+        "C062"
+      ],
+      "errors": []
+    },
+    "gene_interaction_prior": {
+      "passed": true,
+      "score_10": 8.0017,
+      "metrics": {
+        "utility": 20.45753,
+        "oracle_utility": 25.566356,
+        "regret": 5.108826,
+        "strength_sum": 14.45753,
+        "mean_strength": 1.445753,
+        "strong_hit_rate": 0.7,
+        "program_coverage": 4,
+        "oracle_overlap": 4
+      },
+      "selection": [
+        "C009",
+        "C010",
+        "C011",
+        "C012",
+        "C015",
+        "C021",
+        "C022",
+        "C026",
+        "C035",
+        "C039"
+      ],
+      "errors": []
+    },
+    "ridge_strength": {
+      "passed": true,
+      "score_10": 8.0917,
+      "metrics": {
+        "utility": 20.687412,
+        "oracle_utility": 25.566356,
+        "regret": 4.878945,
+        "strength_sum": 14.687412,
+        "mean_strength": 1.468741,
+        "strong_hit_rate": 0.7,
+        "program_coverage": 4,
+        "oracle_overlap": 4
+      },
+      "selection": [
+        "C005",
+        "C009",
+        "C010",
+        "C011",
+        "C013",
+        "C019",
+        "C026",
+        "C031",
+        "C043",
+        "C061"
+      ],
+      "errors": []
+    },
+    "geometry_knn": {
+      "passed": true,
+      "score_10": 8.1437,
+      "metrics": {
+        "utility": 20.820473,
+        "oracle_utility": 25.566356,
+        "regret": 4.745884,
+        "strength_sum": 14.820473,
+        "mean_strength": 1.482047,
+        "strong_hit_rate": 0.7,
+        "program_coverage": 4,
+        "oracle_overlap": 4
+      },
+      "selection": [
+        "C005",
+        "C009",
+        "C010",
+        "C013",
+        "C014",
+        "C015",
+        "C016",
+        "C021",
+        "C031",
+        "C043"
+      ],
+      "errors": []
+    },
+    "random_forest": {
+      "passed": true,
+      "score_10": 7.5312,
+      "metrics": {
+        "utility": 19.25445,
+        "oracle_utility": 25.566356,
+        "regret": 6.311906,
+        "strength_sum": 14.75445,
+        "mean_strength": 1.475445,
+        "strong_hit_rate": 0.7,
+        "program_coverage": 3,
+        "oracle_overlap": 4
+      },
+      "selection": [
+        "C009",
+        "C010",
+        "C013",
+        "C014",
+        "C015",
+        "C018",
+        "C021",
+        "C026",
+        "C043",
+        "C061"
+      ],
+      "errors": []
+    },
+    "diversity_only": {
+      "passed": true,
+      "score_10": 5.0165,
+      "metrics": {
+        "utility": 12.82535,
+        "oracle_utility": 25.566356,
+        "regret": 12.741006,
+        "strength_sum": 9.82535,
+        "mean_strength": 0.982535,
+        "strong_hit_rate": 0.2,
+        "program_coverage": 2,
+        "oracle_overlap": 1
+      },
+      "selection": [
+        "C011",
+        "C012",
+        "C020",
+        "C024",
+        "C030",
+        "C040",
+        "C046",
+        "C049",
+        "C052",
+        "C063"
+      ],
+      "errors": []
+    }
+  },
+  "random_250": {
+    "mean_score_10": 5.5412,
+    "p10_score_10": 4.1074,
+    "median_score_10": 5.4213,
+    "p90_score_10": 7.0393,
+    "best_score_10": 8.1608
+  }
+}
