@@ -360,4 +360,22 @@ def default_registry() -> ToolRegistry:
 
         for tool in norman_v2.all_tools():
             registry.register(tool)
+    if os.environ.get("REAGENTS_ENABLE_HAPLOTYPE_BENCHMARK", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        from reagents.tools import haplotype
+
+        for tool in haplotype.all_tools():
+            registry.register(tool)
+    if os.environ.get("REAGENTS_ENABLE_POLYPLOID_BENCHMARK", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        from reagents.tools import polyploid
+
+        for tool in polyploid.all_tools():
+            registry.register(tool)
     return registry

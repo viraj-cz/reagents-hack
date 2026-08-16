@@ -92,6 +92,11 @@ BROKER_ENV: dict[str, str] = {
     "REAGENTS_ENABLE_NORMAN_BENCHMARK": "1",
     # Fresh split exposing only training primitives and source-free compute labs.
     "REAGENTS_ENABLE_NORMAN_V2_BENCHMARK": "1",
+    # Representation-neutral primitives over the public HG004 evidence. The
+    # generated module contains no private expected phase, and tool outputs
+    # strip all native metadata before crossing the Broker boundary.
+    "REAGENTS_ENABLE_HAPLOTYPE_BENCHMARK": "1",
+    "REAGENTS_ENABLE_POLYPLOID_BENCHMARK": "1",
 }
 
 
