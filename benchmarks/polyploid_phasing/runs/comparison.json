@@ -1,0 +1,47 @@
+{
+  "benchmark_id": "real-human-tetraploid-long-read-phasing-v1",
+  "scoring_happened_after_all_responses_were_committed": true,
+  "conditions": {
+    "pipeline": {
+      "access": "God plus four sealed full-problem workers and leased latent representation primitives",
+      "score": {
+        "passed": true,
+        "score_10": 8.7547,
+        "weighted_discordance": 604,
+        "exact_optimum": 604,
+        "reference_objective_ceiling": 933,
+        "objective_optimality": 1.0,
+        "permutation_invariant_block_phase_accuracy": 0.847222,
+        "phase_boundary_accuracy": 0.682927,
+        "errors": []
+      },
+      "artifact_count": 4,
+      "failures": 0,
+      "brokered_tool_calls": 25
+    },
+    "standard_claude": {
+      "access": "one native-field Claude API call, no tools",
+      "score": {
+        "passed": false,
+        "score_10": 0.0,
+        "errors": [
+          "allele dosage violated at ['V037']"
+        ]
+      }
+    },
+    "native_code_agent": {
+      "access": "one native-field Claude Code agent with local Python, no Broker",
+      "score": {
+        "passed": true,
+        "score_10": 8.3862,
+        "weighted_discordance": 604,
+        "exact_optimum": 604,
+        "reference_objective_ceiling": 933,
+        "objective_optimality": 1.0,
+        "permutation_invariant_block_phase_accuracy": 0.791667,
+        "phase_boundary_accuracy": 0.609756,
+        "errors": []
+      }
+    }
+  }
+}
