@@ -577,9 +577,39 @@ def execute_operation(operation: str, arguments: dict[str, Any]) -> Any:
 
 def _make_executor(klass: ExecutorClass) -> modal.Function:
     if klass.source_free:
+        # SELF-CONTAINED ON PURPOSE. Every name this closure needs is either a
+        # builtin, imported in its own body, or bound as a default argument --
+        # it must not reference ANY module-level name, including
+        # `execute_operation` and `TOOL_RUNTIME_REMOTE`.
+        #
+        # `serialized=True` makes cloudpickle serialize the closure by value,
+        # but a global it refers to is still pickled BY REFERENCE to
+        # `broker.service`. A source-free image has no `broker` package, so the
+        # container died on startup:
+        #
+        #     ModuleNotFoundError: No module named 'broker'
+        #     Function .execute_esm is crash-looping
+        #
+        # That is the direct cost of source_free -- the isolation it buys is
+        # exactly "this image cannot import our code", and the executor is not
+        # exempt from it. Hence the duplication with `execute_operation` below,
+        # which stays as the canonical version used by preflight and tests.
+        # tests/test_broker_tiers.py asserts this stays self-contained.
+        def execute(
+            operation: str,
+            arguments: dict[str, Any],
+            _runtime_path: str = TOOL_RUNTIME_REMOTE,
+        ) -> Any:
+            import importlib.util
 
-        def execute(operation: str, arguments: dict[str, Any]) -> Any:
-            return execute_operation(operation, arguments)
+            spec = importlib.util.spec_from_file_location(
+                "reagents_tool_runtime", _runtime_path
+            )
+            if spec is None or spec.loader is None:
+                raise RuntimeError(f"tool runtime missing at {_runtime_path}")
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module.run_operation(operation, arguments)
 
     else:
 

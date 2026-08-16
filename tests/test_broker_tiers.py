@@ -241,3 +241,69 @@ def test_heavy_layers_sit_below_the_source_layer() -> None:
         body.index("add_local_python_source"),
     ]
     assert order == sorted(order)
+
+
+def test_source_free_executor_closure_references_no_module_globals() -> None:
+    """A source-free tier's executor must not close over anything importable.
+
+    Regression for every source-free tier crash-looping in production while the
+    deploy reported success:
+
+        ModuleNotFoundError: No module named 'broker'
+        Function .execute_esm is crash-looping
+
+    `serialized=True` makes cloudpickle serialize the closure by value, but any
+    GLOBAL it references is still pickled by reference to `broker.service` --
+    and a source-free image has no `broker` package by construction. The
+    closure called module-level `execute_operation`, so every replica died on
+    startup.
+
+    Asserted on `co_names` because that is the actual mechanism: the names a
+    code object looks up at runtime are exactly what cloudpickle has to resolve.
+    A comment saying "do not reference module scope" is not enforcement -- the
+    next person adding a helper call here gets a test failure instead of a
+    crash-loop discovered on a dashboard.
+    """
+    import broker.service as svc
+
+    module_globals = {
+        name
+        for name, value in vars(svc).items()
+        if (not name.startswith("__") and callable(value)) or isinstance(value, str)
+    }
+
+    # EXECUTOR_CLASSES, not ALL_: a tier gated off by `enable_env` (DESIGN)
+    # is never registered, so it has no closure to inspect.
+    source_free = [k for k in svc.EXECUTOR_CLASSES if k.source_free]
+    assert source_free, "no source-free tier to check"
+
+    for klass in source_free:
+        # Rebuild the closure the same way _make_executor does, without needing
+        # a live App: the code object is what gets serialized either way.
+        closure = _extract_source_free_closure(svc, klass)
+        offending = sorted(set(closure.__code__.co_names) & module_globals)
+        assert not offending, (
+            f"{klass.name}'s executor closure references module globals "
+            f"{offending}; cloudpickle will pickle them by reference to "
+            f"broker.service, which a source-free image cannot import"
+        )
+
+
+def _extract_source_free_closure(svc, klass):
+    """The `execute` closure `_make_executor` builds for a source-free tier.
+
+    Calls the real factory and reads the function back off the Modal Function,
+    so the test checks the object that is actually deployed rather than a
+    reconstruction of it.
+    """
+    fn = svc._EXECUTORS.get(klass.name)
+    assert fn is not None, f"{klass.name} has no registered executor"
+    for attr in ("_info", "info"):
+        info = getattr(fn, attr, None)
+        raw = getattr(info, "raw_f", None)
+        if raw is not None:
+            return raw
+    raise AssertionError(
+        "could not reach the raw function off the Modal Function object; "
+        "Modal's internals moved and this test needs updating"
+    )
