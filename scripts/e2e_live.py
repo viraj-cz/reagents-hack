@@ -175,10 +175,52 @@ async def run_once(
         print(f"  payload    : {json.dumps(artifact.payload)[:400]}")
         print(f"  files      : {artifact.files}")
         print(f"  unknowns   : {artifact.unknowns[:3]}")
+        _print_tool_trace(artifact)
+
+    # THE evidence that `--broker` did anything. Without this the run prints an
+    # answer and says nothing about where it came from, and "the broker was in
+    # play" becomes an assumption rather than an observation -- which is how a
+    # previous run got reported as brokered when `toolbox` was None.
+    #
+    # Read from the BROKER's record, not the agent's manifest: the demigod
+    # authors its claim, it does not author the log of what it called.
+    total_calls = sum(len(a.tool_trace) for a in trace.artifacts)
+    print(
+        f"\nbrokered tool calls: {total_calls} across "
+        f"{len(trace.artifacts)} artifact(s)"
+    )
+    if broker and total_calls == 0:
+        print(
+            "  WARNING: --broker was set but no tool was called. The lease was "
+            "published and never used -- the run proves the spawn path, not the "
+            "broker. Check `toolbox list` output in the demigod transcript."
+        )
 
     # Artifacts survive on the volume regardless of what the integrator said.
     print(f"\nartifacts on volume: uv run modal volume ls demigod-run-{run_id}-out")
     return 0 if trace.artifacts else 1
+
+
+def _print_tool_trace(artifact) -> None:
+    """One line per brokered call: what was asked, and what came back.
+
+    Truncated hard. A trace entry can carry a whole tool result (an embedding is
+    480 floats), and dumping that buries the one fact worth reading -- that the
+    call happened, against which tool, and whether it succeeded.
+    """
+    if not artifact.tool_trace:
+        print("  tool calls : none")
+        return
+    print(f"  tool calls : {len(artifact.tool_trace)}")
+    for entry in artifact.tool_trace:
+        tool = entry.get("tool", "?")
+        args = json.dumps(entry.get("input", {}))[:80]
+        result = entry.get("result", {})
+        if isinstance(result, dict) and "error" in result:
+            status = f"ERROR {str(result['error'])[:60]}"
+        else:
+            status = f"ok {json.dumps(result, default=str)[:60]}"
+        print(f"      - {tool}({args}) -> {status}")
 
 
 def load_env_file() -> None:

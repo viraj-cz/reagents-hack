@@ -24,7 +24,7 @@ from reagents.god.integrator import Integrator
 from reagents.god.planner import Planner
 from reagents.god.transformer import LeakError, Transformer
 from reagents.isolation import assert_sealed, find_spec_leaks, native_terms
-from reagents.llm.client import LLMClient
+from reagents.llm.client import LLMClient, LLMError
 from reagents.tools.registry import ToolRegistry, default_registry
 from reagents.tracing import GOD_LANE, NullTracer, TraceSink, demigod_lane, summarize
 
@@ -176,6 +176,33 @@ class God:
                         "transform could not seal the domain problem",
                         exc.leaks,
                     )
+                )
+                continue
+            except LLMError as exc:
+                # One domain's transform failing must not end the run. This
+                # propagated and killed a live run at the FIRST of two domains:
+                # a refusal on `throughput_ceiling_orbits` meant the second,
+                # perfectly healthy domain was never even attempted, and the
+                # whole orchestration exited non-zero with no answer at all.
+                #
+                # The entire design premise is that domains are independent, so
+                # treating one transform failure as fatal contradicts it -- and
+                # partial recombination is exactly what `failed_domains` on the
+                # integrator exists to describe.
+                #
+                # Scoped to LLMError deliberately: that is the "the model would
+                # not cooperate" class (refusal, truncation, unparseable JSON),
+                # all of which are recoverable by dropping this domain. A
+                # genuine bug in here should still crash loudly rather than be
+                # silently downgraded to a missing domain.
+                self.tracer.emit(
+                    GOD_LANE,
+                    "REJECT",
+                    f"{spec.name} transform failed; continuing without it",
+                    data=str(exc)[:200],
+                )
+                failures.append(
+                    _sealing_failure(spec.name, f"transform failed: {exc}")
                 )
                 continue
             envelope = self.build_envelope(spec, domain_problem)

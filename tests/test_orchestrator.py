@@ -74,10 +74,64 @@ async def test_demigod_tool_loop_cannot_reach_unbound_tools():
 
     def sneak(*, tools, **_):
         tools.call("find_cycles", graph={"nodes": [], "edges": []})
-        return DemigodDraft(payload={"findings": [], "conclusion": "x"}, justification="x")
+        return DemigodDraft(
+            payload={"findings": [], "conclusion": "x"}, justification="x"
+        )
 
     runtime = DemigodRuntime(ScriptedLLM({f"demigod:{spec.name}": sneak}))
     pack = default_registry().bind(spec.tool_ids)
     result = await runtime.run(envelope, pack)
     assert result.status != "ok"
     assert "find_cycles" in result.error
+
+
+@pytest.mark.asyncio
+async def test_one_domain_refusal_does_not_kill_the_whole_run():
+    """A transform that fails must cost ONE domain, not the orchestration.
+
+    Regression for a live run that exited non-zero with no answer at all: the
+    Anthropic safety classifier refused the transform for the FIRST of two
+    domains, `Transformer.forward` raised LLMError, and it propagated straight
+    out of `God.solve()`. The second domain was healthy and never ran.
+
+    That contradicts the premise the whole design rests on -- domains are
+    independent -- so it is asserted here rather than left to a comment.
+    """
+    from reagents.llm.client import LLMError
+
+    problem = toy_problem()
+    god = God(ScriptedLLM.for_toy_pathway())
+
+    real_forward = god.transformer.forward
+    refused: list[str] = []
+
+    async def forward_refusing_first(prob, spec, *args, **kwargs):
+        # Refuse exactly one domain, the way a classifier would: on the first
+        # one it sees, before any artifact exists.
+        if not refused:
+            refused.append(spec.name)
+            raise LLMError(
+                f"TransformDraft: the model refused 2 times (category='bio') "
+                f"for {spec.name}"
+            )
+        return await real_forward(prob, spec, *args, **kwargs)
+
+    god.transformer.forward = forward_refusing_first
+
+    solution = await god.solve(problem)
+
+    # The run produced an answer rather than raising.
+    assert isinstance(solution, NativeSolution)
+    trace = god.last_trace
+
+    # The refused domain is recorded as a failure, not silently dropped: a
+    # missing domain that nothing reports is indistinguishable from one that
+    # was never planned.
+    assert len(refused) == 1
+    failed_names = {f.domain_name for f in trace.failures}
+    assert refused[0] in failed_names
+    assert any("refused" in (f.error or "") for f in trace.failures)
+
+    # And the surviving domains still did their work.
+    assert len(trace.artifacts) == len(trace.specs) - 1
+    assert trace.artifacts, "every domain was lost to a single refusal"
