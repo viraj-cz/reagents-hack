@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from reagents.contracts import (
-    DomainArtifact,
+    DemiGodResult,
     InverseMap,
     NativeProblem,
     NativeSolution,
@@ -34,7 +34,7 @@ class Integrator:
     async def integrate(
         self,
         problem: NativeProblem,
-        artifacts: list[DomainArtifact],
+        artifacts: list[DemiGodResult],
         inverse_maps: list[InverseMap],
     ) -> NativeSolution:
         maps = {m.domain_name: m.symbol_to_native for m in inverse_maps}
@@ -47,10 +47,16 @@ class Integrator:
             f"Artifacts:\n"
         )
         for artifact in artifacts:
+            # `confidence` and `unknowns` are new to the integrator: the first
+            # lets it weight conflicting claims instead of treating every
+            # artifact as equally certain, the second tells it what was left
+            # undetermined so it lands in `gaps` rather than being invented.
             user += (
                 f"\n--- {artifact.domain_name} ---\n"
                 f"payload: {artifact.payload}\n"
                 f"justification: {artifact.justification}\n"
+                f"confidence: {artifact.confidence}\n"
+                f"unknowns: {artifact.unknowns}\n"
             )
         draft = await self.llm.complete(
             system=INTEGRATE_SYSTEM,

@@ -7,6 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from demigod.result import DemiGodResult
+
 
 class Axis(str, Enum):
     """Fixed vocabulary of orthogonal reasoning axes.
@@ -145,17 +147,36 @@ class ContextEnvelope(BaseModel):
     forbidden: list[str] = Field(default_factory=list)
 
 
-class DomainArtifact(BaseModel):
-    domain_name: str
-    payload: dict[str, Any]
-    justification: str
-    tool_trace: list[dict[str, Any]] = Field(default_factory=list)
-
-
-class DemigodFailure(BaseModel):
-    domain_name: str
-    reason: str
-    isolation_violations: list[str] = Field(default_factory=list)
+# DomainArtifact and DemigodFailure used to live here. They are now one type,
+# `demigod.result.DemiGodResult`, re-exported so `reagents.contracts` remains
+# the single place to look for the orchestration contracts.
+#
+# Why they merged: returning a union forced every consumer to isinstance-branch
+# before it could read anything, and the two types shared most of their meaning.
+# A failed demigod is now the same shape with `status != "ok"`, `confidence`
+# 0.0, and the reason in `blockers` (plus `isolation_violations` when a seal
+# was breached). One parse path, success or failure.
+#
+# The direction of the import matters: `demigod` never imports `reagents`, so
+# only `demigod` is shipped into the sandbox image and GOD's planner prompts and
+# inverse maps stay unreadable by the agent they constrain.
+__all__ = [
+    "Axis",
+    "Budget",
+    "CapabilityLease",
+    "ContextEnvelope",
+    "DemiGodResult",
+    "DomainProblem",
+    "DomainSpec",
+    "InverseMap",
+    "NativeProblem",
+    "NativeSolution",
+    "OrchestrationTrace",
+    "RiskTier",
+    "ToolAccess",
+    "ToolProvider",
+    "ToolSpec",
+]
 
 
 class NativeSolution(BaseModel):
@@ -173,7 +194,8 @@ class OrchestrationTrace(BaseModel):
     specs: list[DomainSpec] = Field(default_factory=list)
     inverse_maps: list[InverseMap] = Field(default_factory=list)
     envelopes: list[ContextEnvelope] = Field(default_factory=list)
-    artifacts: list[DomainArtifact] = Field(default_factory=list)
-    failures: list[DemigodFailure] = Field(default_factory=list)
+    # Both are DemiGodResult now; they are split by `status`, not by type.
+    artifacts: list[DemiGodResult] = Field(default_factory=list)
+    failures: list[DemiGodResult] = Field(default_factory=list)
     leaks: list[str] = Field(default_factory=list)
     solution: NativeSolution | None = None

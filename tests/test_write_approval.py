@@ -1,6 +1,6 @@
 import pytest
 
-from reagents.contracts import DemigodFailure, RiskTier, ToolAccess
+from reagents.contracts import RiskTier, ToolAccess
 from reagents.demigod.runtime import IsolationGuard
 from reagents.god.orchestrator import God, _spawn
 from reagents.god.transformer import Transformer
@@ -54,5 +54,6 @@ async def test_spawn_requires_exact_high_risk_approval():
 
     result = await _spawn(god, envelope, IsolationGuard(native_terms(problem)))
 
-    assert isinstance(result, DemigodFailure)
-    assert "high-risk tools require operator approval" in result.reason
+    # Failure is a status now, not a distinct type.
+    assert result.status != "ok"
+    assert "high-risk tools require operator approval" in result.error

@@ -1,6 +1,6 @@
 import pytest
 
-from reagents.contracts import DomainArtifact, NativeSolution
+from reagents.contracts import NativeSolution
 from reagents.demigod.runtime import DemigodDraft, DemigodRuntime
 from reagents.god.orchestrator import God
 from reagents.god.transformer import Transformer
@@ -79,5 +79,5 @@ async def test_demigod_tool_loop_cannot_reach_unbound_tools():
     runtime = DemigodRuntime(ScriptedLLM({f"demigod:{spec.name}": sneak}))
     pack = default_registry().bind(spec.tool_ids)
     result = await runtime.run(envelope, pack)
-    assert not isinstance(result, DomainArtifact)
-    assert "find_cycles" in result.reason
+    assert result.status != "ok"
+    assert "find_cycles" in result.error
