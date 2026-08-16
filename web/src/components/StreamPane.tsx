@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { GOD } from '../lib/model'
 import type { RunState, Solution } from '../lib/types'
+import { Reflecting } from './Reflecting'
 import { StreamRow } from './StreamItems'
 
 // Long enough not to flicker between two events of a chatty phase, short
@@ -47,8 +48,8 @@ export function StreamPane({ state, version, onOpenNode }: Props) {
   // How long the stream has been silent. A GOD sandbox does not stream tokens,
   // so planning is a genuine 60-second gap between two phase lines -- and a
   // view that renders nothing at all during it is indistinguishable from a
-  // hang. This is the difference between "working" and "broken", stated rather
-  // than left to the reader to guess.
+  // hang. Past the threshold we say so, in the wordmark's own voice; the exact
+  // silence is on the row's tooltip for anyone who wants the number.
   const last = entries[entries.length - 1]
   const quietFor = last ? state.elapsed - last.item.t : state.elapsed
   const waiting = state.status === 'running' && quietFor > QUIET_AFTER_S
@@ -84,11 +85,12 @@ export function StreamPane({ state, version, onOpenNode }: Props) {
           ))}
         </div>
         {waiting && (
-          <div className="waiting">
+          <div
+            className="waiting"
+            title={`still working · ${quietFor.toFixed(0)}s since the last event`}
+          >
             <span className="caret" />
-            <span className="mono">
-              still working · {quietFor.toFixed(0)}s since the last event
-            </span>
+            <Reflecting />
           </div>
         )}
         {state.solution && <Answer solution={state.solution} />}
