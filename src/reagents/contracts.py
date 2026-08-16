@@ -1,0 +1,179 @@
+"""Shared contracts between God, the transform, and isolated demigods."""
+
+from __future__ import annotations
+
+from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel, Field, field_validator
+
+
+class Axis(str, Enum):
+    """Fixed vocabulary of orthogonal reasoning axes.
+
+    God invents languages at runtime but must seat each domain on 1–2 of these.
+    """
+
+    TOPOLOGY = "topology"
+    CONSERVATION = "conservation"
+    DYNAMICS = "dynamics"
+    GEOMETRY = "geometry"
+    INFORMATION = "information"
+    CAUSALITY = "causality"
+    SCALE = "scale"
+    SYMMETRY = "symmetry"
+    STOCHASTICITY = "stochasticity"
+
+
+class Budget(BaseModel):
+    max_tokens: int = 4096
+    max_steps: int = 8
+    wall_time_s: float = 60.0
+    max_tool_calls: int = 16
+
+
+class ToolProvider(str, Enum):
+    LOCAL = "local"
+    MCP = "mcp"
+    CONTAINER = "container"
+
+
+class ToolAccess(str, Enum):
+    READ = "read"
+    COMPUTE = "compute"
+    WRITE = "write"
+
+
+class RiskTier(str, Enum):
+    LOW = "low"
+    MODERATE = "moderate"
+    HIGH = "high"
+
+
+class ToolSpec(BaseModel):
+    """Schema a demigod is allowed to see for a bound tool."""
+
+    id: str
+    description: str
+    parameters_schema: dict[str, Any]
+    output_schema: dict[str, Any] = Field(default_factory=dict)
+    namespace: str = "generic"
+    provider: ToolProvider = ToolProvider.LOCAL
+    access: ToolAccess = ToolAccess.COMPUTE
+    risk_tier: RiskTier = RiskTier.LOW
+    side_effects: list[str] = Field(default_factory=list)
+    cost_class: str = "free"
+    latency_class: str = "interactive"
+    defer_loading: bool = False
+
+
+class CapabilityLease(BaseModel):
+    """Immutable authority minted by God for one demigod run."""
+
+    lease_id: str
+    subject_id: str
+    tool_ids: list[str]
+    max_calls: int = 16
+    wall_time_s: float = 60.0
+    allow_write: bool = False
+
+
+class NativeProblem(BaseModel):
+    """The original problem in the initial representative field."""
+
+    id: str
+    statement: str
+    entities: list[str] = Field(default_factory=list)
+    constraints: list[str] = Field(default_factory=list)
+    question: str
+
+
+class DomainSpec(BaseModel):
+    """An invented representation space. Language is free; axes and tools are not."""
+
+    name: str
+    axes: list[Axis] = Field(min_length=1, max_length=2)
+    language: str
+    transform_prompt: str
+    tool_ids: list[str] = Field(min_length=2, max_length=4)
+    artifact_schema: dict[str, Any]
+    forbidden: list[str] = Field(default_factory=list)
+
+    @field_validator("name")
+    @classmethod
+    def _identifier_name(cls, value: str) -> str:
+        if not value or not value[0].isalpha() or not all(c.isalnum() or c == "_" for c in value):
+            raise ValueError("domain name must be an identifier like stoichiometric_flow")
+        return value.lower()
+
+    @field_validator("tool_ids")
+    @classmethod
+    def _unique_tools(cls, value: list[str]) -> list[str]:
+        if len(set(value)) != len(value):
+            raise ValueError("tool_ids must be unique")
+        return value
+
+    @property
+    def primary_axis(self) -> Axis:
+        return self.axes[0]
+
+
+class DomainProblem(BaseModel):
+    """Problem already projected into a domain. Must contain no native-field text."""
+
+    domain_name: str
+    representation: dict[str, Any]
+    task: str
+    notation_guide: str
+
+
+class InverseMap(BaseModel):
+    """God-only bookkeeping: domain symbols back to native entities."""
+
+    domain_name: str
+    symbol_to_native: dict[str, str]
+
+
+class ContextEnvelope(BaseModel):
+    """Everything a demigod is allowed to see. Nothing else."""
+
+    domain: DomainSpec
+    problem: DomainProblem
+    tools: list[ToolSpec]
+    artifact_schema: dict[str, Any]
+    budget: Budget = Field(default_factory=Budget)
+    forbidden: list[str] = Field(default_factory=list)
+
+
+class DomainArtifact(BaseModel):
+    domain_name: str
+    payload: dict[str, Any]
+    justification: str
+    tool_trace: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class DemigodFailure(BaseModel):
+    domain_name: str
+    reason: str
+    isolation_violations: list[str] = Field(default_factory=list)
+
+
+class NativeSolution(BaseModel):
+    problem_id: str
+    answer: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    domain_contributions: dict[str, str] = Field(default_factory=dict)
+    conflicts: list[str] = Field(default_factory=list)
+    gaps: list[str] = Field(default_factory=list)
+
+
+class OrchestrationTrace(BaseModel):
+    """God-side record of a run. Never sent to a demigod."""
+
+    specs: list[DomainSpec] = Field(default_factory=list)
+    inverse_maps: list[InverseMap] = Field(default_factory=list)
+    envelopes: list[ContextEnvelope] = Field(default_factory=list)
+    artifacts: list[DomainArtifact] = Field(default_factory=list)
+    failures: list[DemigodFailure] = Field(default_factory=list)
+    leaks: list[str] = Field(default_factory=list)
+    solution: NativeSolution | None = None
