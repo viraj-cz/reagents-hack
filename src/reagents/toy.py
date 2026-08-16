@@ -100,7 +100,7 @@ def toy_domains() -> list[DomainSpec]:
             artifact_schema=ARTIFACT_SCHEMA,
             forbidden=[
                 "Use only symbols defined in the representation.",
-                "Do not refer to biological proper names, genes, proteins, or metabolites.",
+                "Do not refer to any entity by its name from the original problem.",
             ],
         ),
         DomainSpec(
@@ -115,7 +115,7 @@ def toy_domains() -> list[DomainSpec]:
             artifact_schema=ARTIFACT_SCHEMA,
             forbidden=[
                 "Use only symbols defined in the representation.",
-                "Do not refer to biological proper names, genes, proteins, or metabolites.",
+                "Do not refer to any entity by its name from the original problem.",
             ],
         ),
         DomainSpec(
@@ -130,7 +130,7 @@ def toy_domains() -> list[DomainSpec]:
             artifact_schema=ARTIFACT_SCHEMA,
             forbidden=[
                 "Use only symbols defined in the representation.",
-                "Do not refer to biological proper names, genes, proteins, or metabolites.",
+                "Do not refer to any entity by its name from the original problem.",
             ],
         ),
     ]
