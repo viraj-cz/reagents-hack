@@ -1,0 +1,25 @@
+{
+  "name": "revenue-quant-smoke",
+  "domain": "quantitative analysis of tabular financial data: distributions, trends, outliers, and the arithmetic that supports or refutes them. NOT strategy, NOT causal explanation, NOT recommendations.",
+  "tools": ["pandas"],
+  "problem": {
+    "context": "shared/transactions.csv holds 6 months of per-order revenue with columns: order_id, date, region, channel, gross_revenue, discount, refunded (bool). It is a small file (under 40 rows) - read all of it.",
+    "goal": "Quantify the Q3 vs Q2 revenue change and identify which region/channel accounts for it.",
+    "success_criteria": [
+      "A single headline number for the Q3 vs Q2 change, with its definition stated (net of refunds and discounts).",
+      "A breakdown by region and channel identifying the largest contributor to the change.",
+      "Every number reproducible by running a script left in the output directory.",
+      "Any data-quality issue found (nulls, duplicate order_ids) reported in unknowns rather than silently handled."
+    ]
+  },
+  "files": ["transactions.csv"],
+  "miscellaneous": {
+    "fiscal_quarters": "calendar quarters, Q3 = Jul-Sep",
+    "note": "Prior analyses disagreed because some included refunded orders. State your treatment explicitly."
+  },
+  "max_lifetime_s": 600,
+  "idle_timeout_s": 120,
+  "max_turns": 12,
+  "cpu": 1.0,
+  "memory_mb": 2048
+}

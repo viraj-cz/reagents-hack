@@ -1,0 +1,23 @@
+{
+  "name": "revenue-quant",
+  "domain": "quantitative analysis of tabular financial data: distributions, trends, outliers, and the arithmetic that supports or refutes them. NOT strategy, NOT causal explanation, NOT recommendations.",
+  "tools": ["pandas"],
+  "problem": {
+    "context": "shared/transactions.csv holds 18 months of per-order revenue with columns: order_id, date, region, channel, gross_revenue, discount, refunded (bool). The finance team believes Q3 revenue declined but disagrees about the magnitude.",
+    "goal": "Quantify the Q3 revenue change versus Q2 and identify which cuts of the data account for it.",
+    "success_criteria": [
+      "A single headline number for the Q3 vs Q2 change, with its definition stated (net of refunds and discounts).",
+      "A breakdown by region and channel showing each segment's contribution to the change.",
+      "Every number reproducible by running a script left in the output directory.",
+      "Any data-quality issue found (nulls, duplicate order_ids, date gaps) reported in unknowns rather than silently handled."
+    ]
+  },
+  "files": ["transactions.csv"],
+  "miscellaneous": {
+    "fiscal_quarters": "calendar quarters, Q3 = Jul-Sep",
+    "note": "Prior analyses disagreed because some included refunded orders. State your treatment explicitly."
+  },
+  "max_lifetime_s": 1800,
+  "idle_timeout_s": 300,
+  "max_turns": 30
+}
