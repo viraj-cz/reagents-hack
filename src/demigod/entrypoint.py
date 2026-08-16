@@ -94,14 +94,55 @@ def _is_turn_limit(exc: Exception) -> bool:
 
 
 def _summarize(message: object) -> str:
-    """One line per SDK message. Defensive: message types vary by SDK version."""
-    text = getattr(message, "content", None)
-    if isinstance(text, list):
-        parts = [getattr(b, "text", "") for b in text]
-        joined = " ".join(p for p in parts if p).strip()
-        if joined:
-            return joined[:500]
-    return type(message).__name__
+    """One line per content block, so a live run is actually readable.
+
+    The previous version printed text blocks and fell through to
+    `type(message).__name__` for everything else -- so every tool call, tool
+    result, and file write appeared as a bare `AssistantMessage`. You could see
+    THAT the agent acted, never WHAT it did, which makes a streamed run useless
+    for diagnosis.
+
+    Defensive throughout: block shapes vary by SDK version, and a logging helper
+    must never be the thing that kills a run.
+    """
+    blocks = getattr(message, "content", None)
+    if not isinstance(blocks, list):
+        return type(message).__name__
+
+    lines: list[str] = []
+    for b in blocks:
+        kind = getattr(b, "type", None) or type(b).__name__
+        text = getattr(b, "text", None)
+        if text:
+            lines.append(f"text: {text.strip()[:400]}")
+            continue
+        if kind == "tool_use" or hasattr(b, "input"):
+            name = getattr(b, "name", "?")
+            args = getattr(b, "input", {})
+            # File writes are the interesting ones -- show the path and size
+            # rather than dumping the whole file back into the log.
+            if isinstance(args, dict):
+                detail = args.get("file_path") or args.get("path") or ""
+                if not detail:
+                    detail = str(args.get("command", ""))[:160]
+                if "content" in args:
+                    detail = f"{detail} ({len(str(args['content']))} chars)"
+            else:
+                detail = str(args)[:160]
+            lines.append(f"TOOL {name}: {detail}"[:400])
+            continue
+        result = getattr(b, "content", None)
+        if result is not None and kind == "tool_result":
+            flat = str(result).replace("\n", " ")[:200]
+            err = " ERROR" if getattr(b, "is_error", False) else ""
+            lines.append(f"  ->{err} {flat}")
+            continue
+        if getattr(b, "thinking", None):
+            lines.append(f"thinking: {str(b.thinking).strip()[:200]}")
+            continue
+        lines.append(kind)
+
+    return " | ".join(lines) if lines else type(message).__name__
 
 
 def _verify_manifest(spec: DemiGodSpec, *, truncated: bool = False) -> int:
