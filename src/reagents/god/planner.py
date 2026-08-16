@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from reagents.contracts import Axis, DomainSpec, NativeProblem
+from reagents.isolation import find_spec_leaks, native_terms
 from reagents.llm.client import LLMClient
 from reagents.tools.registry import ToolRegistry, UnknownToolError, tool_jaccard
 
@@ -25,7 +26,22 @@ Each domain MUST:
   not a strategy ("think harder about pathways" is illegal)
 - choose 2-4 tools from the allowed tool list only
 - include an artifact JSON schema with required findings (array) and conclusion (string)
-- list abstract forbidden rules (do not paste native entity names)
+- list abstract forbidden rules
+
+NAMING RULE, AND IT IS CHECKED MECHANICALLY. Four fields are scanned for the
+problem's own entity names: `name`, `language`, `forbidden`, and
+`artifact_schema` (keys and values, at every depth). A domain whose scan comes
+back non-empty is thrown away and regenerated, so a single borrowed noun costs
+the whole domain.
+
+The trap is `forbidden`: a rule that says "do not mention the <entity>" names
+the entity, and is a leak. Write the rules without referring to anything
+specific -- "use only symbols defined in the representation" says the same
+thing and scans clean. The same applies to a schema property named after an
+entity, and to a domain name built from one.
+
+You may reason ABOUT the entities to choose good representations; you may not
+carry their names into these four fields.
 
 Cover distinct axes. Do not invent executable tools."""
 
@@ -50,7 +66,11 @@ class PlanError(RuntimeError):
 
 
 def _token_set(text: str) -> set[str]:
-    return {tok for tok in "".join(ch.lower() if ch.isalnum() else " " for ch in text).split() if len(tok) > 2}
+    return {
+        tok
+        for tok in "".join(ch.lower() if ch.isalnum() else " " for ch in text).split()
+        if len(tok) > 2
+    }
 
 
 def language_overlap(a: str, b: str) -> float:
@@ -66,9 +86,33 @@ def structural_critic(
     *,
     jaccard_threshold: float = JACCARD_THRESHOLD,
     language_threshold: float = LANGUAGE_OVERLAP_THRESHOLD,
+    terms: set[str] | None = None,
 ) -> CriticVerdict:
     reasons: list[str] = []
     colliding: set[str] = set()
+
+    # A LEAK IS A REGENERATION TRIGGER, not a later fatality. This check used to
+    # live only in `God.solve`, which runs after planning has finished -- so the
+    # planner's own regeneration loop, already sitting right here and already
+    # willing to throw a spec away and ask for another, never learned that a
+    # spec had leaked. A domain was simply lost.
+    #
+    # Cost of that, observed live: the planner wrote `forbidden=['...outlet...']`
+    # and `transient_saturation_dynamics` was discarded before its transform,
+    # leaving the run to report "the dedicated dynamics domain produced no
+    # artifact" as a gap. One artifact instead of two, for a word.
+    #
+    # `terms` is optional so existing callers keep working; when omitted this is
+    # exactly the critic it was before.
+    if terms:
+        for spec in specs:
+            spec_leaks = find_spec_leaks(spec, terms)
+            if spec_leaks:
+                detail = ", ".join(
+                    f"{field}={found}" for field, found in sorted(spec_leaks.items())
+                )
+                reasons.append(f"{spec.name}: leaked native terms ({detail})")
+                colliding.add(spec.name)
 
     names = [s.name for s in specs]
     if len(names) != len(set(names)):
@@ -83,7 +127,9 @@ def structural_critic(
     for spec in specs:
         owner = primary.get(spec.primary_axis)
         if owner is not None:
-            reasons.append(f"shared primary axis {spec.primary_axis.value}: {owner} vs {spec.name}")
+            reasons.append(
+                f"shared primary axis {spec.primary_axis.value}: {owner} vs {spec.name}"
+            )
             colliding.add(spec.name)
             colliding.add(owner)
         else:
@@ -100,7 +146,9 @@ def structural_critic(
         for b in specs[i + 1 :]:
             jac = tool_jaccard(a.tool_ids, b.tool_ids)
             if jac > jaccard_threshold:
-                reasons.append(f"tool Jaccard {jac:.2f} > {jaccard_threshold}: {a.name} vs {b.name}")
+                reasons.append(
+                    f"tool Jaccard {jac:.2f} > {jaccard_threshold}: {a.name} vs {b.name}"
+                )
                 colliding.add(a.name)
                 colliding.add(b.name)
             overlap = language_overlap(a.language, b.language)
@@ -111,7 +159,9 @@ def structural_critic(
                 colliding.add(a.name)
                 colliding.add(b.name)
 
-    return CriticVerdict(ok=not reasons, colliding_names=sorted(colliding), reasons=reasons)
+    return CriticVerdict(
+        ok=not reasons, colliding_names=sorted(colliding), reasons=reasons
+    )
 
 
 class Planner:
@@ -126,10 +176,20 @@ class Planner:
         *,
         avoid: list[DomainSpec] | None = None,
         forbidden_axes: list[Axis] | None = None,
+        rejected_because: list[str] | None = None,
     ) -> list[DomainSpec]:
         avoid = avoid or []
         forbidden_axes = forbidden_axes or []
+        retry = ""
+        if rejected_because:
+            retry = (
+                "The previous attempt was rejected for these reasons. Fix them "
+                "rather than varying the wording:\n"
+                + "\n".join(f"- {r}" for r in rejected_because)
+                + "\n\n"
+            )
         user = (
+            f"{retry}"
             f"Invent exactly {n} domains for this native problem.\n\n"
             f"id: {problem.id}\n"
             f"statement: {problem.statement}\n"
@@ -176,9 +236,10 @@ class Planner:
         # Namespace loaders are inert until planning. Provider failures are recorded
         # on the registry so local reasoning remains available during outages.
         await self.registry.load_deferred()
+        terms = native_terms(problem)
         specs = await self.invent(problem, n)
         for _ in range(max_rounds):
-            structural = structural_critic(specs, self.registry)
+            structural = structural_critic(specs, self.registry, terms=terms)
             verdict = structural
             if structural.ok:
                 verdict = await self.llm_critic(specs)
@@ -194,6 +255,11 @@ class Planner:
                 len(colliding),
                 avoid=specs,
                 forbidden_axes=forbidden_axes,
+                # WHY the previous attempt was rejected. Regenerating without it
+                # is asking the model to guess, and it will happily reproduce
+                # the same leak -- the Transformer already feeds its leaks back
+                # for exactly this reason (see transformer.forward).
+                rejected_because=verdict.reasons,
             )
             specs = kept + replacements
         raise PlanError("could not invent an orthogonal domain set")
