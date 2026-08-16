@@ -1,10 +1,17 @@
+# NOTE: uv.lock is deliberately NOT ignored. It is committed so every
+# collaborator and every image bake resolves the identical dependency set.
+
 __pycache__/
 *.py[cod]
-.pytest_cache/
 .venv/
+venv/
+*.egg-info/
+dist/
+build/
 .env
+.uv/
 .cache/
 .proto/
-dist/
-*.egg-info/
+.pytest_cache/
 .ruff_cache/
+scratch/

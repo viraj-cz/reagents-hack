@@ -123,6 +123,7 @@ There is no God on that branch. A human or God calls:
 
 ```python
 from demigod import DemiGodSpec, spawn_demigod
+
 result = spawn_demigod(spec, run_id="run-1")
 ```
 

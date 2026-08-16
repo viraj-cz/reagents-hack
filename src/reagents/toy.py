@@ -47,6 +47,45 @@ def toy_problem() -> NativeProblem:
     )
 
 
+def simple_problem() -> NativeProblem:
+    """A deliberately easy problem for exercising the pipeline, not the model.
+
+    Structurally the same shape as `toy_problem` -- a series pipeline whose
+    throughput is set by a gated middle stage, plus a conservation question --
+    but with five plain entities instead of nine biochemical ones. That matters
+    for two reasons when testing:
+
+    * Fewer, plainer entity names give the planner far less to accidentally
+      leak into the domain spec, so runs fail for interesting reasons rather
+      than on the seal.
+    * The answer is short and derivable by reasoning alone, so a demigod with
+      no tools mapped can finish well inside a small turn budget.
+
+    The answer: throughput is set by valve B, so upgrading pump A does not
+    raise outflow; water is conserved because nothing leaves the system except
+    through the outlet.
+    """
+    return NativeProblem(
+        id="valve-bottleneck",
+        statement=(
+            "Water flows through three tanks in series. Pump A moves water from "
+            "tank 1 to tank 2. Valve B is a fixed narrow opening between tank 2 "
+            "and tank 3, and it is already at its maximum throughput. An outlet "
+            "drains tank 3. Pump A is upgraded to move water five times faster."
+        ),
+        entities=["pump A", "valve B", "tank 1", "tank 2", "tank 3", "outlet"],
+        constraints=[
+            "Valve B has a fixed maximum throughput that is already reached.",
+            "Water leaves the system only through the outlet.",
+            "Tanks have finite capacity.",
+        ],
+        question=(
+            "After pump A is upgraded fivefold, does the flow rate at the outlet "
+            "increase, and is the total volume of water conserved?"
+        ),
+    )
+
+
 def toy_domains() -> list[DomainSpec]:
     return [
         DomainSpec(

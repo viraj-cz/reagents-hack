@@ -14,11 +14,30 @@ from reagents.tools.registry import BoundToolPack, UnboundToolError
 
 T = TypeVar("T", bound=BaseModel)
 
-_JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
+
+DEFAULT_MODEL = "claude-opus-4-8"
+"""GOD's own loop: planner, transformer, integrator.
+
+Was `claude-sonnet-4-20250514`, which is deprecated and now 404s:
+
+    NotFoundError: Error code: 404 - {'type': 'not_found_error',
+    'message': 'model: claude-sonnet-4-20250514'}
+
+Use the bare alias, never a date-suffixed variant -- the suffixed forms are
+snapshot IDs and guessing one 404s the same way. Note this model rejects
+`temperature`/`top_p`/`top_k` and `thinking.budget_tokens` with a 400; this
+client passes none of them, so no other change was needed.
+"""
+
+PLANNING_MAX_TOKENS = 16000
+"""Was 4096. A planner turn emits N full DomainSpecs -- axes, invented
+language, transform prompt, tool ids, and a JSON artifact_schema each -- and
+truncating one mid-object surfaces as a JSON parse failure, not as a token
+error. 16k is the non-streaming default; above that the SDK needs streaming."""
 
 
 class AnthropicLLM:
-    def __init__(self, model: str = "claude-sonnet-4-20250514") -> None:
+    def __init__(self, model: str = DEFAULT_MODEL) -> None:
         try:
             import anthropic
         except ImportError as exc:
@@ -38,11 +57,11 @@ class AnthropicLLM:
         schema = json.dumps(response_model.model_json_schema())
         message = await self._client.messages.create(
             model=self.model,
-            max_tokens=4096,
+            max_tokens=PLANNING_MAX_TOKENS,
             system=f"{system}\n\nRespond with JSON only matching this schema:\n{schema}",
             messages=[{"role": "user", "content": user}],
         )
-        return _parse_model(_text_blocks(message), response_model)
+        return _parse_model(_text_blocks(message), response_model, message)
 
     async def run_tool_loop(
         self,
@@ -82,7 +101,7 @@ class AnthropicLLM:
                         result = await tools.acall(canonical_name, **dict(block.input))
                     except UnboundToolError:
                         raise
-                    except Exception as exc:  # noqa: BLE001
+                    except Exception as exc:
                         result = {"error": str(exc)}
                     trace.append(
                         {
@@ -101,7 +120,7 @@ class AnthropicLLM:
                 messages.append({"role": "assistant", "content": message.content})
                 messages.append({"role": "user", "content": tool_results})
                 continue
-            return _parse_model(_text_blocks(message), response_model), trace
+            return _parse_model(_text_blocks(message), response_model, message), trace
 
         raise LLMError("demigod exhausted its step budget without an artifact")
 
@@ -143,11 +162,78 @@ def _text_blocks(message: Any) -> str:
     return "\n".join(parts)
 
 
-def _parse_model(text: str, response_model: type[T]) -> T:
+def _extract_json_object(text: str) -> str | None:
+    """First balanced top-level JSON object in `text`, or None.
+
+    Replaces a greedy `\\{.*\\}` regex, which spans from the first `{` to the
+    LAST `}` anywhere in the response. On a truncated reply that lands on a
+    nested closing brace, the regex returns a fragment whose outer object never
+    closes -- surfacing as `ValidationError: EOF while parsing an object`, which
+    describes the symptom and hides the cause. Scanning for balance instead
+    returns either a genuinely complete object or nothing, so truncation is
+    reported as truncation.
+
+    String-aware, so braces inside string values do not affect the depth count.
+    """
+    start = text.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    in_string = False
+    escaped = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    return None
+
+
+def _parse_model(text: str, response_model: type[T], message: Any = None) -> T:
+    """Parse the model's reply, reporting WHY it failed when it does.
+
+    `message` is optional only so the signature stays usable from tests; pass it
+    wherever available. `stop_reason` is the single most useful field here --
+    "max_tokens" means raise the budget, while "end_turn" on unparseable output
+    means the model genuinely wrote something malformed. Without it, both look
+    identical and the pydantic error points at neither.
+    """
     try:
         return response_model.model_validate_json(text)
     except Exception:
-        match = _JSON_BLOCK.search(text)
-        if not match:
-            raise LLMError(f"no JSON in model response: {text[:200]}") from None
-        return response_model.model_validate_json(match.group(0))
+        pass
+
+    candidate = _extract_json_object(text)
+    if candidate is None:
+        stop = getattr(message, "stop_reason", None)
+        if stop == "max_tokens":
+            raise LLMError(
+                f"{response_model.__name__}: response hit max_tokens before the "
+                f"JSON object closed ({len(text)} chars). Raise max_tokens."
+            ) from None
+        raise LLMError(
+            f"{response_model.__name__}: no complete JSON object in the response "
+            f"(stop_reason={stop!r}, {len(text)} chars): {text[:300]}"
+        ) from None
+
+    try:
+        return response_model.model_validate_json(candidate)
+    except Exception as e:
+        raise LLMError(
+            f"{response_model.__name__}: extracted a complete JSON object but it "
+            f"did not match the schema (stop_reason="
+            f"{getattr(message, 'stop_reason', None)!r}): {e}"
+        ) from e
