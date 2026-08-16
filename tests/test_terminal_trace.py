@@ -19,9 +19,7 @@ async def test_trace_separates_god_and_each_demigod_stream():
     await god.solve(problem)
 
     god_kinds = [record.kind for record in tracer.records if record.lane == GOD_LANE]
-    assert {"START", "PLAN", "SPAWN", "COLLECT", "INTEGRATE", "DONE"} <= set(
-        god_kinds
-    )
+    assert {"START", "PLAN", "SPAWN", "COLLECT", "INTEGRATE", "DONE"} <= set(god_kinds)
 
     for spec in god.last_trace.specs:
         lane = demigod_lane(spec.name)
