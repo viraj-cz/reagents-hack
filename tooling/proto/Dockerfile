@@ -10,5 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python3 -m pip install --break-system-packages --no-cache-dir \
     "git+https://github.com/evo-design/proto-language.git@${PROTO_REF}"
 
-COPY tooling/runtime/tool_runtime.py /opt/reagents/tool_runtime.py
+# See tooling/reasoning/Dockerfile: the file moved into src/reagents/tools/ so
+# the Modal executors can import it, and stays import-free so this still works.
+COPY src/reagents/tools/tool_runtime.py /opt/reagents/tool_runtime.py
 WORKDIR /work

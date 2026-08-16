@@ -1,4 +1,26 @@
-"""JSON-stdin/JSON-stdout entrypoint baked into disposable tool images."""
+"""The tool payload. One plain function per operation, and two ways to reach it.
+
+    docker run ... python3 /opt/reagents/tool_runtime.py z3_solve   < payload
+    from reagents.tools.tool_runtime import run_operation            # in-process
+
+Both callers run the SAME functions, which is the point: a tool that works
+locally under Docker and a tool that works inside a Modal broker executor are
+not two implementations that can drift, they are one module invoked two ways.
+
+WHY IT LIVES IN `reagents.tools` AND NOT IN `tooling/`. It used to sit at
+`tooling/runtime/tool_runtime.py`, outside every package, because its only
+consumer was a `COPY` line in a Dockerfile. That made it unimportable from the
+broker's executor image, which ships packages (`add_local_python_source`) and
+has no Docker daemon to shell out to -- so every CONTAINER-provider tool failed
+there. Moving it into the package makes it importable; the Dockerfiles still
+`COPY src/reagents/tools/tool_runtime.py` and still work, because this module
+imports NOTHING from `reagents` and must keep it that way. The disposable images
+do not have the package installed, only this one file.
+
+The scientific dependencies are imported inside the functions that need them for
+the same reason: `rdkit_descriptors` must not make `z3_solve` unimportable in an
+image that has Z3 and no RDKit.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +29,7 @@ import subprocess
 import sys
 import tempfile
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -114,7 +137,7 @@ def python_exec(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-OPERATIONS = {
+OPERATIONS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "lean_check": lean_check,
     "z3_solve": z3_solve,
     "sequence_stats": sequence_stats,
@@ -122,6 +145,29 @@ OPERATIONS = {
     "proto_check": proto_check,
     "python_exec": python_exec,
 }
+
+
+class UnknownOperationError(KeyError):
+    """An operation name that no image implements."""
+
+
+def run_operation(name: str, payload: dict[str, Any]) -> Any:
+    """Execute one operation and return a JSON-ROUND-TRIPPED result.
+
+    The round trip is not decoration. The subprocess path below serializes with
+    `json.dumps(..., default=str)` and the caller parses that, so a NumPy float
+    or a Path arrives as a string. An in-process caller that skipped this would
+    get a differently-typed result for the same tool depending on where it ran,
+    and the difference would surface as a serialization failure much later --
+    inside Modal's return path, or in the broker's JSON response.
+    """
+    try:
+        operation = OPERATIONS[name]
+    except KeyError as exc:
+        raise UnknownOperationError(
+            f"unknown operation {name!r}; registered: {sorted(OPERATIONS)}"
+        ) from exc
+    return json.loads(json.dumps(operation(payload), default=str))
 
 
 def main() -> None:
