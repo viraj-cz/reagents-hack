@@ -191,6 +191,7 @@ async def test_plan_regenerates_a_leaking_spec_and_says_why():
 
     problem = toy_problem()
     terms = native_terms(problem)
+    leaked_entity = problem.entities[0]
     planner = Planner(ScriptedLLM.for_toy_pathway(), default_registry())
 
     real_invent = planner.invent
@@ -198,6 +199,11 @@ async def test_plan_regenerates_a_leaking_spec_and_says_why():
     calls = {"n": 0}
 
     async def invent_leaking_first(prob, n, **kwargs):
+        # `prob` here is the ANONYMISED problem -- prob.entities[0] is "e0", not
+        # a native name. The leak is injected from the ORIGINAL problem on
+        # purpose: this test exercises the critic backstop, and the only way to
+        # reach it now is to bypass the anonymiser the way a real leak never
+        # can. That the test needs this is itself the point.
         prompts_seen.append(list(kwargs.get("rejected_because") or []))
         specs = await real_invent(prob, n, **kwargs)
         calls["n"] += 1
@@ -207,7 +213,7 @@ async def test_plan_regenerates_a_leaking_spec_and_says_why():
             # objects every call, so mutating one would make the "regenerated"
             # spec the same leaking instance and the loop could never converge.
             specs[0] = specs[0].model_copy(
-                update={"forbidden": [f"Do not mention {prob.entities[0]}."]}
+                update={"forbidden": [f"Do not mention {leaked_entity}."]}
             )
         return specs
 

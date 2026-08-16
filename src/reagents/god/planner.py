@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from reagents.contracts import Axis, DomainSpec, NativeProblem
+from reagents.god.anonymize import anonymize_problem
 from reagents.isolation import find_spec_leaks, native_terms
 from reagents.llm.client import LLMClient
 from reagents.tools.registry import ToolRegistry, UnknownToolError, tool_jaccard
@@ -168,6 +169,12 @@ class Planner:
     def __init__(self, llm: LLMClient, registry: ToolRegistry) -> None:
         self.llm = llm
         self.registry = registry
+        self.last_symbol_map: dict[str, str] = {}
+        """Symbol -> native entity for the most recent plan. GOD's alone.
+
+        Kept for diagnostics: a planner decision reads as "e3 is the bottleneck"
+        and this is what turns that back into something a human can check. It
+        must never enter an envelope, and there is no envelope field for it."""
 
     async def invent(
         self,
@@ -236,8 +243,19 @@ class Planner:
         # Namespace loaders are inert until planning. Provider failures are recorded
         # on the registry so local reasoning remains available during outages.
         await self.registry.load_deferred()
+        # `terms` from the ORIGINAL problem, `planning_problem` without them.
+        # The planner is shown symbols, so it cannot copy a native name into a
+        # spec; the critic below still checks against the real terms, as a
+        # backstop rather than as the defence. Two independent mechanisms, and
+        # the cheap one is no longer the only one.
+        #
+        # The transform is deliberately NOT given this: it needs the real
+        # problem to project, and its output is checked by find_leaks. Only
+        # planning -- which produces free text that survives into the envelope
+        # -- is done blind.
         terms = native_terms(problem)
-        specs = await self.invent(problem, n)
+        planning_problem, self.last_symbol_map = anonymize_problem(problem)
+        specs = await self.invent(planning_problem, n)
         for _ in range(max_rounds):
             structural = structural_critic(specs, self.registry, terms=terms)
             verdict = structural
@@ -251,7 +269,7 @@ class Planner:
             kept = [s for s in specs if s.name not in colliding]
             forbidden_axes = [s.primary_axis for s in kept]
             replacements = await self.invent(
-                problem,
+                planning_problem,
                 len(colliding),
                 avoid=specs,
                 forbidden_axes=forbidden_axes,
