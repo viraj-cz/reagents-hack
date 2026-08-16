@@ -50,6 +50,18 @@ def build_request(
         problem=problem,
         domain_count=domain_count,
         max_turns=max_turns,
+        # WITHOUT THIS every demigod is told its whole toolset is unreachable.
+        # `GodRequest.use_broker` defaults to False, and the entrypoint reads it
+        # as the single switch for three things at once: whether a lease is
+        # published, whether the runtime requires one, and whether egress is
+        # pinned. Leaving it unset produced three artifacts with `tool_trace=0`
+        # and blockers reading "Domain tools ... are not reachable from this
+        # environment" -- a run that looks successful and reasoned with nothing.
+        #
+        # The CLI opts OUT (`--no-broker`); a UI run has no reason to, since
+        # brokered calls are the only tool evidence the agent does not author
+        # itself.
+        use_broker=True,
         # Operator approval travels with the request and nothing in the sandbox
         # can widen it. The UI has no approval flow yet, so it grants nothing --
         # which is the safe default, not an oversight: a demigod that wants a
@@ -97,13 +109,8 @@ async def follow(
 
     while True:
         events = await asyncio.to_thread(drain, run_id)
-        for event in events:
-            emit(
-                str(event.get("lane") or "GOD"),
-                str(event.get("kind") or "NOTE"),
-                str(event.get("message") or ""),
-                data=event.get("data"),
-            )
+        for event in _ordered(events):
+            _relay(emit, event)
 
         now = loop.time()
         if now >= next_status_check:
@@ -117,17 +124,41 @@ async def follow(
             and loop.time() - terminal_at >= drain_after_terminal_s
         ):
             # One last sweep: the sandbox's flusher may have raced the Dict.
-            for event in await asyncio.to_thread(drain, run_id, timeout_s=0.5):
-                emit(
-                    str(event.get("lane") or "GOD"),
-                    str(event.get("kind") or "NOTE"),
-                    str(event.get("message") or ""),
-                    data=event.get("data"),
-                )
+            tail = await asyncio.to_thread(drain, run_id, timeout_s=0.5)
+            for event in _ordered(tail):
+                _relay(emit, event)
             return last_status
 
         if not events:
             await asyncio.sleep(0.2)
+
+
+def _ordered(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Sandbox order, not arrival order.
+
+    `seq` is assigned by the writer inside the sandbox, so it is the only
+    total order that reflects what actually happened. A drain returns whatever
+    the queue hands back, and two flushes can interleave.
+    """
+
+    return sorted(events, key=lambda e: e.get("seq") or 0)
+
+
+def _relay(emit: Any, event: dict[str, Any]) -> None:
+    """Re-emit one relayed event, keeping the clock it arrived with.
+
+    `t` was stamped inside the sandbox against GOD's own start. Dropping it and
+    re-stamping on arrival is what made a whole batch share one timestamp.
+    """
+
+    at = event.get("t")
+    emit(
+        str(event.get("lane") or "GOD"),
+        str(event.get("kind") or "NOTE"),
+        str(event.get("message") or ""),
+        data=event.get("data"),
+        at=float(at) if isinstance(at, (int, float)) else None,
+    )
 
 
 def cleanup(run_id: str) -> None:

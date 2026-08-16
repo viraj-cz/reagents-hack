@@ -314,6 +314,18 @@ function applyGod(
         child.status = 'done'
         child.confidence = confidence
         child.conclusion = conclusion
+        // TWO SOURCES, and only one exists per execution mode. In-process, the
+        // registry emits a `tool_call` event per call and the counter above is
+        // the live one. In a sandbox the calls happen inside the demigod's own
+        // container and are recorded by the BROKER, so the only count that ever
+        // reaches here is this one, at the end. Taking the max keeps whichever
+        // exists without a mode check -- and without it a sandboxed run showed
+        // "0 CALLS" forever, which reads as "it used no tools" rather than
+        // "this view cannot see them".
+        const reported = num(data?.tool_calls)
+        if (reported !== undefined) {
+          child.toolCalls = Math.max(child.toolCalls, reported)
+        }
       }
       push(state, node, {
         type: 'collect',

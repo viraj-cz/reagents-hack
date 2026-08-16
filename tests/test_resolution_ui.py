@@ -364,3 +364,40 @@ async def test_the_store_cancels_evicted_runs() -> None:
     assert first.task is not None
     await asyncio.gather(first.task, return_exceptions=True)
     assert first.task.cancelled() or first.snapshot.status in {"cancelled", "done"}
+
+
+def test_relayed_events_keep_the_sandbox_clock() -> None:
+    """A relayed event carries the time it happened, not the time it arrived.
+
+    Re-stamping on arrival dated every event in a drained batch to the same
+    instant: three demigods working in parallel for 212s collapsed into nine
+    events sharing one timestamp, ordered by queue position.
+    """
+    from resolution.godbox_run import _relay
+
+    seen: list[tuple[str, float | None]] = []
+
+    def emit(lane, kind, message, *, data=None, at=None):
+        seen.append((kind, at))
+
+    _relay(emit, {"seq": 1, "t": 41.5, "lane": "GOD", "kind": "PLAN", "message": ""})
+    _relay(emit, {"seq": 2, "lane": "GOD", "kind": "NOCLOCK", "message": ""})
+
+    assert seen == [("PLAN", 41.5), ("NOCLOCK", None)]
+
+
+def test_relayed_events_are_ordered_by_the_writer() -> None:
+    """`seq` comes from inside the sandbox; a drain returns arrival order."""
+    from resolution.godbox_run import _ordered
+
+    batch = [{"seq": 3}, {"seq": 1}, {"seq": 2}]
+    assert [e["seq"] for e in _ordered(batch)] == [1, 2, 3]
+
+
+def test_godbox_requests_the_broker() -> None:
+    """Unset `use_broker` tells every demigod its toolset is unreachable."""
+    from reagents.toy import toy_problem
+    from resolution.godbox_run import build_request
+
+    request = build_request("run-x", toy_problem(), domain_count=2, max_turns=4)
+    assert request.use_broker is True

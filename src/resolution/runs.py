@@ -96,18 +96,29 @@ class Run:
         message: str,
         *,
         data: Any | None = None,
+        at: float | None = None,
     ) -> None:
         """Synchronous by contract: a tool may call this from a worker thread.
 
         The fan-out therefore hops back onto the loop rather than touching an
         `asyncio.Queue` from whichever thread happened to be running the tool.
+
+        `at` is the elapsed time the event ALREADY has, and only a relayed event
+        has one. Events GOD raises in this process are stamped here, where now
+        is when they happened. Events from a sandboxed GOD arrive in batches
+        drained off a queue, so stamping them on arrival dates every event in a
+        batch to the same instant -- which collapsed 212 seconds of three
+        demigods working in parallel into nine events sharing one timestamp,
+        ordered by queue position rather than by when anything occurred.
         """
 
         with self._lock:
             self._seq += 1
             event = build_event(
                 seq=self._seq,
-                elapsed_s=time.monotonic() - self._started_monotonic,
+                elapsed_s=(
+                    at if at is not None else time.monotonic() - self._started_monotonic
+                ),
                 lane=lane,
                 kind=kind,
                 message=message,
