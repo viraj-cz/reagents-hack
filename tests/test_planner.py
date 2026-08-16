@@ -1,7 +1,13 @@
 import pytest
 
 from reagents.contracts import Axis, DomainSpec
-from reagents.god.planner import CriticVerdict, Planner, structural_critic
+from reagents.god.planner import (
+    CriticVerdict,
+    InventedDomains,
+    Planner,
+    structural_critic,
+)
+from reagents.llm.client import LLMError
 from reagents.llm.scripted import ScriptedLLM
 from reagents.tools.registry import default_registry
 from reagents.toy import ARTIFACT_SCHEMA, toy_domains, toy_problem
@@ -98,8 +104,6 @@ async def test_planner_returns_orthogonal_toy_set():
 
 @pytest.mark.asyncio
 async def test_planner_regenerates_only_colliding_specs():
-    from reagents.god.planner import InventedDomains
-
     good = toy_domains()
     colliding = [
         good[0],
@@ -318,3 +322,23 @@ async def test_exhausted_rounds_returns_a_best_effort_plan_not_an_exception():
     assert planner.last_plan_compromises, (
         "returned a compromised plan without recording what was wrong"
     )
+
+
+@pytest.mark.asyncio
+async def test_planner_retries_one_malformed_invention():
+    class FlakyPlannerLLM:
+        def __init__(self):
+            self.invent_calls = 0
+
+        async def complete(self, *, phase, **_):
+            if phase == "invent":
+                self.invent_calls += 1
+                if self.invent_calls == 1:
+                    raise LLMError("complete JSON did not match the schema")
+                return InventedDomains(domains=toy_domains())
+            return CriticVerdict(ok=True)
+
+    llm = FlakyPlannerLLM()
+    specs = await Planner(llm, default_registry()).plan(toy_problem(), n=3)
+    assert len(specs) == 3
+    assert llm.invent_calls == 2

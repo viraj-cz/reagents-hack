@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from reagents.contracts import Axis, DomainSpec, NativeProblem
 from reagents.god.anonymize import anonymize_problem
 from reagents.isolation import find_spec_leaks, native_terms
-from reagents.llm.client import LLMClient
+from reagents.llm.client import LLMClient, LLMError
 from reagents.tools.registry import ToolRegistry, UnknownToolError, tool_jaccard
 from reagents.tracing import GOD_LANE, NullTracer, TraceSink
 
@@ -214,14 +214,16 @@ def structural_critic(
                 jac = tool_jaccard(a.tool_ids, b.tool_ids)
             if jac > jaccard_threshold:
                 reasons.append(
-                    f"tool Jaccard {jac:.2f} > {jaccard_threshold}: {a.name} vs {b.name}"
+                    f"tool Jaccard {jac:.2f} > {jaccard_threshold}: "
+                    f"{a.name} vs {b.name}"
                 )
                 colliding.add(a.name)
                 colliding.add(b.name)
             overlap = language_overlap(a.language, b.language)
             if overlap > language_threshold:
                 reasons.append(
-                    f"language overlap {overlap:.2f} > {language_threshold}: {a.name} vs {b.name}"
+                    f"language overlap {overlap:.2f} > {language_threshold}: "
+                    f"{a.name} vs {b.name}"
                 )
                 colliding.add(a.name)
                 colliding.add(b.name)
@@ -260,11 +262,13 @@ class Planner:
         *,
         avoid: list[DomainSpec] | None = None,
         forbidden_axes: list[Axis] | None = None,
-        feedback: list[str] | None = None,
+        reserved_tool_ids: list[str] | None = None,
+        rejected_because: list[str] | None = None,
     ) -> list[DomainSpec]:
         avoid = avoid or []
         forbidden_axes = forbidden_axes or []
-        feedback = feedback or []
+        reserved_tool_ids = reserved_tool_ids or []
+        feedback = rejected_because or []
         catalog = [
             {"id": spec.id, "description": spec.description}
             for spec in self.registry.specs()
@@ -279,17 +283,41 @@ class Planner:
             f"Allowed axes: {[a.value for a in Axis]}\n"
             f"Allowed tool catalog: {catalog}\n"
             f"Do not use primary axes: {[a.value for a in forbidden_axes]}\n"
-            f"Prior domains to replace or stay distinct from: "
-            f"{[{'name': s.name, 'language': s.language, 'tool_ids': s.tool_ids} for s in avoid]}\n"
+            f"Tool IDs reserved by accepted domains; do not select them: "
+            f"{reserved_tool_ids}\n"
+            f"Prior rejected domain names/languages to stay distinct from: "
+            f"{[{'name': s.name, 'language': s.language} for s in avoid]}\n"
             f"Rejection reasons to correct: {feedback}\n"
         )
-        invented = await self.llm.complete(
-            system=INVENT_SYSTEM,
-            user=user,
-            response_model=InventedDomains,
-            phase="invent",
-        )
-        return invented.domains[:n]
+        for attempt in range(2):
+            try:
+                invented = await self.llm.complete(
+                    system=INVENT_SYSTEM,
+                    user=user,
+                    response_model=InventedDomains,
+                    phase="invent",
+                )
+                return invented.domains[:n]
+            except LLMError as exc:
+                retryable = "did not match the schema" in str(
+                    exc
+                ) or "no complete JSON object" in str(exc)
+                if attempt or not retryable:
+                    raise
+                self.tracer.emit(
+                    GOD_LANE,
+                    "REPAIR",
+                    "planner response was incomplete; requesting one corrected draft",
+                    data=str(exc)[:300],
+                )
+                user += (
+                    "\nYour previous response was invalid: "
+                    f"{str(exc)[:1200]}\nReturn exactly {n} complete domains. "
+                    "Every domain must include every field required by the schema, "
+                    "especially axes, language, tool_ids, transform_prompt, and "
+                    "artifact_schema.\n"
+                )
+        raise AssertionError("unreachable")
 
     async def llm_critic(self, specs: list[DomainSpec]) -> CriticVerdict:
         payload: list[dict[str, Any]] = [
@@ -357,12 +385,16 @@ class Planner:
                 colliding = {s.name for s in specs}
             kept = [s for s in specs if s.name not in colliding]
             forbidden_axes = [s.primary_axis for s in kept]
+            reserved_tool_ids = sorted(
+                {tool_id for spec in kept for tool_id in spec.tool_ids}
+            )
             replacements = await self.invent(
                 planning_problem,
                 len(colliding),
                 avoid=specs,
                 forbidden_axes=forbidden_axes,
-                feedback=verdict.reasons,
+                reserved_tool_ids=reserved_tool_ids,
+                rejected_because=verdict.reasons,
             )
             specs = kept + replacements
 
