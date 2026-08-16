@@ -35,7 +35,7 @@ def test_problem_from_task_keeps_entities_empty_and_names_staged_files(tmp_path)
     data = tmp_path / "data"
     data.mkdir()
     (data / "hits.csv").write_text("id,value\n1,2\n", encoding="utf-8")
-    problem = problem_from_task("How many hits? Return {\"n\": int}.", tmp_path)
+    problem = problem_from_task('How many hits? Return {"n": int}.', tmp_path)
     assert problem.entities == []
     assert any("shared/" in item for item in problem.constraints)
     assert "data/hits.csv" in problem.constraints[-1]
