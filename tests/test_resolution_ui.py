@@ -91,9 +91,14 @@ async def test_health_and_presets() -> None:
     payload = json.loads(body)
     assert status == 200
     assert {p["id"] for p in payload["presets"]} == {
+        "shop-change",
+        "release-schedule",
         "pfk-bottleneck",
-        "valve-bottleneck",
     }
+    # One per difficulty tier, in increasing order. The order is the point: the
+    # list is meant to be read as a ramp, because what it demonstrates is a
+    # fan-out that grows with the problem.
+    assert [p["tier"] for p in payload["presets"]] == ["easy", "medium", "hard"]
     # The recorded scripts only cover one problem; the UI needs to know that
     # before it offers a replay that would fail with `no script for phase`.
     scripted = [p for p in payload["presets"] if "scripted" in p["modes"]]

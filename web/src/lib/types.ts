@@ -36,6 +36,8 @@ export type Preset = {
   id: string
   label: string
   blurb: string
+  /** How much a second opinion is worth on it — the axis the ✦ option responds to. */
+  tier: 'easy' | 'medium' | 'hard'
   modes: string[]
   prompt: string
   entities: string[]

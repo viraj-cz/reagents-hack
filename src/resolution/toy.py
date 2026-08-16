@@ -13,21 +13,28 @@ from __future__ import annotations
 from typing import Any
 
 from reagents.contracts import NativeProblem
-from reagents.toy import simple_problem, toy_problem
+from reagents.toy import arithmetic_problem, schedule_problem, toy_problem
 
 _BUILDERS = {
+    "shop-change": arithmetic_problem,
+    "release-schedule": schedule_problem,
     "pfk-bottleneck": toy_problem,
-    "valve-bottleneck": simple_problem,
 }
 
 
 def _describe(
-    problem: NativeProblem, *, label: str, modes: list[str], blurb: str
+    problem: NativeProblem,
+    *,
+    label: str,
+    modes: list[str],
+    blurb: str,
+    tier: str,
 ) -> dict[str, Any]:
     return {
         "id": problem.id,
         "label": label,
         "blurb": blurb,
+        "tier": tier,
         "modes": modes,
         "prompt": f"{problem.statement}\n\n{problem.question}",
         "entities": list(problem.entities),
@@ -36,17 +43,30 @@ def _describe(
 
 
 PRESETS: list[dict[str, Any]] = [
+    # ORDERED BY HOW MUCH A SECOND OPINION IS WORTH, which is the only axis the
+    # dynamic option responds to. The counts in these blurbs are observed, not
+    # promised: they are what GOD chose on a live Opus 4.8 run with the count
+    # left to it, and a pinned 2/3/4 overrides them by definition.
+    _describe(
+        arithmetic_problem(),
+        label="Change from a hundred",
+        modes=["live"],
+        tier="easy",
+        blurb="Arithmetic. Left to itself GOD answers this one, spawning nothing.",
+    ),
+    _describe(
+        schedule_problem(),
+        label="Release critical path",
+        modes=["live"],
+        tier="medium",
+        blurb="Real dependencies, one obvious representation. It chose two domains.",
+    ),
     _describe(
         toy_problem(),
         label="Glycolytic bottleneck",
         modes=["scripted", "live"],
+        tier="hard",
         blurb="The recorded run. Three domains, seven tool calls, no API key.",
-    ),
-    _describe(
-        simple_problem(),
-        label="Three tanks in series",
-        modes=["live"],
-        blurb="Same shape, plain vocabulary. Needs live inference.",
     ),
 ]
 

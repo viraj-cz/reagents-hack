@@ -30,12 +30,23 @@ export function Landing({ busy, error, onStart }: Props) {
         setPresets(found)
         setLiveAvailable(live)
         setLiveReason(reason)
-        const first = found[0]
-        if (first) applyPreset(first)
       })
       .catch((exc: Error) => setLoadError(exc.message))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Keep the selection legal for the current mode. NOT just a nicety: only one
+  // preset has a recording, and the list is ordered easy-to-hard rather than
+  // recorded-first, so selecting `presets[0]` on load put an unrecorded problem
+  // in the box while the page sat in replay mode -- prompt and preset card
+  // disagreeing, and Run disabled with nothing saying why.
+  useEffect(() => {
+    if (presets.length === 0) return
+    const current = presets.find((p) => p.id === presetId)
+    if (current && current.modes.includes(mode)) return
+    const fallback = presets.find((p) => p.modes.includes(mode))
+    if (fallback) applyPreset(fallback)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, presets])
 
   function applyPreset(preset: Preset) {
     setPresetId(preset.id)
@@ -226,7 +237,10 @@ export function Landing({ busy, error, onStart }: Props) {
                 aria-pressed={preset.id === presetId}
                 onClick={() => applyPreset(preset)}
               >
-                <span className="mono muted">{preset.id}</span>
+                <span className="preset-head">
+                  <span className="mono muted">{preset.id}</span>
+                  <span className={`tier ${preset.tier}`}>{preset.tier}</span>
+                </span>
                 <span className="name">{preset.label}</span>
                 <span className="blurb">{preset.blurb}</span>
               </button>
