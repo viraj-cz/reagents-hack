@@ -11,7 +11,7 @@ makes them:
 
 WHY GOD PUBLISHES AND THE BROKER ONLY READS. Authority is minted by
 `ToolRegistry.mint_lease` under GOD's policy checks -- operator approval for
-write tools, for high-risk tools. If the broker could mint its own grants, a bug
+write tools. If the broker could mint its own grants, a bug
 in the request path would become privilege escalation rather than a 500.
 
 WHY THE TRACE COMES FROM HERE AND NOT FROM THE AGENT. `DemiGodResult.tool_trace`

@@ -1,6 +1,6 @@
 import pytest
 
-from reagents.contracts import RiskTier, ToolAccess
+from reagents.contracts import ToolAccess
 from reagents.demigod.runtime import IsolationGuard
 from reagents.god.orchestrator import God, _spawn
 from reagents.god.transformer import Transformer
@@ -31,34 +31,39 @@ async def test_god_does_not_implicitly_grant_write_tools():
 
 
 @pytest.mark.asyncio
-async def test_spawn_requires_exact_high_risk_approval():
+async def test_a_code_running_tool_spawns_without_any_risk_approval():
+    """Risk tiers are gone. A code-running tool needs no ceremony to be used.
+
+    There used to be a `RiskTier` on every tool and a gate in `_spawn` that
+    failed a demigod before it started unless the operator had listed each
+    HIGH tool by id. It bought nothing: the demigod already runs in its own
+    sandbox with no repo source, no Modal credentials, and no route to a
+    sibling's output. Running Python there is the point of the sandbox, not a
+    hazard to be re-approved.
+
+    Isolation is still enforced -- by the sandbox and the source-free image,
+    which are mechanisms rather than labels. This asserts only that a tier
+    label no longer blocks a spawn.
+    """
     problem = toy_problem()
     registry = default_registry()
-    # A test-only id, NOT the real `reasoning.python`. `default_registry()`
-    # already contains that tool whenever REAGENTS_ENABLE_CONTAINERS=1 -- which
-    # is now the intended production state, since broker.service sets it in
-    # BROKER_ENV -- and `register()` rejects a duplicate id. Asserting on
-    # approval policy does not require colliding with a real tool.
     registry.register(
         Tool(
-            id="reasoning.high_risk_probe",
+            id="reasoning.code_probe",
             namespace="reasoning",
             description="Run isolated Python.",
             parameters_schema={"type": "object"},
             fn=lambda source: source,
-            risk_tier=RiskTier.HIGH,
         )
     )
     llm = ScriptedLLM.for_toy_pathway()
     god = God(llm, registry=registry)
     spec = toy_domains()[0].model_copy(
-        update={"tool_ids": ["reasoning.high_risk_probe", "simplify"]}
+        update={"tool_ids": ["reasoning.code_probe", "simplify"]}
     )
     domain_problem, _ = await Transformer(llm).forward(problem, spec)
     envelope = god.build_envelope(spec, domain_problem)
 
     result = await _spawn(god, envelope, IsolationGuard(native_terms(problem)))
 
-    # Failure is a status now, not a distinct type.
-    assert result.status != "ok"
-    assert "high-risk tools require operator approval" in result.error
+    assert "approval" not in (result.error or ""), result.error

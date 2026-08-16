@@ -46,12 +46,6 @@ class ToolAccess(str, Enum):
     WRITE = "write"
 
 
-class RiskTier(str, Enum):
-    LOW = "low"
-    MODERATE = "moderate"
-    HIGH = "high"
-
-
 class ToolSpec(BaseModel):
     """Schema a demigod is allowed to see for a bound tool."""
 
@@ -62,7 +56,6 @@ class ToolSpec(BaseModel):
     namespace: str = "generic"
     provider: ToolProvider = ToolProvider.LOCAL
     access: ToolAccess = ToolAccess.COMPUTE
-    risk_tier: RiskTier = RiskTier.LOW
     side_effects: list[str] = Field(default_factory=list)
     cost_class: str = "free"
     latency_class: str = "interactive"
@@ -216,7 +209,6 @@ __all__ = [
     "NativeSolution",
     "OrchestrationTrace",
     "ProjectionManifest",
-    "RiskTier",
     "ToolAccess",
     "ToolProvider",
     "ToolSpec",

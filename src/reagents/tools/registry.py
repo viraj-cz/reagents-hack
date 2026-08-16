@@ -17,7 +17,6 @@ from typing import Any
 from reagents.contracts import (
     Budget,
     CapabilityLease,
-    RiskTier,
     ToolAccess,
     ToolProvider,
     ToolSpec,
@@ -56,7 +55,6 @@ class Tool:
     namespace: str = "generic"
     provider: ToolProvider = ToolProvider.LOCAL
     access: ToolAccess = ToolAccess.COMPUTE
-    risk_tier: RiskTier = RiskTier.LOW
     side_effects: tuple[str, ...] = ()
     cost_class: str = "free"
     latency_class: str = "interactive"
@@ -77,7 +75,6 @@ class Tool:
             namespace=self.namespace,
             provider=self.provider,
             access=self.access,
-            risk_tier=self.risk_tier,
             side_effects=list(self.side_effects),
             cost_class=self.cost_class,
             latency_class=self.latency_class,

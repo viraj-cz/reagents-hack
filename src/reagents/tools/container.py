@@ -41,7 +41,7 @@ import shutil
 from dataclasses import dataclass
 from typing import Any
 
-from reagents.contracts import RiskTier, ToolAccess, ToolProvider
+from reagents.contracts import ToolAccess, ToolProvider
 from reagents.tools.registry import Tool, ToolExecutionError, ToolRegistry
 
 RUNTIME_ENV_VAR = "REAGENTS_TOOL_RUNTIME"
@@ -239,7 +239,6 @@ def configure_container_tools(registry: ToolRegistry) -> None:
             ),
             provider=ToolProvider.CONTAINER,
             access=ToolAccess.COMPUTE,
-            risk_tier=RiskTier.LOW,
         ),
         Tool(
             id="formal.z3_solve",
@@ -256,7 +255,6 @@ def configure_container_tools(registry: ToolRegistry) -> None:
             ),
             provider=ToolProvider.CONTAINER,
             access=ToolAccess.COMPUTE,
-            risk_tier=RiskTier.LOW,
         ),
         Tool(
             id="protein.esm_embed",
@@ -283,7 +281,6 @@ def configure_container_tools(registry: ToolRegistry) -> None:
             ),
             provider=ToolProvider.CONTAINER,
             access=ToolAccess.COMPUTE,
-            risk_tier=RiskTier.LOW,
             latency_class="batch",
         ),
         Tool(
@@ -310,7 +307,6 @@ def configure_container_tools(registry: ToolRegistry) -> None:
             ),
             provider=ToolProvider.CONTAINER,
             access=ToolAccess.COMPUTE,
-            risk_tier=RiskTier.LOW,
             latency_class="batch",
         ),
         Tool(
@@ -328,7 +324,6 @@ def configure_container_tools(registry: ToolRegistry) -> None:
             ),
             provider=ToolProvider.CONTAINER,
             access=ToolAccess.COMPUTE,
-            risk_tier=RiskTier.LOW,
         ),
         Tool(
             id="chemistry.rdkit_descriptors",
@@ -345,7 +340,6 @@ def configure_container_tools(registry: ToolRegistry) -> None:
             ),
             provider=ToolProvider.CONTAINER,
             access=ToolAccess.COMPUTE,
-            risk_tier=RiskTier.LOW,
         ),
         Tool(
             id="design.proto_check",
@@ -361,7 +355,6 @@ def configure_container_tools(registry: ToolRegistry) -> None:
             ),
             provider=ToolProvider.CONTAINER,
             access=ToolAccess.COMPUTE,
-            risk_tier=RiskTier.MODERATE,
             latency_class="batch",
         ),
         Tool(
@@ -377,7 +370,6 @@ def configure_container_tools(registry: ToolRegistry) -> None:
             ),
             provider=ToolProvider.CONTAINER,
             access=ToolAccess.COMPUTE,
-            risk_tier=RiskTier.HIGH,
             latency_class="batch",
         ),
         Tool(
@@ -399,7 +391,6 @@ def configure_container_tools(registry: ToolRegistry) -> None:
             ),
             provider=ToolProvider.CONTAINER,
             access=ToolAccess.COMPUTE,
-            risk_tier=RiskTier.HIGH,
             latency_class="batch",
         ),
         Tool(
@@ -417,7 +408,6 @@ def configure_container_tools(registry: ToolRegistry) -> None:
             ),
             provider=ToolProvider.CONTAINER,
             access=ToolAccess.COMPUTE,
-            risk_tier=RiskTier.HIGH,
             latency_class="batch",
         ),
         Tool(
@@ -433,7 +423,6 @@ def configure_container_tools(registry: ToolRegistry) -> None:
             ),
             provider=ToolProvider.CONTAINER,
             access=ToolAccess.COMPUTE,
-            risk_tier=RiskTier.HIGH,
             latency_class="batch",
         ),
     ]

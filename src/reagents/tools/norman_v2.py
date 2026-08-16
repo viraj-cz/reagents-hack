@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from reagents.contracts import RiskTier, ToolAccess, ToolProvider
+from reagents.contracts import ToolAccess, ToolProvider
 from reagents.tools._norman_v2_public import DATA
 from reagents.tools.container import ContainerExecutor, ContainerToolConfig
 from reagents.tools.registry import Tool
@@ -115,7 +115,6 @@ def all_tools() -> list[Tool]:
     local = {
         "namespace": "screen2",
         "access": ToolAccess.READ,
-        "risk_tier": RiskTier.LOW,
         "side_effects": (),
     }
     tools = [
@@ -190,7 +189,6 @@ def all_tools() -> list[Tool]:
                 ),
                 provider=ToolProvider.CONTAINER,
                 access=ToolAccess.COMPUTE,
-                risk_tier=RiskTier.HIGH,
                 latency_class="batch",
             )
         )

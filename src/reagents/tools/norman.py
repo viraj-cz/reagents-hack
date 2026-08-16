@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from reagents.contracts import RiskTier, ToolAccess
+from reagents.contracts import ToolAccess
 from reagents.tools._norman_public import DATA
 from reagents.tools.registry import Tool
 
@@ -172,7 +172,6 @@ def all_tools() -> list[Tool]:
         "parameters_schema": _PARAMETERS,
         "namespace": "screen",
         "access": ToolAccess.READ,
-        "risk_tier": RiskTier.LOW,
         "side_effects": (),
     }
     return [

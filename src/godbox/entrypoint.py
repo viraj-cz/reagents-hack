@@ -207,9 +207,8 @@ async def _solve(
         make_llm(request.model),
         domain_count=request.domain_count,
         # Operator approval arrives in the request and cannot be widened from
-        # in here. An empty set means no write and no high-risk tool spawns.
+        # in here. An empty set means no write tool spawns.
         approved_write_tools=set(request.approved_write_tools),
-        approved_high_risk_tools=set(request.approved_high_risk_tools),
         # THE SEAM, unchanged. GOD does not know it is itself in a sandbox;
         # this is the same runtime `scripts/e2e_live.py` passes from a laptop.
         runtime=SandboxDemigodRuntime(

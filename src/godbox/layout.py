@@ -100,10 +100,9 @@ class GodRequest(BaseModel):
     """Pinned for both God's calls and every demigod in this run."""
 
     approved_write_tools: list[str] = Field(default_factory=list)
-    approved_high_risk_tools: list[str] = Field(default_factory=list)
     """Operator approval travels WITH the request and nothing inside the
     sandbox can widen it. GOD's orchestrator refuses to spawn a demigod holding
-    a write or high-risk tool that is not named here, so leaving these empty is
+    a write tool that is not named here, so leaving these empty is
     the safe default rather than a missing feature."""
 
     use_broker: bool = False

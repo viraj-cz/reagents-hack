@@ -13,7 +13,6 @@ from reagents.contracts import (
     NativeProblem,
     NativeSolution,
     OrchestrationTrace,
-    RiskTier,
     ToolAccess,
 )
 from reagents.demigod.runtime import (
@@ -54,7 +53,6 @@ class God:
         registry: ToolRegistry | None = None,
         domain_count: int = 3,
         approved_write_tools: set[str] | None = None,
-        approved_high_risk_tools: set[str] | None = None,
         runtime: DemigodRuntimeProtocol | None = None,
         tracer: TraceSink | None = None,
         verifier: NativeVerifier | None = None,
@@ -69,7 +67,6 @@ class God:
         # Write authority is an operator decision, never something the planner or
         # demigod can grant itself. IDs must match the discovered catalog exactly.
         self.approved_write_tools = frozenset(approved_write_tools or set())
-        self.approved_high_risk_tools = frozenset(approved_high_risk_tools or set())
         self.planner = Planner(llm, self.registry, tracer=self.tracer)
         self.transformer = Transformer(llm)
         self.integrator = Integrator(llm)
@@ -436,22 +433,6 @@ async def _spawn(
         return _sealing_failure(
             envelope.domain.name,
             f"write tools require operator approval: {sorted(unapproved)}",
-        )
-    high_risk_tools = {
-        spec.id for spec in envelope.tools if spec.risk_tier == RiskTier.HIGH
-    }
-    unapproved_high_risk = high_risk_tools - god.approved_high_risk_tools
-    if unapproved_high_risk:
-        god.tracer.emit(
-            lane,
-            "FAIL",
-            "high-risk tools lack operator approval",
-            data=sorted(unapproved_high_risk),
-        )
-        return _sealing_failure(
-            envelope.domain.name,
-            "high-risk tools require operator approval: "
-            f"{sorted(unapproved_high_risk)}",
         )
     pack = god.registry.bind(
         envelope.domain.tool_ids,

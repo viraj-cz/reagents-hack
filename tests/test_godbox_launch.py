@@ -48,20 +48,17 @@ def test_broker_and_verifier_authority_round_trip_explicitly():
     original = _request(
         use_broker=True,
         verifier_id="flareguard-public-v1",
-        approved_high_risk_tools=["reasoning.python"],
     )
     restored = GodRequest.model_validate_json(original.model_dump_json())
     assert restored.use_broker is True
     assert restored.verifier_id == "flareguard-public-v1"
-    assert restored.approved_high_risk_tools == ["reasoning.python"]
 
 
 def test_approvals_default_to_empty():
-    """Write and high-risk tools require an operator decision. Defaulting to
+    """Write tools require an operator decision. Defaulting to
     anything else would let a planner grant itself authority."""
     request = _request()
     assert request.approved_write_tools == []
-    assert request.approved_high_risk_tools == []
     assert request.use_broker is False
     assert request.verifier_id is None
 
