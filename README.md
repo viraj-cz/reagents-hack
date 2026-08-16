@@ -21,9 +21,17 @@ This repo is the consolidation of two independently-built pieces.
 Neither subsumes the other, and the split is deliberate: `reagents` decides
 *what* a demigod should reason about, `demigod` decides *where and how* it runs.
 
-There is now a third piece, `src/broker/` — the **TOOLBOX_BROKER** — which
-exists because those two columns disagreed about what a tool is. See
-[Three sandbox types](#three-sandbox-types).
+Two further packages complete the picture. `src/broker/` — the
+**TOOLBOX_BROKER** — exists because those two columns disagreed about what a
+tool is. `src/godbox/` answers the remaining question — *where and how does GOD
+itself run?* — by putting the orchestrator in its own long-lived Modal sandbox.
+See [Three sandbox types](#three-sandbox-types).
+
+Both depend on the two halves; neither half depends on them. That direction is
+a security boundary, not a style preference: `demigod` is the only package
+shipped into a DEMI_GOD's container, and the moment it can reach `reagents`,
+the agent's own container holds the planner prompts and inverse maps that
+constrain it.
 
 **The seam is one call** — `reagents/god/orchestrator.py`, in `_spawn()`:
 
@@ -54,15 +62,23 @@ src/demigod/
   runner/          >>> THE SEAM <<< who drives the agent loop
   toolbox/         the DEMI_GOD half of the broker: protocol, client, `toolbox` CLI
   spawn.py         spawn_demigod() / the CLI
-src/broker/        >>> THE THIRD SANDBOX TYPE <<<
+src/broker/        >>> THE BROKER SANDBOX <<<
   grants.py        durable lease state; the call counter IS the audit log
   router.py        the request path. Plain ASGI, no Modal, tested offline
   dispatch.py      which tools run inline and which get their own container
   modal_store.py   GrantStore over modal.Dict + modal.Queue
   service.py       the modal.App: router endpoint + one executor per tool class
   session.py       GOD's API: grant -> collect_trace -> revoke
+src/godbox/        >>> THE GOD SANDBOX <<<
+  status.py        modal.Dict status channel: phase, heartbeat, per-demigod rows
+  images.py        god_image() -- modal client + Anthropic SDK + all 3 packages
+  layout.py        GodRequest + where things live in GOD's sandbox
+  launch.py        OUTSIDE: create the sandbox, hand over the task, detach
+  entrypoint.py    INSIDE: drive God.solve(), report, self-terminate
+  cli.py           `god launch|status|watch|list|logs|followup|terminate`
 scripts/
-  bake.py  smoke_test.py  preflight_live.py  preflight_toolbox.py  bootstrap.sh
+  bake.py  smoke_test.py  bootstrap.sh
+  preflight_live.py  preflight_toolbox.py  preflight_god.py  preflight_nested.py
 ```
 
 ## Three sandbox types
@@ -134,11 +150,30 @@ Spawn a single DEMI_GOD (no GOD involved):
 uv run spawn-demigod --spec examples/smoke-demigod.json --shared examples/data/transactions.csv
 ```
 
-Run the GOD loop (defaults to the scripted LLM; `--live` for real inference):
+Run the GOD loop in this process (defaults to the scripted LLM; `--live` for
+real inference):
 
 ```bash
 uv run reagents
 ```
+
+Or run GOD in **its own long-lived Modal sandbox**, so the run survives closing
+the laptop:
+
+```bash
+uv run god launch --problem simple --domains 2 --turns 12   # returns in seconds
+uv run god status <run_id>      # a snapshot, from anywhere
+uv run god watch  <run_id>      # follow it to completion
+uv run god list                 # what did I leave running?
+uv run god logs   <run_id>      # GOD's stdout, out of the live sandbox
+uv run god terminate <run_id>
+```
+
+GOD spawns its DEMI_GODs from inside that sandbox (nested spawning: see
+`scripts/preflight_nested.py`). Progress goes to a `modal.Dict`, which is
+readable the instant it is written; artifacts and `solution.json` are uploaded
+to the run's out volume at the end. **The two channels are not
+interchangeable** -- see below.
 
 Offline checks — no Modal account or API key needed:
 
@@ -149,13 +184,16 @@ uv run pytest && uv run ruff check . && uv run ruff format --check .
 Before the first live spawn of the day, and after any Modal SDK bump:
 
 ```bash
-uv run python scripts/preflight_live.py      # sandbox, volumes, the claude CLI
+uv run python scripts/preflight_live.py      # one DEMI_GOD sandbox, no agent
 uv run python scripts/preflight_toolbox.py   # Dict, Queue, asgi_app, egress
+uv run python scripts/preflight_god.py       # one GOD sandbox, no agent
+uv run python scripts/preflight_nested.py    # can a sandbox spawn a sandbox?
 ```
 
-Both are cheap — one small sandbox each, no agent loop, zero Anthropic tokens.
-They exist because the offline suite cannot catch a server-side API change:
-`sandbox.open()` passed every local check right up until the server retired it.
+All four are cheap — one small sandbox each, no agent loop, zero Anthropic
+tokens. They exist because the offline suite cannot catch a server-side API
+change: `sandbox.open()` passed every local check right up until the server
+retired it.
 
 **This project uses `uv` exclusively.** `uv.lock` is committed — do not add it
 to `.gitignore`. Python 3.12 is pinned in `.python-version` to match
@@ -167,8 +205,17 @@ interpreter the agent runs on.
 ```bash
 uv run modal token new                             # caller-side auth
 uv run modal secret create demigod-anthropic ANTHROPIC_API_KEY=sk-ant-...
+# Only for `god launch`: lets GOD spawn DEMI_GODs from inside its own sandbox.
+uv run modal secret create demigod-modal-token \
+    MODAL_TOKEN_ID=ak-... MODAL_TOKEN_SECRET=as-...
 uv run python scripts/bake.py                      # pre-bake images
 ```
+
+Modal credentials are workspace-wide, so `demigod-modal-token` goes to GOD and
+**never** to a DEMI_GOD. That is enforced twice: a demigod does not mount the
+secret, and the demigod images do not install the `modal` client at all, so a
+leaked token would still be unusable. `tests/test_package_boundary.py` fails if
+either barrier drifts.
 
 Copy `.env.example` to `.env` for GOD-side and sponsor-tool credentials. Note
 the scope rule: **a DEMI_GOD receives none of these.** Its Anthropic key arrives
@@ -205,6 +252,25 @@ them as documentation.
   bare `ProcessError` naming neither the flag nor root.
 - **`claude --version` passing does not mean the CLI works.** It passed on an
   image where every real query failed. `preflight_live.py` runs `claude -p`.
+- **`Volume.commit()` does not work in a Sandbox.** It raises `RuntimeError:
+  commit() can only be called on a mounted volume inside a container` -- it is
+  a Modal *Function* API. A Sandbox's mount writes are flushed only when the
+  sandbox terminates, so an artifact written through a mount is invisible for
+  the entire run. `Volume.batch_upload()` works from inside a Sandbox and is
+  visible immediately, which is why GOD does not mount the out volume at all.
+- **A `modal.Dict` is the only live cross-container channel.** Status, phase,
+  and heartbeat go there precisely because a volume cannot carry them. Polling
+  `out/` mid-run shows an empty directory, which reads as "the agents produced
+  nothing" -- the most expensive misdiagnosis in this repo's history.
+- **`idle_timeout` does not fire while a command is running**, even a detached
+  one with both streams sent to `DEVNULL`. Verified: a sandbox with
+  `idle_timeout=30` ran a 50s unattended process to completion and was
+  collected ~30s after it *ended*. That is what makes a detached GOD safe.
+- **A detached exec must not use the default `StreamType.PIPE`.** An unread
+  pipe applies backpressure and eventually hangs the process nobody is
+  watching. GOD redirects to a file in the sandbox and uses `DEVNULL`.
+- **Modal's blocking API inside `async def` warns and stalls the loop.** Use
+  `.aio` (`await d.put.aio(...)`), or keep the call outside `asyncio.run`.
 
 ## Cost
 

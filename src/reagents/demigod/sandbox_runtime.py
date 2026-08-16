@@ -94,6 +94,13 @@ class SandboxDemigodRuntime:
         memory_mb: int = 2048,
         max_turns: int | None = None,
         tracer: TraceSink | None = None,
+        # Restored: dropped from this signature by the PR #4 merge resolution
+        # (81b2198) while `self.restrict_egress = restrict_egress` below was
+        # kept, making every instantiation raise NameError. Off by default --
+        # verified to block and allow correctly, but the `claude` CLI may reach
+        # hosts beyond *.anthropic.com, so enabling it untested would break
+        # every live run.
+        restrict_egress: bool = False,
     ) -> None:
         self.run_id = run_id
         self.tool_map = tool_map or {}

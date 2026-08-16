@@ -338,3 +338,19 @@ def test_complete_but_wrong_shape_is_reported_distinctly():
     with pytest.raises(LLMError) as e:
         _parse_model('{"a": "not-an-int"}', Draft, FakeMessage())
     assert "did not match the schema" in str(e.value)
+
+
+def test_sandbox_runtime_constructs_with_defaults():
+    """Regression: the PR #4 merge (81b2198) dropped `restrict_egress` from
+    SandboxDemigodRuntime's signature while keeping `self.restrict_egress =
+    restrict_egress`, so EVERY instantiation raised NameError -- master's whole
+    sandbox path, including e2e_live.py, was dead and no test caught it.
+
+    Constructing the class with nothing but a run_id is the cheapest possible
+    guard against a signature/body mismatch."""
+    from reagents.demigod.sandbox_runtime import SandboxDemigodRuntime
+
+    runtime = SandboxDemigodRuntime(run_id="r1")
+    assert runtime.run_id == "r1"
+    assert runtime.restrict_egress is False
+    assert runtime.toolbox is None
