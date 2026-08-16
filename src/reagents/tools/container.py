@@ -259,6 +259,61 @@ def configure_container_tools(registry: ToolRegistry) -> None:
             risk_tier=RiskTier.LOW,
         ),
         Tool(
+            id="protein.esm_embed",
+            namespace="protein",
+            description=(
+                "Mean-pooled ESM-2 protein language-model embedding for one "
+                "amino-acid sequence. Returns a fixed-length vector suitable "
+                "for comparing, clustering, or scoring sequences."
+            ),
+            parameters_schema={
+                "type": "object",
+                "required": ["sequence"],
+                "properties": {
+                    "sequence": {
+                        "type": "string",
+                        "maxLength": 4000,
+                        "description": "Single-letter amino-acid sequence.",
+                    }
+                },
+                "additionalProperties": False,
+            },
+            executor=ContainerExecutor(
+                ContainerToolConfig("reagents/esm-core:latest", "esm_embed", timeout_s=300.0)
+            ),
+            provider=ToolProvider.CONTAINER,
+            access=ToolAccess.COMPUTE,
+            risk_tier=RiskTier.LOW,
+            latency_class="batch",
+        ),
+        Tool(
+            id="protein.esm_contacts",
+            namespace="protein",
+            description=(
+                "ESM-2 predicted residue-residue contact map for one sequence. "
+                "Capped at 400 residues because the result is quadratic in length."
+            ),
+            parameters_schema={
+                "type": "object",
+                "required": ["sequence"],
+                "properties": {
+                    "sequence": {
+                        "type": "string",
+                        "maxLength": 400,
+                        "description": "Single-letter amino-acid sequence, <= 400 residues.",
+                    }
+                },
+                "additionalProperties": False,
+            },
+            executor=ContainerExecutor(
+                ContainerToolConfig("reagents/esm-core:latest", "esm_contacts", timeout_s=300.0)
+            ),
+            provider=ToolProvider.CONTAINER,
+            access=ToolAccess.COMPUTE,
+            risk_tier=RiskTier.LOW,
+            latency_class="batch",
+        ),
+        Tool(
             id="biology.sequence_stats",
             namespace="biology",
             description="Calculate deterministic sequence length, alphabet, composition, and GC fraction.",

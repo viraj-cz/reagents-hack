@@ -329,6 +329,33 @@ DESIGN = ExecutorClass(
     memory_mb=8192,
 )
 
+ESM_MODEL = "esm2_t12_35M_UR50D"
+"""Baked into the image so a cold start does not pay the download.
+
+The 35M checkpoint runs on CPU in seconds, which is why this tier has no `gpu=`
+and therefore costs nothing at min_containers=0. Switch to
+`esm2_t33_650M_UR50D` for quality and add `gpu="A10G"` -- the accelerator is
+then attached to THIS function alone, never held while a demigod is thinking.
+"""
+
+ESM = ExecutorClass(
+    name="esm",
+    namespaces=frozenset({"protein"}),
+    # CPU torch: the GPU wheels are multiple GB and this tier does not use one.
+    extras=(
+        "torch>=2.2,<3",
+        "fair-esm>=2.0,<3",
+    ),
+    setup_commands=(
+        # Pre-download the checkpoint INTO the image. Left to runtime it would
+        # be fetched on every cold start, inside a demigod's turn budget.
+        'python -c "import esm, torch; esm.pretrained.' + ESM_MODEL + '()" || true',
+    ),
+    env=(("REAGENTS_ESM_MODEL", ESM_MODEL), ("TORCH_HOME", "/root/.cache/torch")),
+    memory_mb=8192,
+    timeout_s=600,
+)
+
 SPONSOR = ExecutorClass(
     name="sponsor",
     # The ONE tier that keeps repo source: executing an MCP tool means importing
@@ -346,6 +373,7 @@ SPONSOR = ExecutorClass(
 )
 
 ALL_EXECUTOR_CLASSES: tuple[ExecutorClass, ...] = (
+    ESM,
     REASONING,
     LEAN,
     BIOLOGY,

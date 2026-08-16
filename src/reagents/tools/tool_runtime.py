@@ -25,6 +25,7 @@ image that has Z3 and no RDKit.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -32,7 +33,6 @@ from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-
 
 MATHLIB = Path("/opt/mathlib")
 """Where both the local reasoning image and the broker's `lean` tier put it."""
@@ -153,6 +153,97 @@ def python_exec(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+ESM_MODEL_ENV = "REAGENTS_ESM_MODEL"
+ESM_DEFAULT_MODEL = "esm2_t12_35M_UR50D"
+"""Smallest useful ESM-2 checkpoint (~150MB, 12 layers).
+
+Chosen as the default because it runs on CPU in seconds, so the tier costs
+nothing when idle and needs no GPU to be useful. `esm2_t33_650M_UR50D` is the
+quality step up (~2.5GB) and wants a GPU -- set REAGENTS_ESM_MODEL to switch,
+and give that tier `gpu=` so the accelerator is held by this Function alone
+rather than while a demigod is thinking.
+"""
+
+_ESM_CACHE: dict[str, Any] = {}
+
+
+def _load_esm(model_name: str) -> tuple[Any, Any, Any]:
+    """Load and memoise an ESM-2 checkpoint for this worker process.
+
+    Memoised because a warm Modal container serves many calls: re-loading
+    hundreds of MB of weights per request would dominate the runtime of an
+    otherwise millisecond-scale tool.
+    """
+    if model_name in _ESM_CACHE:
+        return _ESM_CACHE[model_name]
+    import esm as esm_pkg
+    import torch
+
+    if not hasattr(esm_pkg.pretrained, model_name):
+        available = [n for n in dir(esm_pkg.pretrained) if n.startswith("esm2_")]
+        raise ValueError(f"unknown ESM model {model_name!r}; available: {available}")
+    model, alphabet = getattr(esm_pkg.pretrained, model_name)()
+    model.eval()
+    if torch.cuda.is_available():
+        model = model.cuda()
+    entry = (model, alphabet, alphabet.get_batch_converter())
+    _ESM_CACHE[model_name] = entry
+    return entry
+
+
+def _esm_forward(sequence: str, *, want_contacts: bool) -> dict[str, Any]:
+    import torch
+
+    name = os.environ.get(ESM_MODEL_ENV, ESM_DEFAULT_MODEL)
+    model, _alphabet, batch_converter = _load_esm(name)
+    _, _, tokens = batch_converter([("query", sequence)])
+    if torch.cuda.is_available():
+        tokens = tokens.cuda()
+    layer = model.num_layers
+    with torch.no_grad():
+        out = model(tokens, repr_layers=[layer], return_contacts=want_contacts)
+    # Strip BOS/EOS so index i lines up with residue i of the input.
+    reps = out["representations"][layer][0, 1 : len(sequence) + 1]
+    result: dict[str, Any] = {
+        "model": name,
+        "length": len(sequence),
+        "embedding_dim": int(reps.shape[-1]),
+        "mean_embedding": [round(float(v), 6) for v in reps.mean(0).tolist()],
+        "device": "cuda" if torch.cuda.is_available() else "cpu",
+    }
+    if want_contacts:
+        contacts = out["contacts"][0, : len(sequence), : len(sequence)]
+        result["contacts"] = [
+            [round(float(v), 4) for v in row] for row in contacts.tolist()
+        ]
+    return result
+
+
+def esm_embed(payload: dict[str, Any]) -> dict[str, Any]:
+    """Mean-pooled ESM-2 embedding for one protein sequence."""
+    sequence = str(payload["sequence"]).strip().upper()
+    if not sequence:
+        raise ValueError("sequence is empty")
+    return _esm_forward(sequence, want_contacts=False)
+
+
+def esm_contacts(payload: dict[str, Any]) -> dict[str, Any]:
+    """ESM-2 predicted residue-residue contact map.
+
+    Capped at 400 residues: the map is O(n^2) and a 1000-residue protein would
+    return a million floats through a JSON tool result.
+    """
+    sequence = str(payload["sequence"]).strip().upper()
+    if not sequence:
+        raise ValueError("sequence is empty")
+    if len(sequence) > 400:
+        raise ValueError(
+            f"sequence is {len(sequence)} residues; contact maps are capped at "
+            f"400 because the result is quadratic in length"
+        )
+    return _esm_forward(sequence, want_contacts=True)
+
+
 OPERATIONS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "lean_check": lean_check,
     "z3_solve": z3_solve,
@@ -160,6 +251,8 @@ OPERATIONS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "rdkit_descriptors": rdkit_descriptors,
     "proto_check": proto_check,
     "python_exec": python_exec,
+    "esm_embed": esm_embed,
+    "esm_contacts": esm_contacts,
 }
 
 
@@ -192,7 +285,7 @@ def main() -> None:
     payload = json.load(sys.stdin)
     try:
         result = OPERATIONS[sys.argv[1]](payload)
-    except Exception as exc:  # noqa: BLE001 - serialize failure across container boundary
+    except Exception as exc:
         print(json.dumps({"error": type(exc).__name__, "message": str(exc)}))
         raise SystemExit(1) from exc
     print(json.dumps(result, default=str))
