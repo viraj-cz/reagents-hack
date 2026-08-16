@@ -28,6 +28,7 @@ from typing import Any
 
 from reagents.contracts import NativeProblem
 from reagents.god.orchestrator import God
+from resolution.attachments import Attachment
 from resolution.events import RunSnapshot, UiEvent, build_event, jsonable
 from resolution.narration import make_llm
 
@@ -65,6 +66,7 @@ class Run:
         domain_count: int | None,
         execution: str = EXECUTION_INPROCESS,
         max_turns: int = DEFAULT_MAX_TURNS,
+        attachments: list[Attachment] | None = None,
     ) -> None:
         self.run_id = run_id
         self.problem = problem
@@ -72,6 +74,9 @@ class Run:
         self.domain_count = domain_count
         self.execution = execution
         self.max_turns = max_turns
+        # The raw bytes, for mounting. Their profiles are already in
+        # `problem.inputs`; these are what a demigod's pandas actually opens.
+        self.attachments = attachments or []
         self.events: list[UiEvent] = []
         self.snapshot = RunSnapshot(
             run_id=run_id,
@@ -176,6 +181,30 @@ class Run:
         self._publish(None, subscribers)
 
     # -- lifecycle -------------------------------------------------------
+    def _emit_attached(self) -> None:
+        """Say what was mounted, and say plainly that it is not sealed.
+
+        The profile of each table goes through the projection and is sealed; the
+        file itself is mounted with its native headers intact. Reporting such a
+        run as simply "sealed" would be the exact failure `seed_shared_files`
+        warns about, so the trace names both halves.
+        """
+
+        count = len(self.attachments)
+        self.emit(
+            "GOD",
+            "ATTACHED",
+            f"{count} table{'' if count == 1 else 's'} mounted read-only under "
+            f"shared/ -- the projected profile is sealed, the file itself is not",
+            data={
+                "files": [
+                    {"name": a.name, "size": a.size, "profile": a.profile}
+                    for a in self.attachments
+                ],
+                "sealed_terms": list(self.problem.entities),
+            },
+        )
+
     async def _build_runtime(self) -> Any:
         """`None` means GOD's default in-process runtime."""
 
@@ -185,6 +214,18 @@ class Run:
         def build() -> Any:
             from broker.session import modal_session
             from reagents.demigod.sandbox_runtime import SandboxDemigodRuntime
+
+            # shared/ is mounted read-only in every sandbox, so it has to be
+            # filled from out here and BEFORE the first spawn. `envelope_to_spec`
+            # adds pandas to any demigod that gets files, so naming them here is
+            # also what makes the table openable.
+            shared: list[str] = []
+            if self.attachments:
+                from reagents.demigod.sandbox_runtime import seed_shared_files
+
+                shared = seed_shared_files(
+                    self.run_id, [a.path for a in self.attachments]
+                )
 
             # `modal_session()` resolves the deployed router's URL, which is a
             # network lookup -- hence the thread. Without the toolbox a demigod
@@ -203,6 +244,7 @@ class Run:
                 run_id=self.run_id,
                 toolbox=modal_session(),
                 require_toolbox=True,
+                shared_files=shared,
                 tracer=self,
             )
 
@@ -211,6 +253,8 @@ class Run:
             "RUNTIME",
             "one Modal sandbox per demigod; tools brokered by lease",
         )
+        if self.attachments:
+            self._emit_attached()
         return await asyncio.to_thread(build)
 
     async def _execute_in_godbox(self) -> None:
@@ -229,11 +273,26 @@ class Run:
             "RUNTIME",
             "GOD in its own Modal sandbox, spawning one sandbox per demigod",
         )
+        # Seed from HERE, not from inside GOD's sandbox. GOD's own sandbox
+        # mounts no volume (Volume.commit fails inside one, see godbox/layout),
+        # but the demigods it spawns mount `demigod-run-<run_id>-shared` by run
+        # id -- so filling that volume before launch is what puts the file in
+        # front of them. The names travel in the request; the bytes do not.
+        shared: list[str] = []
+        if self.attachments:
+            self._emit_attached()
+            from reagents.demigod.sandbox_runtime import seed_shared_files
+
+            shared = await asyncio.to_thread(
+                seed_shared_files, self.run_id, [a.path for a in self.attachments]
+            )
+
         request = godbox_run.build_request(
             self.run_id,
             self.problem,
             domain_count=self.domain_count,
             max_turns=self.max_turns,
+            shared_files=shared,
         )
         handle = await asyncio.to_thread(godbox_run.launch, request)
         self.snapshot.sandbox_id = handle.sandbox_id
@@ -368,6 +427,7 @@ class RunStore:
         domain_count: int | None,
         execution: str = EXECUTION_INPROCESS,
         max_turns: int = DEFAULT_MAX_TURNS,
+        attachments: list[Attachment] | None = None,
     ) -> Run:
         run_id = f"run-{uuid.uuid4().hex[:8]}"
         run = Run(
@@ -377,6 +437,7 @@ class RunStore:
             domain_count=domain_count,
             execution=execution,
             max_turns=max_turns,
+            attachments=attachments,
         )
         run.task = asyncio.create_task(run.execute(), name=run_id)
         self.runs[run_id] = run
@@ -407,26 +468,72 @@ def build_problem(
     entities: list[str] | None = None,
     constraints: list[str] | None = None,
     problem_id: str | None = None,
+    attachments: list[Attachment] | None = None,
 ) -> NativeProblem:
     """Free text to `NativeProblem`, without inventing anything.
 
     `entities` is the only field with teeth: `reagents.isolation.native_terms`
     reads it and nothing else, so it is the list of words a demigod must never
-    see. Guessing at it would be worse than leaving it empty -- a wrong guess
-    seals the wrong words and, worse, reports a run as sealed against terms the
-    user never named. So it comes from the caller or it stays empty.
+    see. Guessing at it from PROSE would be worse than leaving it empty -- a
+    wrong guess seals the wrong words and, worse, reports a run as sealed
+    against terms the user never named. So it is never inferred from `prompt`.
+
+    `attachments` are different, and are why the UI no longer asks anyone to
+    type this list. A column header is not a guess about what matters; it is
+    the schema the user handed us. `sealed_terms` reads it mechanically, so the
+    terms are exactly as defensible as the file itself. Each attachment also
+    contributes its profile -- never its rows -- to `inputs`, which the
+    transformer must project into every domain.
     """
 
     text = prompt.strip()
     if not text:
         raise ValueError("prompt is empty")
     question = _last_question(text)
+
+    named = [e.strip() for e in (entities or []) if e.strip()]
+    inputs: dict[str, Any] = {}
+    derived: list[str] = []
+    for item in attachments or []:
+        inputs[item.name] = item.profile
+        derived.extend(item.terms)
+
+    # Caller-supplied terms win the ordering, then schema-derived ones. Both end
+    # up in the same set downstream; `dict.fromkeys` only keeps the list stable
+    # and duplicate-free so what the UI displayed is what gets sealed.
     return NativeProblem(
         id=problem_id or _slug(text),
         statement=text,
-        entities=[e.strip() for e in (entities or []) if e.strip()],
+        entities=list(dict.fromkeys([*named, *derived])),
         constraints=[c.strip() for c in (constraints or []) if c.strip()],
         question=question,
+        inputs=inputs,
+    )
+
+
+def with_attachments(
+    problem: NativeProblem, attachments: list[Attachment]
+) -> NativeProblem:
+    """Fold uploaded tables into a problem that already exists.
+
+    The preset path builds its `NativeProblem` from a hardcoded builder rather
+    than from `build_problem`, so this is how a preset run picks up a file. Same
+    two contributions as `build_problem`: the profile into `inputs`, the derived
+    schema vocabulary onto `entities`. A preset's hand-written entities come
+    first and are never dropped.
+    """
+
+    if not attachments:
+        return problem
+    return problem.model_copy(
+        update={
+            "inputs": {**problem.inputs, **{a.name: a.profile for a in attachments}},
+            "entities": list(
+                dict.fromkeys(
+                    [*problem.entities, *(t for a in attachments for t in a.terms)]
+                )
+            ),
+        }
     )
 
 

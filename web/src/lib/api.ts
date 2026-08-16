@@ -1,10 +1,12 @@
-import type { Preset, RunSnapshot } from './types'
+import type { Attachment, Preset, RunSnapshot } from './types'
 
 export type StartRequest = {
   prompt?: string
   preset?: string
   entities?: string[]
   constraints?: string[]
+  /** Ids from `uploadAttachment`, not the files themselves. */
+  attachments?: string[]
   mode: 'scripted' | 'live'
   /** null = let GOD choose, including choosing none. */
   domains: number | null
@@ -45,6 +47,22 @@ export async function fetchPresets(): Promise<PresetsResponse> {
     liveAvailable: body.live_available,
     liveReason: body.live_unavailable_reason,
   }
+}
+
+/** Upload one table and get back its id, profile, and derived sealed terms.
+ *
+ * The file goes up as the raw request body with its name in the query string.
+ * The server has no web framework and therefore no multipart parser -- see the
+ * route comment in `resolution/app.py`. `fetch` sends a `File` as a body
+ * directly, so nothing has to be encoded on this side either.
+ */
+export async function uploadAttachment(file: File): Promise<Attachment> {
+  const response = await fetch(`/api/uploads?name=${encodeURIComponent(file.name)}`, {
+    method: 'POST',
+    body: file,
+  })
+  const body = await json<{ attachment: Attachment }>(response)
+  return body.attachment
 }
 
 export async function startRun(request: StartRequest): Promise<{ run_id: string; run: RunSnapshot }> {

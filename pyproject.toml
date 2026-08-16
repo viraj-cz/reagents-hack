@@ -23,7 +23,11 @@ llm = ["anthropic>=0.40"]
 # just the server that runs it. Modal already pulls uvicorn in, but a UI that
 # depends on another package's transitive dependency breaks the day that
 # package drops it.
-ui = ["uvicorn>=0.30"]
+# pyarrow is here, not in `reasoning`, because it is the UI that profiles an
+# uploaded table: `resolution/attachments.py` reads CSV with the stdlib and
+# needs pyarrow only for parquet, which it degrades from with a readable
+# message rather than a traceback if this extra was skipped.
+ui = ["uvicorn>=0.30", "pyarrow>=17,<22"]
 mcp = ["mcp>=1.27,<2", "httpx>=0.28,<1"]
 reasoning = [
     "numpy>=2,<3",

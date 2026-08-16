@@ -534,6 +534,108 @@ button {
   font-size: 13px;
 }
 
+/* -- attachments -------------------------------------------------------- */
+.dropzone {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border: 1px dashed var(--w-34);
+  background: rgba(10, 10, 84, 0.34);
+  padding: 14px 16px;
+  transition: border-color 120ms linear, background 120ms linear;
+}
+
+.dropzone.over {
+  border-color: var(--white);
+  border-style: solid;
+  background: var(--w-12);
+}
+
+/* The real input still receives the click from "Choose files", so it is moved
+   out of sight rather than display:none -- a hidden input cannot be focused,
+   and keyboard users would lose the control entirely. */
+.dropzone input[type='file'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.attachments {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  list-style: none;
+}
+
+.attachments li {
+  border: 1px solid var(--w-22);
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.attachment-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.attachment-head .name {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Pushes Remove to the right edge without a spacer element. */
+.attachment-head button {
+  margin-left: auto;
+}
+
+.columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.col {
+  border: 1px solid var(--w-22);
+  padding: 3px 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--w-70);
+}
+
+/* Type is the one thing worth colouring: it tells you at a glance whether a
+   column will be summarised by range or listed as categories -- which is also
+   what decides if its values get sealed. */
+.col.number {
+  border-color: rgba(255, 194, 75, 0.5);
+  color: var(--amber);
+}
+
+.col.boolean {
+  border-color: var(--w-34);
+}
+
+.col.muted {
+  color: var(--w-52);
+  border-style: dashed;
+}
+
+.notice.seal {
+  border-color: var(--white);
+  background: var(--w-06);
+  color: var(--w-70);
+}
+
+.notice.seal .mono {
+  color: var(--white);
+  word-break: break-word;
+}
+
 .notice {
   border-left: 2px solid var(--amber);
   padding: 10px 14px;

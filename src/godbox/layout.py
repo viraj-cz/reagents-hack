@@ -120,6 +120,18 @@ class GodRequest(BaseModel):
     every artifact carrying a blocker saying its tools were unreachable. The
     broker is deployed precisely so that is not the state a run lands in."""
 
+    shared_files: list[str] = Field(default_factory=list)
+    """Paths under this run's shared volume, relative to its root.
+
+    NAMES ONLY, and the volume is already populated when GOD reads them: shared/
+    is mounted read-only everywhere and GOD's own sandbox mounts no volume at
+    all, so whoever built this request did the seeding. GOD passes these to its
+    demigod runtime, which is what puts the files in the spawned spec and pulls
+    pandas into the image.
+
+    NOT SEALED. These files carry their native column headers into a sandbox,
+    unlike `problem.inputs`, which is projected. See `seed_shared_files`."""
+
     verifier_id: str | None = None
     """Closed God-side native verifier name. Never a module path or callable."""
 
