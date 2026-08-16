@@ -18,6 +18,7 @@ from reagents.contracts import (
 )
 from reagents.god.orchestrator import God
 from reagents.tools.registry import ToolRegistry, default_registry
+from reagents.tracing import RecordingTracer, TerminalTracer, TraceSink
 
 __all__ = [
     "Axis",
@@ -32,6 +33,9 @@ __all__ = [
     "NativeProblem",
     "NativeSolution",
     "RiskTier",
+    "RecordingTracer",
+    "TerminalTracer",
+    "TraceSink",
     "ToolAccess",
     "ToolProvider",
     "ToolRegistry",

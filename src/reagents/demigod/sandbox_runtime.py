@@ -49,6 +49,7 @@ from reagents.contracts import ContextEnvelope
 from reagents.demigod.adapter import envelope_to_spec, slugify_domain_name
 from reagents.demigod.runtime import IsolationGuard
 from reagents.tools.registry import BoundToolPack
+from reagents.tracing import NullTracer, TraceSink, demigod_lane, summarize
 
 
 class ToolboxProvider(Protocol):
@@ -92,7 +93,7 @@ class SandboxDemigodRuntime:
         cpu: float = 1.0,
         memory_mb: int = 2048,
         max_turns: int | None = None,
-        restrict_egress: bool = False,
+        tracer: TraceSink | None = None,
     ) -> None:
         self.run_id = run_id
         self.tool_map = tool_map or {}
@@ -111,6 +112,12 @@ class SandboxDemigodRuntime:
         # call, and sandbox compute is cents next to that. Set it low when
         # exercising the pipeline rather than trying to solve something.
         self.max_turns = max_turns
+        self.tracer = tracer or NullTracer()
+
+    def set_tracer(self, tracer: TraceSink) -> None:
+        """Use God's sink so sandbox and in-process runtimes stream alike."""
+
+        self.tracer = tracer
 
     async def run(
         self,
@@ -119,8 +126,22 @@ class SandboxDemigodRuntime:
         guard: IsolationGuard | None = None,
     ) -> DemiGodResult:
         name = envelope.domain.name
+        lane = demigod_lane(name)
+        self.tracer.emit(lane, "START", "isolated sandbox stream opened")
+        self.tracer.emit(
+            lane,
+            "SCOPE",
+            f"axis={envelope.domain.primary_axis.value}; "
+            f"language={envelope.domain.language}",
+            data={
+                "tools": [spec.id for spec in envelope.tools],
+                "max_steps": self.max_turns or envelope.budget.max_steps,
+                "max_tool_calls": envelope.budget.max_tool_calls,
+            },
+        )
 
         def fail(reason: str, violations: list[str] | None = None) -> DemiGodResult:
+            self.tracer.emit(lane, "FAIL", summarize(reason), data=violations)
             return DemiGodResult.failure(
                 status="failed",
                 error=reason,
@@ -163,6 +184,7 @@ class SandboxDemigodRuntime:
         # Without to_thread it would serialize the orchestrator's fan-out --
         # every demigod still correct, total wall clock N times longer, and
         # nothing in the logs saying why.
+        self.tracer.emit(lane, "MODEL", "reasoning in an isolated sandbox")
         try:
             result = await asyncio.to_thread(
                 spawn_demigod,
@@ -215,6 +237,32 @@ class SandboxDemigodRuntime:
                 result.error = f"artifact failed schema: {schema_errors}"
                 result.blockers = [*result.blockers, *schema_errors]
 
+        if result.status != "ok":
+            self.tracer.emit(
+                lane,
+                "FAIL",
+                summarize(result.error or "sandbox returned a failed manifest"),
+            )
+            return result
+
+        if result.justification:
+            self.tracer.emit(lane, "REASON", summarize(result.justification))
+        conclusion = (
+            result.payload.get("conclusion")
+            or result.payload.get("claim")
+            or result.claim
+        )
+        if conclusion:
+            self.tracer.emit(
+                lane,
+                "ARTIFACT",
+                f"confidence={result.confidence}; {summarize(conclusion)}",
+            )
+        self.tracer.emit(
+            lane,
+            "DONE",
+            f"artifact validated; files={len(result.files)}",
+        )
         return result
 
     # --- lease lifecycle ----------------------------------------------------
