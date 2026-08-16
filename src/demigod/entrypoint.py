@@ -44,6 +44,10 @@ async def run_agent(spec: DemiGodSpec) -> int:
         # shared/ is outside cwd; without this the agent cannot read its inputs.
         add_dirs=[SHARED_MOUNT],
         max_turns=spec.max_turns,
+        # Same reproducibility argument as setting_sources below, and the
+        # stronger case of it: left unset, the model is whatever the bundled
+        # `claude` CLI defaults to that week.
+        model=spec.model,
         # Do not pick up any .claude/ settings that happen to be on the image.
         # A DEMI_GOD's behavior must come from its spec alone, or runs stop
         # being reproducible.

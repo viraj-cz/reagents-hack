@@ -107,6 +107,7 @@ def envelope_to_spec(
     toolbox: ToolboxGrant | None = None,
     files: list[str] | None = None,
     max_turns: int | None = None,
+    model: str | None = None,
     cpu: float = 1.0,
     memory_mb: int = 2048,
     restrict_egress: bool = False,
@@ -177,6 +178,9 @@ def envelope_to_spec(
         max_lifetime_s=max(int(budget.wall_time_s * 10), 600),
         idle_timeout_s=120,
         max_turns=max_turns or budget.max_steps,
+        # None means "keep the spec's own default" rather than "no model" --
+        # DemiGodSpec.model is non-optional and pinned there.
+        **({"model": model} if model else {}),
         cpu=cpu,
         memory_mb=memory_mb,
     )

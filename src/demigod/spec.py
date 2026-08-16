@@ -136,6 +136,19 @@ class DemiGodSpec(BaseModel):
             "call against your key. Lower this first when budgeting."
         ),
     )
+    model: str = Field(
+        "claude-opus-4-8",
+        description=(
+            "Anthropic model for the agent loop. Pinned rather than left to the "
+            "CLI default, for the same reason the entrypoint passes "
+            "`setting_sources=[]`: a DEMI_GOD's behavior must come from its spec "
+            "alone. An unpinned model silently changes when the bundled `claude` "
+            "CLI changes its default, so two runs of the same spec stop being "
+            "comparable -- and the model is a far bigger determinant of the "
+            "result than any setting file. Use a bare alias, never a "
+            "date-suffixed snapshot id."
+        ),
+    )
     cpu: float = Field(1.0, description="Cores. Sandbox billing is per core-second.")
     memory_mb: int = Field(2048, description="RAM in MiB.")
 

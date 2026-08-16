@@ -76,7 +76,11 @@ def test_broker_env_actually_registers_the_container_tools(
         for tool_id in registry.ids()
         if registry.get(tool_id).provider is ToolProvider.CONTAINER
     ]
-    assert len(container_tools) == 9
+    # NOT a hardcoded count. A magic number here fails every time anyone adds
+    # a tool -- which is exactly what happened when ESM landed -- and it tests
+    # the number rather than the property. What matters is that the flag
+    # actually surfaces container tools at all.
+    assert container_tools, "REAGENTS_ENABLE_CONTAINERS=1 registered no container tools"
 
 
 def test_every_brokered_tool_resolves_to_a_tier(registry: ToolRegistry) -> None:

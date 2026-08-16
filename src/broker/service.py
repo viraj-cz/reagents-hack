@@ -96,6 +96,7 @@ def broker_image(
     extras: tuple[str, ...] = (),
     apt: tuple[str, ...] = (),
     setup_commands: tuple[str, ...] = (),
+    warm_commands: tuple[str, ...] = (),
     env: dict[str, str] | None = None,
 ) -> modal.Image:
     """The router image, or an executor image with a tool class's dependencies.
@@ -123,6 +124,19 @@ def broker_image(
     if extras:
         image = image.pip_install(*extras)
     image = image.env({**BROKER_ENV, **(env or {})})
+    # AFTER pip and AFTER env, and that ordering is the whole point of having a
+    # second hook. `setup_commands` runs before pip, which is right for Lean's
+    # mathlib cache but silently wrong for anything that imports an installed
+    # package: ESM's model warm-up was a `setup_commands` entry, so it ran in an
+    # image with no torch, raised ModuleNotFoundError, and got swallowed by the
+    # `|| true` it was written with. The 150MB download quietly moved to first
+    # call in every cold container -- which `restrict_egress` would turn into a
+    # hard failure at call time instead of at build time.
+    #
+    # Deliberately NOT `|| true`. A warm-up that fails should fail the build,
+    # loudly, while someone is watching.
+    if warm_commands:
+        image = image.run_commands(*warm_commands)
     if not source_free:
         return image.add_local_python_source("reagents", "demigod", "broker", ignore=[])
     # Source-free: ship ONE file, not a package. `tool_runtime` imports nothing
@@ -159,6 +173,10 @@ class ExecutorClass:
     extras: tuple[str, ...] = ()
     apt: tuple[str, ...] = ()
     setup_commands: tuple[str, ...] = ()
+    warm_commands: tuple[str, ...] = ()
+    """Build steps that run AFTER pip and env -- use these to bake a model
+    download or any other step that imports an installed package."""
+
     env: tuple[tuple[str, str], ...] = ()
     """Extra image env, as pairs so the class stays hashable/frozen."""
 
@@ -218,6 +236,7 @@ class ExecutorClass:
             extras=self.extras,
             apt=self.apt,
             setup_commands=self.setup_commands,
+            warm_commands=self.warm_commands,
             env=dict(self.env),
         )
 
@@ -342,14 +361,23 @@ ESM = ExecutorClass(
     name="esm",
     namespaces=frozenset({"protein"}),
     # CPU torch: the GPU wheels are multiple GB and this tier does not use one.
+    # numpy is not optional -- without it torch logs "Failed to initialize
+    # NumPy" and fair-esm's tokenisation path has no array backend.
     extras=(
         "torch>=2.2,<3",
         "fair-esm>=2.0,<3",
+        "numpy>=1.26,<3",
     ),
-    setup_commands=(
+    # `warm_commands`, NOT `setup_commands`. This started life as a setup
+    # command, which runs BEFORE pip -- so it executed in an image with no
+    # torch, raised ModuleNotFoundError, and was swallowed by the `|| true` it
+    # was written with. The build looked clean while the 150MB checkpoint
+    # quietly moved to first call in every cold container.
+    warm_commands=(
         # Pre-download the checkpoint INTO the image. Left to runtime it would
-        # be fetched on every cold start, inside a demigod's turn budget.
-        'python -c "import esm, torch; esm.pretrained.' + ESM_MODEL + '()" || true',
+        # be fetched on every cold start, inside a demigod's turn budget -- and
+        # under restrict_egress it would not be fetchable at all.
+        f'python -c "import esm; esm.pretrained.{ESM_MODEL}()"',
     ),
     env=(("REAGENTS_ESM_MODEL", ESM_MODEL), ("TORCH_HOME", "/root/.cache/torch")),
     memory_mb=8192,

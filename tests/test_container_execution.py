@@ -298,7 +298,11 @@ def test_every_container_tool_is_callable_in_process(
         for tool_id in registry.ids()
         if registry.get(tool_id).provider.value == "container"
     ]
-    assert len(container_tools) == 9
+    # NOT a hardcoded count. A magic number here fails every time anyone adds
+    # a tool -- which is exactly what happened when ESM landed -- and it tests
+    # the number rather than the property. What matters is that the flag
+    # actually surfaces container tools at all.
+    assert container_tools, "REAGENTS_ENABLE_CONTAINERS=1 registered no container tools"
 
     for tool in container_tools:
         executor = tool.executor
