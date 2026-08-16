@@ -31,6 +31,7 @@ model.
 from __future__ import annotations
 
 import os
+import pathlib
 from dataclasses import dataclass
 from typing import Any
 
@@ -76,9 +77,23 @@ BROKER_ENV: dict[str, str] = {
 }
 
 
+TOOL_RUNTIME_SOURCE = (
+    pathlib.Path(__file__).resolve().parents[1]
+    / "reagents"
+    / "tools"
+    / "tool_runtime.py"
+)
+"""The ONE file a source-free image gets. Resolved from this module rather than
+imported, because importing it would require `reagents` to be importable here --
+which is exactly what a source-free image does not have."""
+
+TOOL_RUNTIME_REMOTE = "/opt/reagents/tool_runtime.py"
+
+
 def broker_image(
-    extras: tuple[str, ...] = (),
     *,
+    source_free: bool = False,
+    extras: tuple[str, ...] = (),
     apt: tuple[str, ...] = (),
     setup_commands: tuple[str, ...] = (),
     env: dict[str, str] | None = None,
@@ -108,7 +123,15 @@ def broker_image(
     if extras:
         image = image.pip_install(*extras)
     image = image.env({**BROKER_ENV, **(env or {})})
-    return image.add_local_python_source("reagents", "demigod", "broker", ignore=[])
+    if not source_free:
+        return image.add_local_python_source("reagents", "demigod", "broker", ignore=[])
+    # Source-free: ship ONE file, not a package. `tool_runtime` imports nothing
+    # from `reagents` -- that is what makes this possible, and why that module
+    # says so at the top. Anything running agent-authored code in this image
+    # finds no GOD source to read back through a tool result.
+    return image.add_local_file(
+        str(TOOL_RUNTIME_SOURCE), TOOL_RUNTIME_REMOTE, copy=True
+    )
 
 
 @dataclass(frozen=True)
@@ -138,6 +161,25 @@ class ExecutorClass:
     setup_commands: tuple[str, ...] = ()
     env: tuple[tuple[str, str], ...] = ()
     """Extra image env, as pairs so the class stays hashable/frozen."""
+
+    source_free: bool = True
+    """Ship NO repo source into this tier's image. Default ON.
+
+    A tier that runs agent-authored code (any tool whose operation is
+    `python_exec`) must not have `reagents` on disk. This was PROVEN live, not
+    theorised: a `python -I` child inside the reasoning executor read
+    /root/reagents/god/planner.py and printed 7,155 bytes of GOD's planner.
+    `python -I` isolates imports; it does not restrict filesystem reads.
+
+    That defeats the single property the architecture exists to protect --
+    `demigod` is the only package shipped into an agent container precisely so
+    `reagents` is unreachable, enforced by tests/test_package_boundary.py.
+
+    Default TRUE rather than opt-in, because the failure is silent: a tier added
+    later with a code-running tool would inherit protection automatically
+    instead of needing someone to remember. Only a tier that genuinely needs to
+    import `reagents` at execution time (the MCP/sponsor tier) sets it False.
+    """
 
     enable_env: str | None = None
     """Name of an env var that must be truthy for this tier to be created.
@@ -172,7 +214,8 @@ class ExecutorClass:
 
     def image(self) -> modal.Image:
         return broker_image(
-            self.extras,
+            source_free=self.source_free,
+            extras=self.extras,
             apt=self.apt,
             setup_commands=self.setup_commands,
             env=dict(self.env),
@@ -288,6 +331,11 @@ DESIGN = ExecutorClass(
 
 SPONSOR = ExecutorClass(
     name="sponsor",
+    # The ONE tier that keeps repo source: executing an MCP tool means importing
+    # `reagents.tools.mcp`. Safe because MCP tools forward a string to someone
+    # else's server -- they expose no filesystem-read primitive to the agent,
+    # which is the thing source_free defends against.
+    source_free=False,
     # Remote MCP tools: no science stack, just an HTTP client. Isolated from the
     # science classes so a sponsor endpoint being slow cannot occupy a container
     # that a solver is queued behind.
@@ -410,9 +458,42 @@ def execute_tool(tool_id: str, arguments: dict[str, Any]) -> Any:
     return asyncio.run(tool.call_async(**arguments))
 
 
+def execute_operation(operation: str, arguments: dict[str, Any]) -> Any:
+    """Executor body for a SOURCE-FREE tier. Takes an operation, not a tool id.
+
+    A tool id would have to be resolved through `build_registry()`, and building
+    the registry imports `reagents` -- the very thing this tier's image
+    deliberately does not contain. So the router, which does have the registry,
+    resolves the operation and passes it here. The executor stays ignorant of
+    the catalog, which is the point: nothing in this image can name, let alone
+    read, GOD's side of the system.
+
+    Loaded by path rather than imported as `reagents.tools.tool_runtime`,
+    because there is no `reagents` package here -- only the single file that
+    `broker_image` copied in.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "reagents_tool_runtime", TOOL_RUNTIME_REMOTE
+    )
+    if spec is None or spec.loader is None:  # pragma: no cover - image is built
+        raise RuntimeError(f"tool runtime missing at {TOOL_RUNTIME_REMOTE}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.run_operation(operation, arguments)
+
+
 def _make_executor(klass: ExecutorClass) -> modal.Function:
-    def execute(tool_id: str, arguments: dict[str, Any]) -> Any:
-        return execute_tool(tool_id, arguments)
+    if klass.source_free:
+
+        def execute(operation: str, arguments: dict[str, Any]) -> Any:
+            return execute_operation(operation, arguments)
+
+    else:
+
+        def execute(tool_id: str, arguments: dict[str, Any]) -> Any:
+            return execute_tool(tool_id, arguments)
 
     execute.__name__ = f"execute_{klass.name}"
     return app.function(
@@ -432,6 +513,18 @@ def _make_executor(klass: ExecutorClass) -> modal.Function:
 
 for _klass in EXECUTOR_CLASSES:
     _EXECUTORS[_klass.name] = _make_executor(_klass)
+
+
+def operation_of(tool_id: str) -> str | None:
+    """The `tool_runtime` operation a CONTAINER tool runs, or None.
+
+    Router-side only: reads the tool's ContainerExecutor config out of the
+    registry. Returns None for a tool that is not container-backed, which a
+    source-free tier cannot serve.
+    """
+    tool = build_registry().get(tool_id)
+    config = getattr(getattr(tool, "executor", None), "config", None)
+    return getattr(config, "operation", None)
 
 
 async def _dispatch_remote(tool_id: str, arguments: dict[str, Any]) -> Any:
@@ -456,6 +549,18 @@ async def _dispatch_remote(tool_id: str, arguments: dict[str, Any]) -> Any:
             f"is disabled in this deployment. Set "
             f"{klass.enable_env}=1 and redeploy broker.service to enable it."
         )
+    if klass.source_free:
+        # Resolve the operation HERE, where the registry exists. The executor
+        # image has no `reagents` to resolve it with -- see execute_operation.
+        operation = operation_of(tool_id)
+        if operation is None:
+            raise RuntimeError(
+                f"tool {tool_id!r} is served by source-free tier {klass.name!r} "
+                f"but has no container operation to run. A source-free tier can "
+                f"only serve CONTAINER tools; give it a tier with "
+                f"source_free=False, or make it a CONTAINER tool."
+            )
+        return await _EXECUTORS[klass.name].remote.aio(operation, arguments)
     return await _EXECUTORS[klass.name].remote.aio(tool_id, arguments)
 
 
