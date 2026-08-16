@@ -1,0 +1,17 @@
+[mcp_servers.paperclip]
+url = "https://paperclip.gxl.ai/mcp"
+enabled = true
+required = false
+env_http_headers = { "X-API-Key" = "PAPERCLIP_API_KEY" }
+default_tools_approval_mode = "prompt"
+startup_timeout_sec = 20
+tool_timeout_sec = 120
+
+[mcp_servers.biomni]
+url = "https://mcp.phylo.bio/mcp"
+enabled = true
+required = false
+auth = "oauth"
+default_tools_approval_mode = "prompt"
+startup_timeout_sec = 20
+tool_timeout_sec = 300
