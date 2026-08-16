@@ -1,0 +1,46 @@
+[project]
+name = "demigod"
+version = "0.1.0"
+description = "Reliably spawn a single DEMI_GOD agent in an isolated Modal sandbox."
+requires-python = ">=3.11"
+dependencies = [
+    # Sandbox / volume / secret primitives.
+    "modal>=1.0",
+    # Specs and the output contract.
+    "pydantic>=2.7",
+    # The agent loop. Only imported by runner/ and entrypoint.py -- never by the
+    # runner-independent core (spec, result, registry, images, layout, prompt).
+    "claude-agent-sdk>=0.1.0",
+]
+
+[project.scripts]
+spawn-demigod = "demigod.spawn:main"
+
+# Dev-only. Not installed into the sandbox image -- `uv sync --no-dev` is what
+# the bake path uses, so a test dependency can never end up in a DEMI_GOD's
+# environment and be mistaken for a granted tool.
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/demigod"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+# Selected explicitly. Ruff's implicit default set changes between releases,
+# so leaving it unset means two collaborators on two ruff versions see two
+# different sets of errors.
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
