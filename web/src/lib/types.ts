@@ -44,6 +44,35 @@ export type Preset = {
   constraints: string[]
 }
 
+export type ColumnProfile = {
+  name: string
+  type: 'number' | 'text' | 'boolean'
+  nulls?: number
+  unique?: number
+  /** Categories joined by ` | `; one string so the projection stays small. */
+  values?: string
+  min?: number
+  max?: number
+  mean?: number
+}
+
+export type TableProfile = {
+  format: string
+  rows: number
+  columns: ColumnProfile[]
+  stats_from_first_rows?: number
+  columns_omitted?: number
+}
+
+export type Attachment = {
+  id: string
+  name: string
+  size: number
+  profile: TableProfile
+  /** Schema vocabulary sealed on the user's behalf, replacing the old field. */
+  terms: string[]
+}
+
 export type NodeStatus = 'planned' | 'sealed' | 'running' | 'done' | 'failed'
 
 export type RunNode = {

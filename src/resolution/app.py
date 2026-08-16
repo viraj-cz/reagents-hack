@@ -9,6 +9,7 @@ Routes
 ------
 GET  /api/health                    liveness
 GET  /api/presets                   problems the UI can start from
+POST /api/uploads?name=x.csv        attach a table -> {id, profile, terms}
 GET  /api/runs                      snapshots, newest first
 POST /api/runs                      start a run -> {run_id}
 GET  /api/runs/{id}                 snapshot + full event log
@@ -29,6 +30,11 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
 
+from resolution.attachments import (
+    MAX_UPLOAD_BYTES,
+    AttachmentError,
+    AttachmentStore,
+)
 from resolution.runs import (
     EXECUTION_GODBOX,
     EXECUTION_INPROCESS,
@@ -36,6 +42,7 @@ from resolution.runs import (
     EXECUTIONS,
     RunStore,
     build_problem,
+    with_attachments,
 )
 from resolution.toy import PRESETS, preset_problem
 
@@ -49,8 +56,11 @@ _ALLOWED_ORIGIN_HOSTS = ("localhost", "127.0.0.1", "[::1]")
 
 
 class ResolutionApp:
-    def __init__(self, *, dist: Path | None = None) -> None:
+    def __init__(
+        self, *, dist: Path | None = None, uploads: Path | None = None
+    ) -> None:
         self.store = RunStore()
+        self.attachments = AttachmentStore(uploads)
         self.dist = dist or WEB_DIST
 
     async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
@@ -108,6 +118,23 @@ class ResolutionApp:
                 },
                 origin=origin,
             )
+            return
+
+        if parts == ["api", "uploads"] and method == "POST":
+            # The file arrives as the raw request body with its name in the
+            # query string, not as multipart/form-data. This app has no web
+            # framework on purpose (see the module docstring), and a hand-rolled
+            # multipart parser is a boundary-splitting bug generator for a
+            # feature that never needs more than one file per request. `fetch`
+            # sends a File as a body directly, so the client side is simpler too.
+            name = _query(scope, "name")
+            if not name:
+                raise _HttpError(400, "upload needs ?name=<filename>")
+            try:
+                item = self.attachments.add(name, await _read_body(receive))
+            except AttachmentError as exc:
+                raise _HttpError(400, str(exc)) from exc
+            await _json(send, 201, {"attachment": item.to_json()}, origin=origin)
             return
 
         if parts == ["api", "runs"] and method == "GET":
@@ -185,6 +212,18 @@ class ResolutionApp:
             # spend tokens replaying a recording -- the worst of both.
             raise _HttpError(400, f"{execution} execution requires mode 'live'")
 
+        try:
+            attached = self.attachments.resolve(list(body.get("attachments") or []))
+        except AttachmentError as exc:
+            raise _HttpError(400, str(exc)) from exc
+        if attached and mode == "scripted":
+            # A replay answers the recorded problem whatever it is handed, so
+            # attaching a table to one would show the file accepted, mounted,
+            # and silently ignored. Refuse instead of implying it was read.
+            raise _HttpError(
+                400, "replay mode cannot use attachments; switch to live"
+            )
+
         preset = body.get("preset")
         if mode == "scripted":
             # A replay ignores the prompt: `ScriptedLLM` is keyed by phase name,
@@ -205,12 +244,14 @@ class ResolutionApp:
             problem = preset_problem(str(preset))
             if problem is None:
                 raise _HttpError(400, f"unknown preset: {preset}")
+            problem = with_attachments(problem, attached)
         else:
             try:
                 problem = build_problem(
                     str(body.get("prompt") or ""),
                     entities=list(body.get("entities") or []),
                     constraints=list(body.get("constraints") or []),
+                    attachments=attached,
                 )
             except ValueError as exc:
                 raise _HttpError(400, str(exc)) from exc
@@ -220,6 +261,7 @@ class ResolutionApp:
             mode=mode,
             domain_count=domain_count,
             execution=execution,
+            attachments=attached,
         )
         return {"run_id": run.run_id, "run": run.snapshot.to_json()}
 
@@ -375,6 +417,39 @@ def _cors(origin: str | None) -> list[tuple[bytes, bytes]]:
         (b"access-control-allow-methods", b"GET, POST, OPTIONS"),
         (b"vary", b"origin"),
     ]
+
+
+def _query(scope: dict, key: str) -> str | None:
+    raw = scope.get("query_string") or b""
+    for field in raw.decode("latin-1").split("&"):
+        name, _, value = field.partition("=")
+        if unquote(name.replace("+", " ")) == key:
+            return unquote(value.replace("+", " "))
+    return None
+
+
+async def _read_body(receive: Any) -> bytes:
+    """Collect a raw request body, refusing one that will not fit anyway.
+
+    The size check happens while reading rather than after: a client that
+    ignores the documented limit should not first get to buffer a gigabyte in
+    this process's memory.
+    """
+
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        message = await receive()
+        if message["type"] != "http.request":
+            break
+        chunk = message.get("body", b"")
+        total += len(chunk)
+        if total > MAX_UPLOAD_BYTES:
+            raise _HttpError(413, f"upload exceeds {MAX_UPLOAD_BYTES} bytes")
+        chunks.append(chunk)
+        if not message.get("more_body"):
+            break
+    return b"".join(chunks)
 
 
 async def _read_json(receive: Any) -> dict[str, Any]:

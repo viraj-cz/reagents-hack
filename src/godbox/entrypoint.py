@@ -255,6 +255,9 @@ async def _solve(
             require_toolbox=request.use_broker,
             restrict_egress=request.use_broker,
             agent_model=request.model,
+            # Seeded before this sandbox existed; naming them here is what
+            # mounts them into each demigod and adds pandas to its image.
+            shared_files=list(request.shared_files),
         ),
         verifier=verifier,
         budget=Budget(

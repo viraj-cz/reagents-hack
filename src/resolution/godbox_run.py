@@ -42,6 +42,7 @@ def build_request(
     *,
     domain_count: int | None,
     max_turns: int,
+    shared_files: list[str] | None = None,
 ) -> Any:
     from godbox.layout import GodRequest
 
@@ -50,6 +51,9 @@ def build_request(
         problem=problem,
         domain_count=domain_count,
         max_turns=max_turns,
+        # Names only. The bytes are already in the run's shared volume, put
+        # there by the caller before launch -- GOD cannot seed it from inside.
+        shared_files=list(shared_files or []),
         # WITHOUT THIS every demigod is told its whole toolset is unreachable.
         # `GodRequest.use_broker` defaults to False, and the entrypoint reads it
         # as the single switch for three things at once: whether a lease is

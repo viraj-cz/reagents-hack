@@ -1,13 +1,19 @@
-import { useEffect, useState } from 'react'
-import { fetchPresets } from '../lib/api'
+import { useEffect, useRef, useState } from 'react'
+import { fetchPresets, uploadAttachment } from '../lib/api'
 import type { StartRequest } from '../lib/api'
-import type { Preset } from '../lib/types'
+import type { Attachment, Preset } from '../lib/types'
 import { PixelCreation } from './PixelCreation'
 
 type Props = {
   busy: boolean
   error: string | null
   onStart: (request: StartRequest, question: string) => void
+}
+
+function humanSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
 }
 
 export function Landing({ busy, error, onStart }: Props) {
@@ -17,7 +23,11 @@ export function Landing({ busy, error, onStart }: Props) {
   const [mode, setMode] = useState<'scripted' | 'live'>('scripted')
   const [presetId, setPresetId] = useState<string | null>(null)
   const [prompt, setPrompt] = useState('')
-  const [entities, setEntities] = useState('')
+  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [uploading, setUploading] = useState(0)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const fileInput = useRef<HTMLInputElement>(null)
   // `null` is the dynamic option: GOD reads the problem and decides how many
   // domains it is worth, down to none at all for something it can just answer.
   const [domains, setDomains] = useState<number | null>(3)
@@ -51,14 +61,42 @@ export function Landing({ busy, error, onStart }: Props) {
   function applyPreset(preset: Preset) {
     setPresetId(preset.id)
     setPrompt(preset.prompt)
-    setEntities(preset.entities.join(', '))
+  }
+
+  async function addFiles(files: FileList | File[]) {
+    // Only reachable in live mode: the dropzone renders under `!replay`, and a
+    // replay would ignore the data anyway. The Replay button locks once
+    // anything is attached, which is the other half of that rule.
+    setUploadError(null)
+    for (const file of Array.from(files)) {
+      setUploading((n) => n + 1)
+      try {
+        const attachment = await uploadAttachment(file)
+        // Replace by name rather than append: re-dropping an edited file is a
+        // correction, not a second table, and mounting both under the same
+        // shared/ name would make which one a demigod reads a coin flip.
+        setAttachments((current) => [
+          ...current.filter((a) => a.name !== attachment.name),
+          attachment,
+        ])
+      } catch (exc) {
+        setUploadError((exc as Error).message)
+      } finally {
+        setUploading((n) => n - 1)
+      }
+    }
   }
 
   const replay = mode === 'scripted'
   const usable = presets.filter((p) => p.modes.includes(mode))
   const selected = presets.find((p) => p.id === presetId) ?? null
   const unrecorded = replay && selected != null && !selected.modes.includes('scripted')
-  const canRun = !busy && !unrecorded && (replay ? selected != null : prompt.trim().length > 0)
+  const sealed = attachments.flatMap((a) => a.terms)
+  const canRun =
+    !busy &&
+    !unrecorded &&
+    uploading === 0 &&
+    (replay ? selected != null : prompt.trim().length > 0)
 
   function submit() {
     if (!canRun) return
@@ -71,14 +109,15 @@ export function Landing({ busy, error, onStart }: Props) {
       domains,
       execution: replay ? 'inprocess' : execution,
     }
+    if (attachments.length) {
+      // Ids, not bytes. The files are already on the server; this only says
+      // which of them this run should see.
+      request.attachments = attachments.map((a) => a.id)
+    }
     if (replay || pristine) {
       request.preset = selected!.id
     } else {
       request.prompt = prompt.trim()
-      request.entities = entities
-        .split(',')
-        .map((e) => e.trim())
-        .filter(Boolean)
     }
     onStart(request, (selected && pristine ? selected.prompt : prompt).trim())
   }
@@ -107,7 +146,13 @@ export function Landing({ busy, error, onStart }: Props) {
               <button
                 type="button"
                 aria-pressed={mode === 'scripted'}
-                onClick={() => setMode('scripted')}
+                disabled={attachments.length > 0}
+                title={
+                  attachments.length
+                    ? 'a replay answers the recorded problem, so it would ignore your data'
+                    : undefined
+                }
+                onClick={() => attachments.length === 0 && setMode('scripted')}
               >
                 Replay
               </button>
@@ -205,18 +250,97 @@ export function Landing({ busy, error, onStart }: Props) {
 
           {!replay && (
             <div>
-              <label className="mono field-label" htmlFor="entities">
-                Native entities — the words no demigod may see
+              <label className="mono field-label" htmlFor="attach">
+                Data — CSV, TSV or parquet
               </label>
-              <div className="prompt-box" style={{ padding: '10px 14px' }}>
-                <textarea
-                  id="entities"
-                  value={entities}
-                  style={{ minHeight: 44 }}
-                  placeholder="comma separated · leave empty to run without semantic sealing"
-                  onChange={(event) => setEntities(event.target.value)}
+              <div
+                className={`dropzone${dragging ? ' over' : ''}`}
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  setDragging(true)
+                }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  setDragging(false)
+                  if (event.dataTransfer.files.length) void addFiles(event.dataTransfer.files)
+                }}
+              >
+                <input
+                  id="attach"
+                  ref={fileInput}
+                  type="file"
+                  multiple
+                  accept=".csv,.tsv,.parquet"
+                  onChange={(event) => {
+                    if (event.target.files?.length) void addFiles(event.target.files)
+                    // Clear it, or re-picking the same file fires no change event.
+                    event.target.value = ''
+                  }}
                 />
+                <button
+                  type="button"
+                  className="btn ghost small"
+                  onClick={() => fileInput.current?.click()}
+                >
+                  Choose files
+                </button>
+                <span className="mono muted">
+                  {uploading > 0
+                    ? `profiling ${uploading} file${uploading > 1 ? 's' : ''}…`
+                    : 'or drop them here · the table is mounted read-only under shared/'}
+                </span>
               </div>
+
+              {attachments.length > 0 && (
+                <ul className="attachments">
+                  {attachments.map((file) => (
+                    <li key={file.id}>
+                      <div className="attachment-head">
+                        <span className="name">{file.name}</span>
+                        <span className="mono muted">
+                          {file.profile.rows.toLocaleString()} rows ·{' '}
+                          {file.profile.columns.length} cols · {humanSize(file.size)}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn ghost small"
+                          aria-label={`Remove ${file.name}`}
+                          onClick={() =>
+                            setAttachments((current) =>
+                              current.filter((a) => a.id !== file.id),
+                            )
+                          }
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <div className="mono columns">
+                        {file.profile.columns.map((column) => (
+                          <span key={column.name} className={`col ${column.type}`}>
+                            {column.name}
+                          </span>
+                        ))}
+                        {file.profile.columns_omitted ? (
+                          <span className="col muted">
+                            +{file.profile.columns_omitted} more
+                          </span>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {sealed.length > 0 && (
+                <p className="notice seal">
+                  <strong>{sealed.length} terms</strong> taken from your schema are hidden
+                  from every demigod: <span className="mono">{sealed.slice(0, 12).join(', ')}</span>
+                  {sealed.length > 12 ? `, +${sealed.length - 12} more` : ''}. The projected
+                  summary of each table is sealed — but the file itself is mounted with its
+                  real headers, so a demigod that opens it sees them.
+                </p>
+              )}
             </div>
           )}
 
@@ -247,7 +371,9 @@ export function Landing({ busy, error, onStart }: Props) {
             ))}
           </div>
 
-          {(error ?? loadError) && <p className="notice error">{error ?? loadError}</p>}
+          {(error ?? loadError ?? uploadError) && (
+            <p className="notice error">{error ?? loadError ?? uploadError}</p>
+          )}
 
           <div className="composer-row">
             <button type="button" className="btn primary" disabled={!canRun} onClick={submit}>
