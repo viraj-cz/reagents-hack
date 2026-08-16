@@ -41,6 +41,19 @@ def test_request_round_trips_through_json():
     assert restored.problem.statement == original.problem.statement
     assert restored.domain_count == 3
     assert restored.max_turns == 6
+    assert restored.model == "claude-opus-4-8"
+
+
+def test_broker_and_verifier_authority_round_trip_explicitly():
+    original = _request(
+        use_broker=True,
+        verifier_id="flareguard-public-v1",
+        approved_high_risk_tools=["reasoning.python"],
+    )
+    restored = GodRequest.model_validate_json(original.model_dump_json())
+    assert restored.use_broker is True
+    assert restored.verifier_id == "flareguard-public-v1"
+    assert restored.approved_high_risk_tools == ["reasoning.python"]
 
 
 def test_approvals_default_to_empty():
@@ -49,6 +62,8 @@ def test_approvals_default_to_empty():
     request = _request()
     assert request.approved_write_tools == []
     assert request.approved_high_risk_tools == []
+    assert request.use_broker is False
+    assert request.verifier_id is None
 
 
 def test_sandbox_id_is_stamped_by_the_launcher_not_the_caller():
@@ -137,6 +152,7 @@ def test_launch_defaults_are_the_cheap_ones():
     assert args.domains == 2
     assert args.turns == 12
     assert args.keep_alive == 0
+    assert args.broker is False
 
 
 @pytest.mark.parametrize(

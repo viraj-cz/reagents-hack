@@ -1,0 +1,14 @@
+{
+  "benchmark_id": "norman-perturbseq-primitives-heldout-v2",
+  "frozen_before_model_calls": true,
+  "source_url": "https://ndownloader.figshare.com/files/34027562",
+  "source_sha256": "b679c157fea550ef5be4dad91da9dff1f5d8287313ad3f3537f6cf14d4bcd434",
+  "split_salt": "reagents-norman-v2-primitives",
+  "prepare_script_sha256": "1435fd025803a5bf354ffd49de542e99ba386cc1bbf87d42807f46c3c5fc717a",
+  "prior_heldout_pairs_excluded": true,
+  "test_pair_selection_uses_expression": false,
+  "test_pairs_sha256": "716d4be9aa5a74c124f26fe19a46f6f7a07eaeba52849acc071018bc9da8ff52",
+  "private_expected_sha256": "68159b9548691df56992f1fb96b91f3587deb80bd47f07f116160da6bb93e2c5",
+  "public_question_sha256": "408bf5280b2f576a65536d6346c4393b92e1545285d2f2572a401e8cf9bf9452",
+  "public_training_data_sha256": "475d32941d17deea364d1663631a8661d2a6ade1812b7e466ccc3816e2e87b26"
+}

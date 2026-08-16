@@ -1,11 +1,17 @@
 # Reagents
 
-> **Fourier Transform for Agentic Reasoning:** decompose a problem into
-> orthogonal invented domains, solve each independently in isolation, recombine.
+> **Fourier Transform for Agentic Reasoning:** project one complete problem into
+> orthogonal invented domains, solve the whole objective independently in each,
+> then translate and validate the alternative solutions.
 
 A GOD/DEMI_GOD reasoning runtime. GOD invents domain representations, projects
 the problem into each, spawns a DEMI_GOD per domain in its own isolated
-environment, and maps validated artifacts back to the original problem.
+environment, and maps validated complete candidates back to the original problem.
+
+This is not task sharding. Orthogonality belongs to the representation language,
+not to pieces of the objective: each DEMI_GOD receives all inputs, constraints,
+and required outputs after projection. A projection manifest is checked before
+spawn, and GOD compares alternative proofs rather than concatenating fragments.
 
 ## Two halves, one seam
 
@@ -146,6 +152,12 @@ Or drive a whole live run through it:
 ```bash
 uv run python scripts/e2e_live.py --broker    # off by default: a live credential
 ```
+
+The presentation benchmark is [FlareGuard](benchmarks/flareguard/README.md), a
+living-diagnostic circuit design task whose complete objective is independently
+projected into temporal logic, circuit synthesis, control, or other invented
+coordinate systems. Raw biological inputs stay on God's side; withheld
+trajectories stay evaluator-only.
 
 **Executor tiers, and how a CONTAINER tool actually runs.** The router dispatches
 anything that is not a LOCAL callable to one Modal Function per tier
@@ -336,7 +348,7 @@ It does not dump subprocess logs, raw tool payloads, or private model chain-of-t
   Checking capabilities — 14 local capabilities available
 
 ◇ Choosing useful representations
-  Selected 3 complementary approaches:
+  Selected 3 complete alternative representations:
     • stoichiometric_flow — conservation; tools: simplify, dimensional_check
     • catalytic_dag — topology; tools: build_graph, cut
     • rate_orbit — dynamics; tools: simulate, sample
@@ -352,8 +364,11 @@ It does not dump subprocess logs, raw tool payloads, or private model chain-of-t
   └─ Subagent catalytic_dag complete — artifact validated; tool_calls=2
   ✓ God accepted catalytic_dag's artifact
 
-◇ Synthesizing the findings
-  Translating 3 domain artifacts back into the original biology problem
+◇ Comparing complete candidates
+  Translating 3 alternative solutions back into the original problem
+
+◇ Validating in the original domain
+  ✓ native checks passed
 
 ◆ Analysis complete
   The integrated answer is ready at 86% confidence

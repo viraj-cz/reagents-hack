@@ -11,6 +11,7 @@ from reagents.contracts import (
     InverseMap,
     NativeProblem,
     NativeSolution,
+    ProjectionManifest,
     RiskTier,
     ToolAccess,
     ToolProvider,
@@ -19,6 +20,7 @@ from reagents.contracts import (
 from reagents.god.orchestrator import God
 from reagents.tools.registry import ToolRegistry, default_registry
 from reagents.tracing import RecordingTracer, TerminalTracer, TraceSink
+from reagents.verification import NativeVerifier, VerificationReport
 
 __all__ = [
     "Axis",
@@ -32,6 +34,8 @@ __all__ = [
     "InverseMap",
     "NativeProblem",
     "NativeSolution",
+    "NativeVerifier",
+    "ProjectionManifest",
     "RiskTier",
     "RecordingTracer",
     "TerminalTracer",
@@ -40,5 +44,6 @@ __all__ = [
     "ToolProvider",
     "ToolRegistry",
     "ToolSpec",
+    "VerificationReport",
     "default_registry",
 ]

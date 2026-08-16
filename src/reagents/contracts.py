@@ -86,8 +86,31 @@ class NativeProblem(BaseModel):
     id: str
     statement: str
     entities: list[str] = Field(default_factory=list)
+    sensitive_terms: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Additional native labels that must not cross the semantic seal, "
+            "including dataset categories and trajectory identifiers."
+        ),
+    )
     constraints: list[str] = Field(default_factory=list)
     question: str
+    inputs: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Structured native-field evidence available to God. The transformer "
+            "must project every top-level input; raw inputs never enter a demigod "
+            "envelope."
+        ),
+    )
+    required_outputs: list[str] = Field(
+        default_factory=list,
+        description="Native deliverables every complete candidate must provide.",
+    )
+    answer_schema: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Optional JSON schema for NativeSolution.structured_answer.",
+    )
 
 
 class DomainSpec(BaseModel):
@@ -120,6 +143,23 @@ class DomainSpec(BaseModel):
         return self.axes[0]
 
 
+class ProjectionManifest(BaseModel):
+    """Machine-checkable proof that a projection retained the whole problem.
+
+    IDs are deliberately semantic-free (``source:input:02``, ``objective:03``),
+    so this manifest can enter the sealed envelope. The transformer validates
+    the sets against God's native problem before any demigod is spawned.
+    """
+
+    source_ids: list[str] = Field(default_factory=list)
+    objective_ids: list[str] = Field(default_factory=list)
+    output_ids: list[str] = Field(default_factory=list)
+    source_map: dict[str, str] = Field(default_factory=dict)
+    objective_map: dict[str, str] = Field(default_factory=dict)
+    output_map: dict[str, str] = Field(default_factory=dict)
+    information_losses: list[str] = Field(default_factory=list)
+
+
 class DomainProblem(BaseModel):
     """Problem already projected into a domain. Must contain no native-field text."""
 
@@ -127,6 +167,9 @@ class DomainProblem(BaseModel):
     representation: dict[str, Any]
     task: str
     notation_guide: str
+    projection_manifest: ProjectionManifest = Field(
+        default_factory=ProjectionManifest
+    )
 
 
 class InverseMap(BaseModel):
@@ -172,6 +215,7 @@ __all__ = [
     "NativeProblem",
     "NativeSolution",
     "OrchestrationTrace",
+    "ProjectionManifest",
     "RiskTier",
     "ToolAccess",
     "ToolProvider",
@@ -186,6 +230,8 @@ class NativeSolution(BaseModel):
     domain_contributions: dict[str, str] = Field(default_factory=dict)
     conflicts: list[str] = Field(default_factory=list)
     gaps: list[str] = Field(default_factory=list)
+    structured_answer: dict[str, Any] = Field(default_factory=dict)
+    verification: dict[str, Any] = Field(default_factory=dict)
 
 
 class OrchestrationTrace(BaseModel):

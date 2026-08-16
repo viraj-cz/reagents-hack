@@ -1,7 +1,7 @@
 [project]
 name = "reagents"
 version = "0.1.0"
-description = "God-to-demigod orchestration: decompose a problem into orthogonal invented domains, solve each in an isolated Modal sandbox, recombine."
+description = "Project a complete problem into orthogonal invented domains, solve each in isolation, and verify the integrated answer."
 requires-python = ">=3.11"
 dependencies = [
     # Contracts, on both sides of the seam.
@@ -75,12 +75,19 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-# ALL THREE packages. Listing only some silently ships a wheel missing the rest.
+# All runtime packages plus closed benchmark loaders/verifiers. Listing only
+# some silently ships a wheel missing the rest.
 # `broker` and `godbox` are the other two sandbox types. Each imports the halves
 # it needs and neither half imports them, so neither is ever added to a DEMI_GOD
 # image -- see src/broker/__init__.py and src/godbox/__init__.py.
 [tool.hatch.build.targets.wheel]
-packages = ["src/reagents", "src/demigod", "src/broker", "src/godbox"]
+packages = [
+    "src/reagents",
+    "src/demigod",
+    "src/broker",
+    "src/godbox",
+    "benchmarks",
+]
 
 [tool.ruff]
 line-length = 88
@@ -113,6 +120,6 @@ select = ["E", "F", "I", "UP", "B", "SIM", "C4", "RUF"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 # reagents' God-loop tests are async. Without this they are silently skipped.
 asyncio_mode = "auto"

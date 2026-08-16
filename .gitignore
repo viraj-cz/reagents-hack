@@ -18,3 +18,9 @@ scratch/
 .eval_cache/
 .eval_workspace/
 results/
+
+# Real benchmark source matrices are reproducibly downloaded, never committed
+# or shipped into GOD/DEMI_GOD images. V1 retains its historical fixtures; the
+# stronger v2 held-out answer is evaluator-local and only its hash is public.
+benchmarks/perturbseq_norman/data/source/
+benchmarks/perturbseq_norman/v2/private/expected.json

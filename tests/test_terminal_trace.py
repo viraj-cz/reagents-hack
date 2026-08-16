@@ -58,7 +58,7 @@ async def test_terminal_trace_shows_god_and_readable_subagent_progress():
     output = stream.getvalue()
     assert "God is analyzing the problem" in output
     assert "Choosing useful representations" in output
-    assert "Selected 3 complementary approaches" in output
+    assert "Selected 3 complete alternative representations" in output
     assert "Running scoped analyses" in output
     assert "Subagent stoichiometric_flow started" in output
     assert "stoichiometric_flow · Scope" in output
@@ -69,7 +69,7 @@ async def test_terminal_trace_shows_god_and_readable_subagent_progress():
     assert "stoichiometric_flow · Finding" in output
     assert "Subagent stoichiometric_flow complete" in output
     assert "God accepted stoichiometric_flow's artifact" in output
-    assert "Synthesizing the findings" in output
+    assert "Comparing complete candidates" in output
     assert "Analysis complete" in output
     assert "DEMI:" not in output
     assert "TOOL CALL" not in output

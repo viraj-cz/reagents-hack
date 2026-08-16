@@ -1,0 +1,11 @@
+{
+  "burden_limit": 8.0,
+  "grammar": {
+    "form": "RESET(PERSIST(K_OF_N(positive_sensor_ids) AND NOT(OR(exclusion_sensor_ids))))",
+    "positive_sensor_ids": ["S_NAR", "S_TTR", "S_CAL"],
+    "exclusion_sensor_ids": ["S_AHL", "S_SID"],
+    "missing_sensor_semantics": "safe_low"
+  },
+  "incompatible_pairs": [],
+  "tie_break": ["burden", "sensor_count"]
+}

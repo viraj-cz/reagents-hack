@@ -1,0 +1,32 @@
+{
+  "visibility": "EVALUATOR_ONLY_NEVER_MOUNT_IN_A_DEMIGOD_SANDBOX",
+  "architecture": {
+    "motif": "type-1 incoherent feed-forward loop",
+    "edges": [
+      "ligand activates Y",
+      "ligand activates Z",
+      "Z inhibits Y"
+    ]
+  },
+  "discriminating_evidence": {
+    "against_Y_dependent_negative_feedback": "Z rises with nearly the wild-type trajectory in Y_KO, so Y is not required to induce Z.",
+    "against_receptor_desensitization": "Surface-receptor abundance remains constant, while transcription block prevents Z induction and preserves Y despite sustained ligand."
+  },
+  "withheld_prediction": {
+    "condition": "Z_KO",
+    "time_min": 8,
+    "variable": "Y",
+    "accepted_range": [
+      0.9,
+      1.0
+    ]
+  },
+  "second_pulse_prediction": "weaker shortly after washout because residual Z carries inhibitory memory; recovery should occur after Z decays",
+  "rubric_points": {
+    "minimal_motif_and_all_edge_signs": 4,
+    "Y_KO_intervention_interpretation": 2,
+    "receptor_and_transcription_block_interpretation": 1,
+    "withheld_numerical_prediction": 2,
+    "second_pulse_memory_prediction": 1
+  }
+}

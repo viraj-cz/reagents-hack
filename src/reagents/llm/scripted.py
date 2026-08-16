@@ -8,7 +8,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel
 
 from demigod.result import DemiGodResult
-from reagents.contracts import Budget
+from reagents.contracts import Budget, ProjectionManifest
 from reagents.god.integrator import IntegrationDraft
 from reagents.god.planner import CriticVerdict, InventedDomains
 from reagents.god.transformer import TransformDraft
@@ -19,6 +19,32 @@ from reagents.toy import toy_domains
 T = TypeVar("T", bound=BaseModel)
 
 Script = BaseModel | dict[str, Any] | Callable[..., Any]
+
+
+def _complete_toy_manifest() -> ProjectionManifest:
+    return ProjectionManifest(
+        source_ids=["source:statement"],
+        objective_ids=[
+            "objective:constraint:01",
+            "objective:constraint:02",
+            "objective:question",
+        ],
+        output_ids=["output:01", "output:02", "output:03", "output:04"],
+        source_map={
+            "source:statement": "The complete chain, drive multiplier, gate bound, and token transfers are encoded."
+        },
+        objective_map={
+            "objective:constraint:01": "The terminal gate remains bounded.",
+            "objective:constraint:02": "Every marked edge preserves the declared token invariant.",
+            "objective:question": "Decide terminal rate change and invariant preservation together.",
+        },
+        output_map={
+            "output:01": "Return one complete candidate.",
+            "output:02": "Report every constraint result.",
+            "output:03": "Analyze counterexamples and robustness.",
+            "output:04": "Return a verifiable certificate and conclusion.",
+        },
+    )
 
 
 class ScriptedLLM:
@@ -48,10 +74,12 @@ class ScriptedLLM:
                                 "out": {"s4": 1, "c2": 1},
                             },
                         ],
+                        "capacity": {"r1_multiplier": 5.0, "r3_bounded": True},
                     },
                     task=(
-                        "Test whether each r* edge conserves the {c1,c2} token pair and "
-                        "whether the net {c1,c2} exchange is zero after cancellation."
+                        "Return a complete candidate: determine whether the terminal rate "
+                        "changes when r1 is multiplied while bounded r3 is unchanged, test "
+                        "token conservation, check every obligation, and provide a certificate."
                     ),
                     notation_guide="s* are substrate tokens, c* are cofactor tokens, r* are hyperedges.",
                     symbol_to_native={
@@ -65,6 +93,7 @@ class ScriptedLLM:
                         "r2": "phosphoglucose isomerase",
                         "r3": "phosphofructokinase",
                     },
+                    projection_manifest=_complete_toy_manifest(),
                 ),
                 "transform:catalytic_dag": TransformDraft(
                     representation={
@@ -74,10 +103,16 @@ class ScriptedLLM:
                             {"src": "v2", "dst": "v3", "id": "e2"},
                             {"src": "v3", "dst": "v4", "id": "e3", "gated": True},
                         ],
+                        "edge_token_delta": {
+                            "e1": {"c1": -1, "c2": 1, "p": 0},
+                            "e3": {"c1": -1, "c2": 1, "p": 0},
+                        },
+                        "drive": {"e1_multiplier": 5.0, "e3_capacity_fixed": True},
                     },
                     task=(
-                        "Build the DAG and cut the gated edge's source. Decide whether e3 "
-                        "is a unique committed cut on the path v1 to v4."
+                        "Return a complete candidate: decide terminal throughput after the "
+                        "drive change, verify the token-transfer constraints on all marked "
+                        "edges, check every obligation, and provide a cut certificate."
                     ),
                     notation_guide="v* are pool vertices. e* are catalytic edges. gated means repressed.",
                     symbol_to_native={
@@ -89,6 +124,7 @@ class ScriptedLLM:
                         "e2": "phosphoglucose isomerase",
                         "e3": "phosphofructokinase",
                     },
+                    projection_manifest=_complete_toy_manifest(),
                 ),
                 "transform:rate_orbit": TransformDraft(
                     representation={
@@ -102,10 +138,13 @@ class ScriptedLLM:
                             "x_mid": {"g_in": 1.0, "g_out": -1.0, "x_mid": -0.05},
                             "x_out": {"g_out": 1.0},
                         },
+                        "token_invariant": {"c1_plus_c2_plus_bound_p": "constant"},
+                        "terminal_gate": "g_out",
                     },
                     task=(
-                        "Simulate the orbit. Compare committed outflow g_out against inflated "
-                        "inflow g_in. Sample the two gates as a discrete mass."
+                        "Return a complete candidate: simulate terminal throughput under the "
+                        "drive change, test the stated invariant, check every obligation, and "
+                        "provide an orbit certificate."
                     ),
                     notation_guide="x_mid is the inter-gate pool. g_in is inflated inflow. g_out is gated outflow.",
                     symbol_to_native={
@@ -114,6 +153,7 @@ class ScriptedLLM:
                         "g_in": "hexokinase",
                         "g_out": "phosphofructokinase",
                     },
+                    projection_manifest=_complete_toy_manifest(),
                 ),
                 "demigod:stoichiometric_flow": _conservation_demigod,
                 "demigod:catalytic_dag": _topology_demigod,
@@ -222,9 +262,21 @@ def _conservation_demigod(
             "Sugar tokens gain the same P-count that c1 loses.",
             f"Linear cancellation leaves terms={cancelled['terms']}.",
         ],
+        "candidate_solution": {
+            "terminal_rate_changes": False,
+            "tokens_conserved": True,
+        },
+        "constraint_results": {
+            "bounded_terminal_edge": True,
+            "balanced_token_transfer": True,
+        },
+        "certificate": {
+            "cancelled_terms": cancelled["terms"],
+            "terminal_bound_unchanged": True,
+        },
         "conclusion": (
-            "The {c1,c2} pair is conserved as a transfer, not a source. "
-            "Net phosphate tokens are internally rearranged, not created."
+            "The bounded r3 terminal rate does not rise when only r1 is "
+            "multiplied; the {c1,c2} pair is conserved as a transfer."
         ),
     }
     return (
@@ -267,8 +319,22 @@ def _topology_demigod(
             f"Cutting v3 removes access to v4; remaining destinations={sorted(remaining_dsts)}.",
             "e3 is the unique gated cut edge on that path.",
         ],
+        "candidate_solution": {
+            "terminal_rate_changes": False,
+            "tokens_conserved": True,
+        },
+        "constraint_results": {
+            "bounded_terminal_edge": True,
+            "balanced_token_transfer": True,
+        },
+        "certificate": {
+            "cut_vertex": "v3",
+            "terminal_reachable_after_cut": False,
+            "edge_token_deltas_balanced": True,
+        },
         "conclusion": (
-            "Inflating e1 cannot increase flow into v4 while e3 remains the cut."
+            "Inflating e1 cannot increase flow into v4 while e3 remains the "
+            "bounded cut; marked transfers preserve the token total."
         ),
     }
     return (
@@ -308,9 +374,21 @@ def _dynamics_demigod(
             f"Final x_out={final['x_out']:.3f} tracks only g_out.",
             f"Gate sample mass is dominated by g_in: {weights['draws']}.",
         ],
+        "candidate_solution": {
+            "terminal_rate_changes": False,
+            "tokens_conserved": True,
+        },
+        "constraint_results": {
+            "bounded_terminal_edge": True,
+            "balanced_token_transfer": True,
+        },
+        "certificate": {
+            "final_state": final,
+            "invariant_preserved": True,
+        },
         "conclusion": (
-            "The orbit stores extra inflow in x_mid; committed production of x_out "
-            "stays locked to the small g_out gate."
+            "The orbit stores extra inflow in x_mid; terminal production stays "
+            "locked to g_out and the declared token invariant remains constant."
         ),
     }
     return (

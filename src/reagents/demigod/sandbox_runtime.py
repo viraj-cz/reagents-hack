@@ -94,6 +94,8 @@ class SandboxDemigodRuntime:
         memory_mb: int = 2048,
         max_turns: int | None = None,
         model: str | None = None,
+        agent_model: str | None = None,
+        require_toolbox: bool = False,
         tracer: TraceSink | None = None,
         # Restored: dropped from this signature by the PR #4 merge resolution
         # (81b2198) while `self.restrict_egress = restrict_egress` below was
@@ -122,7 +124,12 @@ class SandboxDemigodRuntime:
         self.max_turns = max_turns
         # None keeps DemiGodSpec's pinned default. Set it to run every demigod
         # this run on one model, so results are comparable across domains.
-        self.model = model
+        if model is not None and agent_model is not None and model != agent_model:
+            raise ValueError("model and agent_model disagree")
+        # `agent_model` is retained as a compatibility alias for callers built
+        # before main standardized the public parameter as `model`.
+        self.model = model or agent_model
+        self.require_toolbox = require_toolbox
         self.tracer = tracer or NullTracer()
 
     def set_tracer(self, tracer: TraceSink) -> None:
@@ -165,15 +172,14 @@ class SandboxDemigodRuntime:
         # Publish the lease BEFORE the sandbox exists. A demigod is handed its
         # credential at spawn time and has no channel to be given one later.
         grant: ToolboxGrant | None = None
+        if self.require_toolbox and self.toolbox is None:
+            return fail("Broker is required for this run but no toolbox session exists")
         if self.toolbox is not None:
             try:
-                grant = await asyncio.to_thread(
-                    self.toolbox.grant, tools, label=name
-                )
+                grant = await asyncio.to_thread(self.toolbox.grant, tools, label=name)
             except Exception as exc:
-                # Not fatal. A demigod with no tools and an honest `blockers`
-                # entry is worth more than no demigod at all -- and the agent is
-                # told, by envelope_to_spec, that its tools are unreachable.
+                if self.require_toolbox:
+                    return fail(f"required Broker lease publication failed: {exc}")
                 print(f"[toolbox] could not publish a lease for {name}: {exc}")
 
         try:
@@ -213,6 +219,17 @@ class SandboxDemigodRuntime:
         # what it called. A demigod that called a tool, disliked the answer, and
         # omitted it cannot hide here.
         await self._finish_lease(grant, result)
+
+        minimum_tool_calls = int(envelope.artifact_schema.get("x-min-tool-calls") or 0)
+        if result.status == "ok" and len(result.tool_trace) < minimum_tool_calls:
+            reason = (
+                "artifact requires at least "
+                f"{minimum_tool_calls} brokered tool calls; observed "
+                f"{len(result.tool_trace)}"
+            )
+            result.status = "failed"
+            result.error = reason
+            result.blockers = [*result.blockers, reason]
 
         # The seal is checked on what came back. Everything the agent wrote is
         # in the manifest, so this is the same check the in-process runtime
@@ -291,9 +308,7 @@ class SandboxDemigodRuntime:
         if grant is None or self.toolbox is None:
             return
         try:
-            trace = await asyncio.to_thread(
-                self.toolbox.collect_trace, grant.lease_id
-            )
+            trace = await asyncio.to_thread(self.toolbox.collect_trace, grant.lease_id)
             if result is not None:
                 result.tool_trace = trace
         except Exception as exc:
@@ -306,7 +321,7 @@ class SandboxDemigodRuntime:
             return
         try:
             self.toolbox.revoke(grant.lease_id)
-        except Exception as exc:  # noqa: BLE001 - never fail a run on cleanup
+        except Exception as exc:
             print(f"[toolbox] revoke failed for {grant.lease_id}: {exc}")
 
 

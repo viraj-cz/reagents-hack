@@ -54,11 +54,16 @@ pin, so a DemiGodResult serialized by a demigod validates in GOD."""
 
 GOD_PIP = (MODAL_CLIENT, ANTHROPIC_SDK, PYDANTIC)
 
-GOD_LOCAL_SOURCES = ("reagents", "demigod", "godbox")
-"""All three packages, because GOD is the one place all three meet: it reasons
-with `reagents`, spawns with `demigod`, and reports with `godbox`."""
+GOD_LOCAL_SOURCES = ("reagents", "demigod", "broker", "godbox", "benchmarks")
+"""All five packages, because GOD is the one place they meet: it reasons
+    with `reagents`, spawns with `demigod`, grants tools through `broker`,
+    reports with `godbox`, and loads closed benchmark verifiers. None of these
+    additional packages enter a DEMI_GOD image."""
 
-FORBIDDEN_IN_DEMIGOD_IMAGE = ("reagents", "godbox")
+GOD_SOURCE_IGNORE = ("**/private/**", "**/data/source/**")
+"""Evaluator-only benchmark fixtures must not exist in GOD's filesystem."""
+
+FORBIDDEN_IN_DEMIGOD_IMAGE = ("reagents", "broker", "godbox", "benchmarks")
 """Asserted offline in tests/test_package_boundary.py. Named here so the rule
 sits next to the reasoning for it rather than only in a test file."""
 
@@ -80,5 +85,11 @@ def god_image() -> modal.Image:
     return (
         modal.Image.debian_slim(python_version=PYTHON_VERSION)
         .pip_install(*GOD_PIP)
-        .add_local_python_source(*GOD_LOCAL_SOURCES, ignore=[])
+        .env(
+            {
+                "REAGENTS_ENABLE_CONTAINERS": "1",
+                "REAGENTS_ENABLE_NORMAN_BENCHMARK": "1",
+            }
+        )
+        .add_local_python_source(*GOD_LOCAL_SOURCES, ignore=GOD_SOURCE_IGNORE)
     )

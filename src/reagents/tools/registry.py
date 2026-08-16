@@ -125,7 +125,8 @@ class ToolBroker:
             )
         if self.calls >= self.lease.max_calls:
             raise ToolPolicyError(
-                f"lease {self.lease.lease_id!r} exhausted its {self.lease.max_calls} calls"
+                f"lease {self.lease.lease_id!r} exhausted its "
+                f"{self.lease.max_calls} calls"
             )
         if time.monotonic() - self.started_at > self.lease.wall_time_s:
             raise ToolPolicyError(f"lease {self.lease.lease_id!r} expired")
@@ -245,7 +246,7 @@ class ToolRegistry:
                 tools = await loader()
                 for tool in tools:
                     self.register(tool)
-            except Exception as exc:  # noqa: BLE001 - preserve optional provider failure
+            except Exception as exc:
                 self.load_errors[namespace] = str(exc)
                 if strict:
                     raise
@@ -344,4 +345,22 @@ def default_registry() -> ToolRegistry:
         from reagents.tools.mcp import configure_sponsor_mcp
 
         configure_sponsor_mcp(registry)
+    if os.environ.get("REAGENTS_ENABLE_NORMAN_BENCHMARK", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        from reagents.tools import norman
+
+        for tool in norman.all_tools():
+            registry.register(tool)
+    if os.environ.get("REAGENTS_ENABLE_NORMAN_V2_BENCHMARK", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        from reagents.tools import norman_v2
+
+        for tool in norman_v2.all_tools():
+            registry.register(tool)
     return registry

@@ -29,6 +29,7 @@ from broker.service import (
     ENGINEERING,
     EXECUTOR_CLASSES,
     LEAN,
+    NORMAN_V2,
     REASONING,
     class_for,
     namespace_of,
@@ -209,6 +210,16 @@ def test_rdkit_is_on_the_tier_that_serves_chemistry() -> None:
 def test_engineering_has_a_tier_of_its_own() -> None:
     assert ENGINEERING.namespaces == {"engineering"}
     assert class_for("engineering.python") is ENGINEERING
+
+
+def test_norman_v2_labs_have_a_source_free_training_only_tier() -> None:
+    assert NORMAN_V2.source_free
+    assert class_for("screen2.algebra_lab") is NORMAN_V2
+    assert class_for("screen2.geometry_lab") is NORMAN_V2
+    assert class_for("screen2.graph_lab") is NORMAN_V2
+    assert class_for("screen2.information_lab") is NORMAN_V2
+    assert NORMAN_V2.local_files
+    assert dict(NORMAN_V2.env)["REAGENTS_NORMAN_TRAINING_PATH"].startswith("/opt/")
 
 
 def test_lean_tier_is_isolated_and_carries_its_toolchain() -> None:

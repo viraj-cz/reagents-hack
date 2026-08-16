@@ -54,6 +54,44 @@ class AnthropicLLM:
             raise LLMError("install reagents[llm] to use Anthropic") from exc
         self._client = anthropic.AsyncAnthropic()
         self.model = model
+        self.usage_records: list[dict[str, Any]] = []
+
+    def _record_usage(self, phase: str, message: Any) -> None:
+        usage = getattr(message, "usage", None)
+        if not hasattr(self, "usage_records"):
+            # Some unit tests construct the client with __new__ to avoid loading
+            # the optional SDK. Keep instrumentation transparent to that seam.
+            self.usage_records = []
+        self.usage_records.append(
+            {
+                "phase": phase,
+                "model": self.model,
+                "input_tokens": int(getattr(usage, "input_tokens", 0) or 0),
+                "output_tokens": int(getattr(usage, "output_tokens", 0) or 0),
+                "cache_creation_input_tokens": int(
+                    getattr(usage, "cache_creation_input_tokens", 0) or 0
+                ),
+                "cache_read_input_tokens": int(
+                    getattr(usage, "cache_read_input_tokens", 0) or 0
+                ),
+                "stop_reason": getattr(message, "stop_reason", None),
+            }
+        )
+
+    def usage_summary(self) -> dict[str, Any]:
+        return {
+            "model": self.model,
+            "calls": len(self.usage_records),
+            "input_tokens": sum(r["input_tokens"] for r in self.usage_records),
+            "output_tokens": sum(r["output_tokens"] for r in self.usage_records),
+            "cache_creation_input_tokens": sum(
+                r["cache_creation_input_tokens"] for r in self.usage_records
+            ),
+            "cache_read_input_tokens": sum(
+                r["cache_read_input_tokens"] for r in self.usage_records
+            ),
+            "records": list(self.usage_records),
+        }
 
     async def complete(
         self,
@@ -63,7 +101,6 @@ class AnthropicLLM:
         response_model: type[T],
         phase: str = "",
     ) -> T:
-        del phase
         schema = json.dumps(response_model.model_json_schema())
         system_full = (
             f"{system}\n\nRespond with JSON only matching this schema:\n{schema}"
@@ -77,6 +114,7 @@ class AnthropicLLM:
                 system=system_full,
                 messages=[{"role": "user", "content": user}],
             )
+            self._record_usage(phase, message)
             if getattr(message, "stop_reason", None) != "refusal":
                 return _parse_model(_text_blocks(message), response_model, message)
 
@@ -113,7 +151,6 @@ class AnthropicLLM:
         phase: str = "",
         response_schema: dict[str, Any] | None = None,
     ) -> tuple[T, list[dict[str, Any]]]:
-        del phase
         # An explicit schema wins. The caller uses it to nest a domain's
         # artifact shape inside `payload`, which is the difference between
         # showing the model one schema and showing it two that it has to guess
@@ -132,6 +169,7 @@ class AnthropicLLM:
                 messages=messages,
                 tools=anthropic_tools,
             )
+            self._record_usage(phase, message)
             if message.stop_reason == "tool_use":
                 tool_results = []
                 aliases = {

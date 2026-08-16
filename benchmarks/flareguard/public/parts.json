@@ -1,0 +1,68 @@
+{
+  "sensors": [
+    {
+      "id": "S_NAR",
+      "signal": "nitrate",
+      "comparator": "gte",
+      "threshold": 0.6,
+      "role": "positive",
+      "burden": 0.8
+    },
+    {
+      "id": "S_TTR",
+      "signal": "thiosulfate",
+      "comparator": "gte",
+      "threshold": 0.55,
+      "role": "positive",
+      "burden": 0.9
+    },
+    {
+      "id": "S_CAL",
+      "signal": "calprotectin",
+      "comparator": "gte",
+      "threshold": 0.65,
+      "role": "positive",
+      "burden": 1.0
+    },
+    {
+      "id": "S_AHL",
+      "signal": "quorum_signal",
+      "comparator": "gte",
+      "threshold": 0.6,
+      "role": "exclusion",
+      "burden": 0.7
+    },
+    {
+      "id": "S_SID",
+      "signal": "siderophore",
+      "comparator": "gte",
+      "threshold": 0.6,
+      "role": "exclusion",
+      "burden": 0.7
+    },
+    {
+      "id": "S_BUT",
+      "signal": "butyrate",
+      "comparator": "lte",
+      "threshold": 0.35,
+      "role": "monitor_only",
+      "burden": 1.1
+    }
+  ],
+  "logic_modules": [
+    {"id": "G_AND_OR", "description": "two-input quorum gate", "burden": 0.8},
+    {"id": "G_VOTE", "description": "three-input programmable quorum gate", "burden": 1.2},
+    {"id": "G_EXCLUDE", "description": "OR-to-NOT exclusion stage", "burden": 0.9}
+  ],
+  "timers": [
+    {"id": "T_0H", "hours": 0, "burden": 0.0},
+    {"id": "T_1H", "hours": 1, "burden": 0.4},
+    {"id": "T_2H", "hours": 2, "burden": 0.8},
+    {"id": "T_3H", "hours": 3, "burden": 1.0}
+  ],
+  "reset_modules": [
+    {"id": "D_FAST", "hours": 1, "burden": 0.3},
+    {"id": "D_SLOW", "hours": 3, "burden": 0.15}
+  ],
+  "reporter": {"id": "R_GFP", "burden": 0.4}
+}

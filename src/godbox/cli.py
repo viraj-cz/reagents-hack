@@ -151,17 +151,25 @@ def cmd_launch(args: argparse.Namespace) -> int:
             Path(args.problem_file).read_text(encoding="utf-8")
         )
     else:
-        from reagents.toy import simple_problem, toy_problem
+        if args.problem == "flareguard":
+            from benchmarks.flareguard import load_problem
 
-        problem = simple_problem() if args.problem == "simple" else toy_problem()
+            problem = load_problem()
+        else:
+            from reagents.toy import simple_problem, toy_problem
+
+            problem = simple_problem() if args.problem == "simple" else toy_problem()
 
     request = GodRequest(
         run_id=args.run_id or new_run_id(),
         problem=problem,
         domain_count=args.domains,
         max_turns=args.turns,
+        model=args.model,
         approved_write_tools=args.approve_write,
         approved_high_risk_tools=args.approve_high_risk,
+        use_broker=args.broker,
+        verifier_id=("flareguard-public-v1" if args.problem == "flareguard" else None),
         keep_alive_s=args.keep_alive,
     )
     handle = launch_god(
@@ -294,15 +302,17 @@ def build_parser() -> argparse.ArgumentParser:
     launch = sub.add_parser("launch", help="Start a GOD run and detach")
     launch.add_argument(
         "--problem",
-        choices=("simple", "pathway"),
+        choices=("simple", "pathway", "flareguard"),
         default="simple",
         help="simple = 5-entity valve pipeline (cheap, for exercising the "
-        "pipeline); pathway = the 9-entity glycolysis problem",
+        "pipeline); pathway = the 9-entity glycolysis problem; flareguard = "
+        "the complete-objective living-diagnostic design benchmark",
     )
     launch.add_argument(
         "--problem-file", default=None, help="Path to a NativeProblem JSON file"
     )
     launch.add_argument("--domains", type=int, default=2)
+    launch.add_argument("--model", default="claude-opus-4-8")
     launch.add_argument(
         "--turns",
         type=int,
@@ -320,6 +330,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     launch.add_argument("--approve-write", nargs="*", default=[], metavar="TOOL_ID")
     launch.add_argument("--approve-high-risk", nargs="*", default=[], metavar="TOOL_ID")
+    launch.add_argument(
+        "--broker",
+        action="store_true",
+        help="Publish scoped leases to the deployed TOOLBOX_BROKER. Off by default.",
+    )
     launch.set_defaults(func=cmd_launch)
 
     status = sub.add_parser("status", help="Print one snapshot of a run")

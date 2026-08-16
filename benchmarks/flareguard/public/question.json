@@ -1,0 +1,89 @@
+{
+  "id": "flareguard-living-diagnostic",
+  "statement": "Engineer a research-only living diagnostic in a non-colonizing bacterial chassis. The circuit should turn on a fluorescent reporter for sustained chronic intestinal inflammation while remaining off during healthy variation, transient dietary perturbation, localized mucosal injury, and pathogen-associated inflammation. Public time courses are in trajectories.csv. Characterized sensors and processing parts are in parts.json; allowed interfaces and the burden limit are in compatibility.json. Values are normalized to [0, 1], and all component behavior in this synthetic benchmark is defined by the supplied files rather than outside biological knowledge.",
+  "entities": [
+    "nitrate",
+    "thiosulfate",
+    "calprotectin",
+    "quorum signal",
+    "siderophore",
+    "butyrate",
+    "S_NAR",
+    "S_TTR",
+    "S_CAL",
+    "S_AHL",
+    "S_SID",
+    "S_BUT",
+    "T_0H",
+    "T_1H",
+    "T_2H",
+    "T_3H",
+    "D_FAST",
+    "D_SLOW"
+  ],
+  "sensitive_terms": [
+    "healthy_01",
+    "flare_01",
+    "flare_02",
+    "meal_01",
+    "infection_01",
+    "wound_01",
+    "nitrate_01",
+    "sulfur_01",
+    "recovery_01",
+    "healthy",
+    "chronic_flare",
+    "transient_dietary",
+    "dietary_nitrate_shift",
+    "sulfur_metabolism_shift",
+    "localized_mucosal_injury",
+    "pathogen_inflammation",
+    "recovery",
+    "trajectories.csv",
+    "parts.json",
+    "compatibility.json"
+  ],
+  "constraints": [
+    "Use only parts and circuit interfaces allowed by the supplied public files.",
+    "Reporter output must match every desired public phenotype: chronic-flare trajectories activate by hour 4, while every control trajectory remains off.",
+    "The phenotype requirements must still hold when any one sensor is unavailable and therefore contributes a safe-low signal.",
+    "After the qualifying input disappears, reporter output must reset within two hours.",
+    "Total circuit burden must not exceed 8.0 units.",
+    "Among valid circuits, minimize burden; break an exact burden tie by using fewer sensors.",
+    "Return an independently complete circuit design and a checkable minimality or counterexample certificate, not a partial analysis."
+  ],
+  "question": "Which complete circuit should be built? Specify the positive sensor set and quorum, exclusion sensor set, persistence part, and reset part. Predict its output on every supplied trajectory, test every single-sensor dropout, justify global minimality under the supplied grammar, and propose a compact 12-well falsification experiment.",
+  "required_outputs": [
+    "design",
+    "prediction_table",
+    "dropout_robustness",
+    "minimality_certificate",
+    "validation_plan"
+  ],
+  "answer_schema": {
+    "type": "object",
+    "required": [
+      "design",
+      "prediction_table",
+      "dropout_robustness",
+      "minimality_certificate",
+      "validation_plan"
+    ],
+    "properties": {
+      "design": {
+        "type": "object",
+        "required": [
+          "positive_sensor_ids",
+          "positive_quorum",
+          "exclusion_sensor_ids",
+          "persistence_part_id",
+          "reset_part_id"
+        ]
+      },
+      "prediction_table": {"type": "array"},
+      "dropout_robustness": {"type": "object"},
+      "minimality_certificate": {"type": "object"},
+      "validation_plan": {"type": "array"}
+    }
+  }
+}

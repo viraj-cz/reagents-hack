@@ -16,5 +16,7 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir \
 # See tooling/reasoning/Dockerfile: the file moved into src/reagents/tools/ so
 # the Modal executors can import it, and stays import-free so this still works.
 COPY src/reagents/tools/tool_runtime.py /opt/reagents/tool_runtime.py
+COPY benchmarks/perturbseq_norman/v2/public/training_data.json \
+    /opt/reagents/norman_v2_training.json
+ENV REAGENTS_NORMAN_TRAINING_PATH=/opt/reagents/norman_v2_training.json
 WORKDIR /work
-

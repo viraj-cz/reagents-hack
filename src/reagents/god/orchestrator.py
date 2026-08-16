@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from reagents.contracts import (
+    Budget,
     ContextEnvelope,
     DemiGodResult,
     DomainProblem,
@@ -22,11 +23,16 @@ from reagents.demigod.runtime import (
 )
 from reagents.god.integrator import Integrator
 from reagents.god.planner import Planner
-from reagents.god.transformer import LeakError, Transformer
+from reagents.god.transformer import (
+    IncompleteProjectionError,
+    LeakError,
+    Transformer,
+)
 from reagents.isolation import assert_sealed, find_spec_leaks, native_terms
 from reagents.llm.client import LLMClient, LLMError
 from reagents.tools.registry import ToolRegistry, default_registry
 from reagents.tracing import GOD_LANE, NullTracer, TraceSink, demigod_lane, summarize
+from reagents.verification import NativeVerifier, finalize_solution, verify_solution
 
 # Deliberately domain-AGNOSTIC. These once named genes, proteins and
 # metabolites, from when this system was biology-only. That was wrong twice
@@ -51,18 +57,20 @@ class God:
         approved_high_risk_tools: set[str] | None = None,
         runtime: DemigodRuntimeProtocol | None = None,
         tracer: TraceSink | None = None,
+        verifier: NativeVerifier | None = None,
+        budget: Budget | None = None,
     ) -> None:
         self.llm = llm
         self.registry = registry or default_registry()
         self.domain_count = domain_count
         self.tracer = tracer or NullTracer()
+        self.verifier = verifier
+        self.budget = budget or Budget()
         # Write authority is an operator decision, never something the planner or
         # demigod can grant itself. IDs must match the discovered catalog exactly.
         self.approved_write_tools = frozenset(approved_write_tools or set())
-        self.approved_high_risk_tools = frozenset(
-            approved_high_risk_tools or set()
-        )
-        self.planner = Planner(llm, self.registry)
+        self.approved_high_risk_tools = frozenset(approved_high_risk_tools or set())
+        self.planner = Planner(llm, self.registry, tracer=self.tracer)
         self.transformer = Transformer(llm)
         self.integrator = Integrator(llm)
         # WHERE a demigod executes is injected, not hardcoded. The default runs
@@ -78,15 +86,19 @@ class God:
             set_tracer(self.tracer)
         self.last_trace = OrchestrationTrace()
 
-    def build_envelope(self, spec: DomainSpec, problem: DomainProblem) -> ContextEnvelope:
+    def build_envelope(
+        self, spec: DomainSpec, problem: DomainProblem
+    ) -> ContextEnvelope:
         tool_specs = self.registry.specs(spec.tool_ids)
-        # transform_prompt is God's instruction to itself; it must not enter the envelope.
+        # transform_prompt is God's instruction to itself; it must not enter
+        # the envelope.
         sealed_spec = spec.model_copy(update={"transform_prompt": ""})
         return ContextEnvelope(
             domain=sealed_spec,
             problem=problem,
             tools=tool_specs,
             artifact_schema=spec.artifact_schema,
+            budget=self.budget,
             forbidden=list(spec.forbidden) or list(ABSTRACT_FORBIDDEN),
         )
 
@@ -108,7 +120,8 @@ class God:
         self.tracer.emit(
             GOD_LANE,
             "PLAN",
-            f"Looking for {self.domain_count} representations that simplify different parts of the problem",
+            f"Looking for {self.domain_count} coordinate systems that each "
+            "preserve and simplify the complete objective",
         )
         specs = await self.planner.plan(problem, n=self.domain_count)
         self.tracer.emit(
@@ -161,9 +174,7 @@ class God:
                     f"replaced with domain-agnostic wording",
                     data=sorted({t for ts in spec_leaks.values() for t in ts}),
                 )
-                spec = spec.model_copy(
-                    update={"forbidden": list(ABSTRACT_FORBIDDEN)}
-                )
+                spec = spec.model_copy(update={"forbidden": list(ABSTRACT_FORBIDDEN)})
                 spec_leaks = find_spec_leaks(spec, terms)
             if spec_leaks:
                 flat = sorted({t for ts in spec_leaks.values() for t in ts})
@@ -186,7 +197,8 @@ class God:
             self.tracer.emit(
                 GOD_LANE,
                 "TRANSFORM",
-                f"projecting native problem into {spec.name} ({spec.primary_axis.value})",
+                f"projecting native problem into {spec.name} "
+                f"({spec.primary_axis.value})",
             )
             try:
                 domain_problem, inverse = await self.transformer.forward(problem, spec)
@@ -206,32 +218,32 @@ class God:
                     )
                 )
                 continue
+            except IncompleteProjectionError as exc:
+                self.tracer.emit(
+                    GOD_LANE,
+                    "REJECT",
+                    f"{spec.name} dropped part of the complete objective",
+                    data=exc.errors,
+                )
+                failures.append(
+                    _sealing_failure(
+                        spec.name,
+                        "transform did not preserve the complete objective: "
+                        f"{exc.errors}",
+                    )
+                )
+                continue
             except LLMError as exc:
-                # One domain's transform failing must not end the run. This
-                # propagated and killed a live run at the FIRST of two domains:
-                # a refusal on `throughput_ceiling_orbits` meant the second,
-                # perfectly healthy domain was never even attempted, and the
-                # whole orchestration exited non-zero with no answer at all.
-                #
-                # The entire design premise is that domains are independent, so
-                # treating one transform failure as fatal contradicts it -- and
-                # partial recombination is exactly what `failed_domains` on the
-                # integrator exists to describe.
-                #
-                # Scoped to LLMError deliberately: that is the "the model would
-                # not cooperate" class (refusal, truncation, unparseable JSON),
-                # all of which are recoverable by dropping this domain. A
-                # genuine bug in here should still crash loudly rather than be
-                # silently downgraded to a missing domain.
+                # Domains are independent: a refusal, truncation, or malformed
+                # model response costs one representation, not the whole run.
+                # Genuine implementation errors still propagate loudly.
                 self.tracer.emit(
                     GOD_LANE,
                     "REJECT",
                     f"{spec.name} transform failed; continuing without it",
                     data=str(exc)[:200],
                 )
-                failures.append(
-                    _sealing_failure(spec.name, f"transform failed: {exc}")
-                )
+                failures.append(_sealing_failure(spec.name, f"transform failed: {exc}"))
                 continue
             envelope = self.build_envelope(spec, domain_problem)
             found = assert_sealed(envelope, terms)
@@ -257,6 +269,12 @@ class God:
                     "axis": spec.primary_axis.value,
                     "language": spec.language,
                     "representation_keys": sorted(domain_problem.representation),
+                    "objective_obligations": len(
+                        domain_problem.projection_manifest.objective_ids
+                    ),
+                    "required_outputs": len(
+                        domain_problem.projection_manifest.output_ids
+                    ),
                     "tools": spec.tool_ids,
                 },
             )
@@ -278,7 +296,9 @@ class God:
             # type. See demigod.result for why the union was collapsed.
             if result.status == "ok":
                 artifacts.append(result)
-                conclusion = result.payload.get("conclusion") or result.payload.get("claim")
+                conclusion = result.payload.get("conclusion") or result.payload.get(
+                    "claim"
+                )
                 self.tracer.emit(
                     GOD_LANE,
                     "COLLECT",
@@ -302,7 +322,8 @@ class God:
             self.tracer.emit(
                 GOD_LANE,
                 "INTEGRATE",
-                f"Translating {len(artifacts)} domain artifacts back into the original problem",
+                f"Translating {len(artifacts)} domain artifacts back into the "
+                "original problem",
             )
             solution = await self.integrator.integrate(
                 problem,
@@ -316,6 +337,43 @@ class God:
                 answer="No demigod produced a usable artifact.",
                 confidence=0.0,
                 gaps=[f.error or "unspecified failure" for f in failures],
+            )
+
+        if artifacts and self.verifier is not None:
+            self.tracer.emit(
+                GOD_LANE,
+                "FINALIZE",
+                "Projecting accepted artifacts into the required native schema",
+            )
+            solution = await finalize_solution(
+                self.verifier,
+                problem,
+                solution,
+                artifacts,
+            )
+            self.tracer.emit(
+                GOD_LANE,
+                "VERIFY",
+                "Checking the integrated candidate in the original problem domain",
+            )
+            report = await verify_solution(self.verifier, problem, solution)
+            solution.verification = report.model_dump(mode="json")
+            if not report.passed:
+                solution.confidence = min(solution.confidence, 0.5)
+                solution.gaps = [
+                    *solution.gaps,
+                    *[f"native verification: {error}" for error in report.errors],
+                ]
+            self.tracer.emit(
+                GOD_LANE,
+                "VERIFY",
+                "native checks passed" if report.passed else "native checks found gaps",
+                data={
+                    "passed": report.passed,
+                    "score": report.score,
+                    "checks": report.checks,
+                    "errors": report.errors,
+                },
             )
 
         self.last_trace = OrchestrationTrace(

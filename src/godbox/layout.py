@@ -96,12 +96,21 @@ class GodRequest(BaseModel):
     max_turns: int = 12
     """Per-demigod turn cap. THE cost lever -- every turn is an Anthropic call."""
 
+    model: str = "claude-opus-4-8"
+    """Pinned for both God's calls and every demigod in this run."""
+
     approved_write_tools: list[str] = Field(default_factory=list)
     approved_high_risk_tools: list[str] = Field(default_factory=list)
     """Operator approval travels WITH the request and nothing inside the
     sandbox can widen it. GOD's orchestrator refuses to spawn a demigod holding
     a write or high-risk tool that is not named here, so leaving these empty is
     the safe default rather than a missing feature."""
+
+    use_broker: bool = False
+    """Publish each demigod's already-approved lease to TOOLBOX_BROKER."""
+
+    verifier_id: str | None = None
+    """Closed God-side native verifier name. Never a module path or callable."""
 
     sandbox_id: str = ""
     """GOD's own sandbox, filled in by the launcher. GOD needs it to terminate

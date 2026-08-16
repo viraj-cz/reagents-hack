@@ -1,0 +1,512 @@
+{
+  "id": "norman-perturbseq-heldout-combinations-v1",
+  "statement": "Predict the real transcriptomic response of 12 held-out two-gene CRISPRa conditions from the Norman et al. K562 Perturb-seq screen. All controls, single perturbations, and remaining double perturbations are training evidence.",
+  "entities": [
+    "ACTG1",
+    "AHR",
+    "AIF1",
+    "ALAS2",
+    "APOC1",
+    "APOE",
+    "ARHGDIB",
+    "ARPC1B",
+    "AVP",
+    "BLVRB",
+    "BTG1",
+    "C19orf26",
+    "CBFA2T3",
+    "CEBPA",
+    "CEBPB",
+    "CEBPE",
+    "CFD",
+    "COL18A1",
+    "CSF3R",
+    "CYBA",
+    "ELMSAN1",
+    "ETS2",
+    "FEV",
+    "GAL",
+    "GSTP1",
+    "GYPA",
+    "GYPB",
+    "GYPC",
+    "HBA1",
+    "HBA2",
+    "HBG1",
+    "HBG2",
+    "HBZ",
+    "HIST1H1C",
+    "HIST1H4C",
+    "IFITM2",
+    "IKZF3",
+    "JUN",
+    "KLF1",
+    "LAPTM4B",
+    "LAPTM5",
+    "LGALS1",
+    "LMO4",
+    "LST1",
+    "LY6E",
+    "LYL1",
+    "MALAT1",
+    "MAP2K6",
+    "MDK",
+    "MS4A3",
+    "MSRB1",
+    "MYL4",
+    "NEAT1",
+    "NME1",
+    "PA2G4",
+    "PITX1",
+    "PLD3",
+    "PNRC1",
+    "POU3F2",
+    "PRDX1",
+    "PRSS57",
+    "PTMA",
+    "PYCARD",
+    "RANBP1",
+    "RP11-301G19.1",
+    "RP11-717F1.1",
+    "S100A11",
+    "SGK1",
+    "SH3BGRL3",
+    "SLC25A37",
+    "SRM",
+    "TBX2",
+    "TBX3",
+    "TGFBR2",
+    "TMSB10",
+    "TMSB4X",
+    "TYROBP",
+    "UBAC1",
+    "UBE2S",
+    "VAMP8",
+    "VIM",
+    "ZBTB10",
+    "ZC3HAV1"
+  ],
+  "sensitive_terms": [
+    "K562",
+    "CRISPRa",
+    "Norman"
+  ],
+  "constraints": [
+    "The held-out double-condition expression measurements are unavailable until private scoring.",
+    "Use only T01-T12 and F001-F064 as Broker and prediction interface identifiers.",
+    "Every target requires 64 ordered delta-expression values, one interaction class, confidence, and a falsifier.",
+    "Allowed interaction classes are additive, synergy, suppression, and neomorphic under the frozen training-derived rule.",
+    "Do not claim access to raw cells or held-out outcomes; deterministic Broker tools expose training-only candidates and diagnostics."
+  ],
+  "question": "For every target T01-T12, predict its control-relative pseudobulk expression delta on F001-F064 and its genetic-interaction class. Explain which transformed evidence supports each complete candidate and state what result would falsify it.",
+  "inputs": {
+    "study": {
+      "assay": "single-cell Perturb-seq",
+      "perturbation": "two-gene CRISPR activation",
+      "cell_context": "K562",
+      "source_accession": "GSE133344",
+      "normalization": "curated per-cell normalized log expression from scPerturb"
+    },
+    "split_protocol": {
+      "salt": "reagents-norman-v1",
+      "selection": "SHA-256 rank of eligible condition labels only",
+      "heldout_count": 12,
+      "feature_selection": "top pseudobulk variance using training conditions only",
+      "memorization_exclusions": [
+        "CBL+CNN1",
+        "CEBPB+FOSB",
+        "DUSP9+ETS2",
+        "DUSP9+MAPK1",
+        "PTPN12+ZBTB25"
+      ]
+    },
+    "target_catalog": [
+      {
+        "target_id": "T01",
+        "genes": [
+          "AHR",
+          "FEV"
+        ]
+      },
+      {
+        "target_id": "T02",
+        "genes": [
+          "CEBPB",
+          "LYL1"
+        ]
+      },
+      {
+        "target_id": "T03",
+        "genes": [
+          "ETS2",
+          "IKZF3"
+        ]
+      },
+      {
+        "target_id": "T04",
+        "genes": [
+          "KLF1",
+          "MAP2K6"
+        ]
+      },
+      {
+        "target_id": "T05",
+        "genes": [
+          "SGK1",
+          "TBX3"
+        ]
+      },
+      {
+        "target_id": "T06",
+        "genes": [
+          "CEBPE",
+          "ETS2"
+        ]
+      },
+      {
+        "target_id": "T07",
+        "genes": [
+          "SGK1",
+          "TBX2"
+        ]
+      },
+      {
+        "target_id": "T08",
+        "genes": [
+          "CEBPA",
+          "JUN"
+        ]
+      },
+      {
+        "target_id": "T09",
+        "genes": [
+          "CBFA2T3",
+          "POU3F2"
+        ]
+      },
+      {
+        "target_id": "T10",
+        "genes": [
+          "ELMSAN1",
+          "ZBTB10"
+        ]
+      },
+      {
+        "target_id": "T11",
+        "genes": [
+          "C19orf26",
+          "TGFBR2"
+        ]
+      },
+      {
+        "target_id": "T12",
+        "genes": [
+          "CEBPA",
+          "ZC3HAV1"
+        ]
+      }
+    ],
+    "feature_catalog": [
+      {
+        "feature_id": "F001",
+        "gene": "HBZ"
+      },
+      {
+        "feature_id": "F002",
+        "gene": "HBG2"
+      },
+      {
+        "feature_id": "F003",
+        "gene": "HBG1"
+      },
+      {
+        "feature_id": "F004",
+        "gene": "GYPB"
+      },
+      {
+        "feature_id": "F005",
+        "gene": "LST1"
+      },
+      {
+        "feature_id": "F006",
+        "gene": "TMSB4X"
+      },
+      {
+        "feature_id": "F007",
+        "gene": "ALAS2"
+      },
+      {
+        "feature_id": "F008",
+        "gene": "RP11-301G19.1"
+      },
+      {
+        "feature_id": "F009",
+        "gene": "AIF1"
+      },
+      {
+        "feature_id": "F010",
+        "gene": "HBA1"
+      },
+      {
+        "feature_id": "F011",
+        "gene": "TMSB10"
+      },
+      {
+        "feature_id": "F012",
+        "gene": "VIM"
+      },
+      {
+        "feature_id": "F013",
+        "gene": "AVP"
+      },
+      {
+        "feature_id": "F014",
+        "gene": "GYPA"
+      },
+      {
+        "feature_id": "F015",
+        "gene": "SH3BGRL3"
+      },
+      {
+        "feature_id": "F016",
+        "gene": "MALAT1"
+      },
+      {
+        "feature_id": "F017",
+        "gene": "SLC25A37"
+      },
+      {
+        "feature_id": "F018",
+        "gene": "APOE"
+      },
+      {
+        "feature_id": "F019",
+        "gene": "APOC1"
+      },
+      {
+        "feature_id": "F020",
+        "gene": "RP11-717F1.1"
+      },
+      {
+        "feature_id": "F021",
+        "gene": "CFD"
+      },
+      {
+        "feature_id": "F022",
+        "gene": "BLVRB"
+      },
+      {
+        "feature_id": "F023",
+        "gene": "NEAT1"
+      },
+      {
+        "feature_id": "F024",
+        "gene": "S100A11"
+      },
+      {
+        "feature_id": "F025",
+        "gene": "HIST1H1C"
+      },
+      {
+        "feature_id": "F026",
+        "gene": "GAL"
+      },
+      {
+        "feature_id": "F027",
+        "gene": "CEBPE"
+      },
+      {
+        "feature_id": "F028",
+        "gene": "TYROBP"
+      },
+      {
+        "feature_id": "F029",
+        "gene": "MYL4"
+      },
+      {
+        "feature_id": "F030",
+        "gene": "PRSS57"
+      },
+      {
+        "feature_id": "F031",
+        "gene": "NME1"
+      },
+      {
+        "feature_id": "F032",
+        "gene": "SRM"
+      },
+      {
+        "feature_id": "F033",
+        "gene": "CYBA"
+      },
+      {
+        "feature_id": "F034",
+        "gene": "RANBP1"
+      },
+      {
+        "feature_id": "F035",
+        "gene": "PTMA"
+      },
+      {
+        "feature_id": "F036",
+        "gene": "CSF3R"
+      },
+      {
+        "feature_id": "F037",
+        "gene": "GYPC"
+      },
+      {
+        "feature_id": "F038",
+        "gene": "LAPTM4B"
+      },
+      {
+        "feature_id": "F039",
+        "gene": "LGALS1"
+      },
+      {
+        "feature_id": "F040",
+        "gene": "ARPC1B"
+      },
+      {
+        "feature_id": "F041",
+        "gene": "FEV"
+      },
+      {
+        "feature_id": "F042",
+        "gene": "PA2G4"
+      },
+      {
+        "feature_id": "F043",
+        "gene": "COL18A1"
+      },
+      {
+        "feature_id": "F044",
+        "gene": "BTG1"
+      },
+      {
+        "feature_id": "F045",
+        "gene": "IFITM2"
+      },
+      {
+        "feature_id": "F046",
+        "gene": "VAMP8"
+      },
+      {
+        "feature_id": "F047",
+        "gene": "UBE2S"
+      },
+      {
+        "feature_id": "F048",
+        "gene": "HBA2"
+      },
+      {
+        "feature_id": "F049",
+        "gene": "ACTG1"
+      },
+      {
+        "feature_id": "F050",
+        "gene": "HIST1H4C"
+      },
+      {
+        "feature_id": "F051",
+        "gene": "PYCARD"
+      },
+      {
+        "feature_id": "F052",
+        "gene": "PLD3"
+      },
+      {
+        "feature_id": "F053",
+        "gene": "MS4A3"
+      },
+      {
+        "feature_id": "F054",
+        "gene": "PITX1"
+      },
+      {
+        "feature_id": "F055",
+        "gene": "LY6E"
+      },
+      {
+        "feature_id": "F056",
+        "gene": "MDK"
+      },
+      {
+        "feature_id": "F057",
+        "gene": "MSRB1"
+      },
+      {
+        "feature_id": "F058",
+        "gene": "GSTP1"
+      },
+      {
+        "feature_id": "F059",
+        "gene": "ARHGDIB"
+      },
+      {
+        "feature_id": "F060",
+        "gene": "LAPTM5"
+      },
+      {
+        "feature_id": "F061",
+        "gene": "PRDX1"
+      },
+      {
+        "feature_id": "F062",
+        "gene": "PNRC1"
+      },
+      {
+        "feature_id": "F063",
+        "gene": "LMO4"
+      },
+      {
+        "feature_id": "F064",
+        "gene": "UBAC1"
+      }
+    ],
+    "broker_interfaces": {
+      "screen.algebra_candidate": "additive and supervised residual-algebra candidates",
+      "screen.algebra_certificate": "training-only residual-algebra cross-validation audit",
+      "screen.geometry_candidate": "nearest-neighbor interaction-manifold candidate",
+      "screen.geometry_certificate": "anonymous manifold-analog and cross-validation audit",
+      "screen.graph_candidate": "single-effect similarity-graph analog candidate",
+      "screen.graph_certificate": "anonymous graph-edge-match and cross-validation audit",
+      "screen.information_candidate": "cross-representation ensemble and uncertainty diagnostics",
+      "screen.information_certificate": "ensemble-weight and disagreement audit"
+    }
+  },
+  "required_outputs": [
+    "exactly one prediction for every target T01-T12",
+    "64 numeric predicted_delta values in F001-F064 order per target",
+    "one allowed interaction_class per target",
+    "confidence from 0 to 1 and a concrete falsifier per target",
+    "method summary distinguishing data-backed inference from uncertainty"
+  ],
+  "answer_schema": {
+    "type": "object",
+    "required": [
+      "predictions",
+      "method_summary"
+    ],
+    "properties": {
+      "predictions": {
+        "type": "array",
+        "minItems": 12,
+        "maxItems": 12,
+        "items": {
+          "type": "object",
+          "required": [
+            "target_id",
+            "predicted_delta",
+            "interaction_class",
+            "confidence",
+            "falsifier"
+          ]
+        }
+      },
+      "method_summary": {
+        "type": "string"
+      }
+    }
+  }
+}

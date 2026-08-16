@@ -1,8 +1,7 @@
 """End-to-end: GOD plans and seals -> DEMI_GODs in sandboxes -> GOD integrates.
 
     uv run python scripts/e2e_live.py                 # 2 domains, 6 turns each
-    uv run python scripts/e2e_live.py --domains 3 --turns 10
-    uv run python scripts/e2e_live.py --broker        # + brokered tools
+    uv run python scripts/e2e_live.py --problem flareguard --domains 4 --broker
 
 The only path that exercises the whole system at once. Everything below it has
 been proven separately -- images, mounts, the filesystem API, the agent loop,
@@ -18,14 +17,14 @@ turns. Rough shape of one run at defaults:
 
 Raise --domains/--turns only once the pipeline is known to work.
 
-Progress is printed as `>>> STAGE` lines so a watcher can follow a live run
-without wading through streamed agent output.
+Progress uses the same God/subagent terminal stream as the library entrypoint.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 import sys
@@ -33,20 +32,55 @@ import time
 import uuid
 from pathlib import Path
 
-from reagents.contracts import RiskTier
-from reagents.demigod.sandbox_runtime import SandboxDemigodRuntime
+from reagents.contracts import Budget, NativeProblem, RiskTier
+from reagents.demigod.sandbox_runtime import SandboxDemigodRuntime, seed_shared_files
 from reagents.god.orchestrator import God
+from reagents.llm.anthropic_client import DEFAULT_MODEL
 from reagents.llm.client import make_llm
 from reagents.tools.registry import default_registry
 from reagents.toy import simple_problem, toy_problem
 from reagents.tracing import TerminalTracer
 
+ROOT = Path(__file__).resolve().parent.parent
+ADAPTIVE_DIR = ROOT / "benchmarks" / "adaptive_circuit"
+
 _T0 = time.monotonic()
 
 
 def stage(message: str) -> None:
-    """A progress marker. Prefixed so a monitor can filter to just these."""
+    """A coarse phase marker alongside the lane-oriented terminal trace."""
     print(f">>> [{time.monotonic() - _T0:6.1f}s] {message}", flush=True)
+
+
+def load_problem(problem_name: str) -> tuple[NativeProblem, list[Path]]:
+    if problem_name == "simple":
+        return simple_problem(), []
+    if problem_name == "pathway":
+        return toy_problem(), []
+    if problem_name == "flareguard":
+        from benchmarks.flareguard import load_problem as load_flareguard
+
+        # Raw native files are deliberately not mounted. load_flareguard()
+        # hydrates them into NativeProblem.inputs so each transformer must
+        # project the complete dataset into its own sealed representation.
+        return load_flareguard(), []
+    if problem_name == "perturbseq":
+        from benchmarks.perturbseq_norman import load_problem as load_perturbseq
+
+        # Raw cells and held-out truth never enter a shared volume. The compact
+        # training-only candidates live behind the Broker's exact leases.
+        return load_perturbseq(), []
+    if problem_name == "perturbseq2":
+        from benchmarks.perturbseq_norman.v2_benchmark import (
+            load_problem as load_perturbseq_v2,
+        )
+
+        # Public raw training primitives are mounted only inside the dedicated
+        # Broker executor. No held-out response enters God or a demigod.
+        return load_perturbseq_v2(), []
+    question = ADAPTIVE_DIR / "public" / "question.json"
+    observations = ADAPTIVE_DIR / "public" / "observations.csv"
+    return NativeProblem.model_validate_json(question.read_text()), [observations]
 
 
 def instrument(god: God) -> None:
@@ -126,7 +160,7 @@ def make_toolbox(enabled: bool):
     from broker.session import modal_session
 
     session = modal_session()
-    stage(f"TOOLBOX: brokering tools via {session.url}")
+    stage(f"TOOLBOX: brokering scoped tools via {session.url}")
     return session
 
 
@@ -135,12 +169,57 @@ async def run_once(
     turns: int,
     run_id: str,
     problem_name: str,
-    broker: bool,
+    broker: bool = False,
     approve_high_risk: bool = False,
+    result_out: Path | None = None,
+    approved_high_risk_tools: set[str] | None = None,
+    model: str = DEFAULT_MODEL,
 ) -> int:
-    problem = simple_problem() if problem_name == "simple" else toy_problem()
+    started_at = time.time()
+    if problem_name == "perturbseq":
+        os.environ["REAGENTS_ENABLE_NORMAN_BENCHMARK"] = "1"
+    elif problem_name == "perturbseq2":
+        os.environ["REAGENTS_ENABLE_NORMAN_V2_BENCHMARK"] = "1"
+    problem, input_paths = load_problem(problem_name)
     stage(f"START run_id={run_id} domains={domains} turns={turns}")
     stage(f"PROBLEM: {problem.id} -- {problem.question}")
+    shared_files: list[str] = []
+    if input_paths:
+        print(f"◆ Preparing {len(input_paths)} public benchmark input file(s)")
+        shared_files = await asyncio.to_thread(
+            seed_shared_files,
+            run_id,
+            [str(path) for path in input_paths],
+        )
+    verifier = None
+    if problem_name == "flareguard":
+        from benchmarks.flareguard import FlareGuardVerifier
+
+        verifier = FlareGuardVerifier()
+    elif problem_name == "perturbseq":
+        from benchmarks.perturbseq_norman import NormanPerturbSeqVerifier
+
+        verifier = NormanPerturbSeqVerifier()
+    elif problem_name == "perturbseq2":
+        from benchmarks.perturbseq_norman.v2_benchmark import (
+            NormanPerturbSeqV2Verifier,
+        )
+
+        verifier = NormanPerturbSeqV2Verifier()
+
+    registry = None
+    if problem_name == "perturbseq":
+        # Give God the complete benchmark-tool catalog but omit unrelated
+        # executors. This makes every invented domain bind a data-bearing
+        # representation tool and its independent certificate, while the
+        # Broker remains a superset and enforces the exact selected lease.
+        from reagents.tools.registry import ToolRegistry
+
+        discovered = default_registry()
+        registry = ToolRegistry()
+        for tool_id in discovered.ids():
+            if tool_id.startswith("screen."):
+                registry.register(discovered.get(tool_id))
 
     # TerminalTracer multiplexes GOD and every DEMI_GOD lane into ONE stream,
     # lane-labelled, so a parallel fan-out is readable in a single terminal --
@@ -152,18 +231,21 @@ async def run_once(
     # flag fails that domain with "high-risk tools require operator approval"
     # before the sandbox is even created. Observed live -- it is why the first
     # brokered run reached zero container tools.
-    high_risk = set()
+    high_risk = set(approved_high_risk_tools or set())
     if approve_high_risk:
-        high_risk = {
+        high_risk.update(
             spec.id
             for spec in default_registry().specs()
             if spec.risk_tier == RiskTier.HIGH
-        }
+        )
+    if high_risk:
         stage(
             f"OPERATOR: approving {len(high_risk)} high-risk tools: {sorted(high_risk)}"
         )
+    llm = make_llm(model)
     god = God(
-        make_llm(),
+        llm,
+        registry=registry,
         domain_count=domains,
         approved_high_risk_tools=high_risk,
         # The seam. Swap for the default in-process runtime and the same God
@@ -171,16 +253,51 @@ async def run_once(
         runtime=SandboxDemigodRuntime(
             run_id=run_id,
             max_turns=turns,
+            shared_files=shared_files,
             toolbox=make_toolbox(broker),
+            require_toolbox=broker,
+            restrict_egress=broker,
+            model=model,
         ),
         tracer=TerminalTracer(),
+        verifier=verifier,
+        budget=Budget(
+            max_tokens=4096,
+            max_steps=turns,
+            wall_time_s=1200,
+            max_tool_calls=24,
+        ),
     )
-    # The `stage()` markers stay for coarse timing; the tracer carries the
-    # narrative. They interleave rather than duplicate: stage() reports phase
-    # boundaries with elapsed time, the tracer reports what happened inside one.
     instrument(god)
-
-    solution = await god.solve(problem)
+    try:
+        solution = await god.solve(problem)
+    except Exception as exc:
+        if result_out is not None:
+            result_out.parent.mkdir(parents=True, exist_ok=True)
+            result_out.write_text(
+                json.dumps(
+                    {
+                        "kind": "reagents_pipeline",
+                        "status": "failed",
+                        "run_id": run_id,
+                        "problem_id": problem.id,
+                        "model": model,
+                        "started_at_unix": started_at,
+                        "elapsed_s": round(time.time() - started_at, 3),
+                        "error_type": type(exc).__name__,
+                        "error": str(exc),
+                        "god_usage": (
+                            llm.usage_summary()
+                            if hasattr(llm, "usage_summary")
+                            else {"model": model}
+                        ),
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            print(f"\nfailed run record: {result_out}")
+        raise
 
     stage("COMPLETE")
     trace = god.last_trace
@@ -188,8 +305,8 @@ async def run_once(
     print(f"artifacts: {len(trace.artifacts)}   failures: {len(trace.failures)}")
     if trace.leaks:
         print(f"isolation leaks: {trace.leaks}")
-    for f in trace.failures:
-        print(f"  FAILED {f.domain_name}: {f.error}")
+    for failure in trace.failures:
+        print(f"  FAILED {failure.domain_name}: {failure.error}")
     print("=" * 72)
     print(json.dumps(solution.model_dump(), indent=2))
 
@@ -219,6 +336,58 @@ async def run_once(
             "published and never used -- the run proves the spawn path, not the "
             "broker. Check `toolbox list` output in the demigod transcript."
         )
+
+    if result_out is not None:
+        result_out.parent.mkdir(parents=True, exist_ok=True)
+        result_out.write_text(
+            json.dumps(
+                {
+                    "kind": "reagents_pipeline",
+                    "run_id": run_id,
+                    "problem_id": problem.id,
+                    "model": model,
+                    "public_input_sha256": hashlib.sha256(
+                        json.dumps(
+                            problem.model_dump(mode="json"), sort_keys=True
+                        ).encode()
+                    ).hexdigest(),
+                    "started_at_unix": started_at,
+                    "elapsed_s": round(time.time() - started_at, 3),
+                    "approved_high_risk_tools": sorted(
+                        approved_high_risk_tools or set()
+                    ),
+                    "broker_required": broker,
+                    "egress_restricted": broker,
+                    "god_usage": (
+                        llm.usage_summary()
+                        if hasattr(llm, "usage_summary")
+                        else {"model": model}
+                    ),
+                    "solution": solution.model_dump(mode="json"),
+                    "audit": {
+                        "specs": [spec.model_dump(mode="json") for spec in trace.specs],
+                        "envelopes": [
+                            envelope.model_dump(mode="json")
+                            for envelope in trace.envelopes
+                        ],
+                        "inverse_maps": [
+                            inverse.model_dump(mode="json")
+                            for inverse in trace.inverse_maps
+                        ],
+                    },
+                    "artifacts": [
+                        artifact.model_dump(mode="json") for artifact in trace.artifacts
+                    ],
+                    "failures": [
+                        failure.model_dump(mode="json") for failure in trace.failures
+                    ],
+                    "leaks": trace.leaks,
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        print(f"\nrun record: {result_out}")
 
     # Artifacts survive on the volume regardless of what the integrator said.
     print(f"\nartifacts on volume: uv run modal volume ls demigod-run-{run_id}-out")
@@ -262,6 +431,12 @@ def load_env_file() -> None:
     try:
         from dotenv import load_dotenv
     except ModuleNotFoundError:
+        for raw in env_path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip())
         return
     load_dotenv(env_path, override=False)
 
@@ -270,12 +445,25 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--domains", type=int, default=2)
     parser.add_argument("--turns", type=int, default=12)
+    parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument(
         "--problem",
-        choices=("simple", "pathway"),
+        choices=(
+            "simple",
+            "pathway",
+            "adaptive",
+            "flareguard",
+            "perturbseq",
+            "perturbseq2",
+        ),
         default="simple",
         help="simple = 5-entity valve pipeline (default, for testing the "
-        "pipeline); pathway = the 9-entity glycolysis problem",
+        "pipeline); pathway = the 9-entity glycolysis problem; adaptive = "
+        "the held-out synthetic-circuit workflow benchmark; flareguard = "
+        "the complete-objective living-diagnostic design benchmark; "
+        "perturbseq = v1 candidate-selection Norman benchmark; perturbseq2 = "
+        "real held-out Norman responses from raw training primitives and "
+        "demigod-authored models",
     )
     parser.add_argument(
         "--approve-high-risk",
@@ -288,6 +476,22 @@ def main() -> int:
         ),
     )
     parser.add_argument("--run-id", default=None)
+    parser.add_argument(
+        "--result-out",
+        type=Path,
+        default=None,
+        help="Write the solution, artifacts, and failures to a local JSON record.",
+    )
+    parser.add_argument(
+        "--approve-high-risk-tool",
+        action="append",
+        default=[],
+        metavar="TOOL_ID",
+        help=(
+            "Record operator approval for one exact high-risk tool ID. Repeat "
+            "the option to approve more than one; no wildcard is supported."
+        ),
+    )
     parser.add_argument(
         "--broker",
         action="store_true",
@@ -335,9 +539,8 @@ def main() -> int:
     # publish a lease naming builtins alone and look like the broker was empty.
     if args.broker and not os.environ.get("REAGENTS_ENABLE_CONTAINERS"):
         print(
-            "note: enabling REAGENTS_ENABLE_CONTAINERS=1 for this process so "
-            "the planner can see the brokered container tools. The broker's own "
-            "images set it themselves.",
+            "note: enabling REAGENTS_ENABLE_CONTAINERS=1 so God can plan with "
+            "the brokered container-tool catalog.",
             file=sys.stderr,
         )
         os.environ["REAGENTS_ENABLE_CONTAINERS"] = "1"
@@ -349,8 +552,11 @@ def main() -> int:
             args.turns,
             run_id,
             args.problem,
-            args.broker,
-            args.approve_high_risk,
+            broker=args.broker,
+            approve_high_risk=args.approve_high_risk,
+            result_out=args.result_out,
+            approved_high_risk_tools=set(args.approve_high_risk_tool),
+            model=args.model,
         )
     )
 

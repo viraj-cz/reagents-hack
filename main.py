@@ -1,8 +1,8 @@
 """Run TxBench-PP evals against the agent in agent.py.
 
-    python main.py --list
-    python main.py CTRL01_no_cc1_gate_for_crizotinib_hits
-    python main.py --all --out results
+python main.py --list
+python main.py CTRL01_no_cc1_gate_for_crizotinib_hits
+python main.py --all --out results
 """
 
 import argparse

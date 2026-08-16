@@ -22,6 +22,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from demigod.egress import allowlist
 from demigod.images import resolve_image
 from demigod.layout import OUT_MOUNT, SHARED_MOUNT, SPEC_PATH, RunLayout
 from demigod.result import RESULT_FILENAME, DemiGodResult
@@ -99,6 +100,7 @@ def main() -> int:
             workdir=OUT_MOUNT,
             cpu=spec.cpu,
             memory=spec.memory_mb,
+            outbound_domain_allowlist=allowlist(),
         )
         check("Sandbox.create", True, sandbox.object_id)
 
@@ -141,6 +143,10 @@ def main() -> int:
                 "entrypoint imports",
                 ["python", "-c", "import demigod.entrypoint; print('ok')"],
             ),
+            (
+                "Anthropic key mounted",
+                ["sh", "-c", 'test -n "$ANTHROPIC_API_KEY" && echo ok'],
+            ),
         ]:
             p = sandbox.exec(*cmd, timeout=60)
             out = p.stdout.read().strip()
@@ -157,13 +163,16 @@ def main() -> int:
         p = sandbox.exec(
             "sh",
             "-c",
-            f"cd /tmp && {env_flags} claude -p 'reply with exactly: PONG' "
-            "--dangerously-skip-permissions < /dev/null 2>&1 | head -5",
-            timeout=180,
+            f"cd /tmp && {env_flags} DISABLE_AUTOUPDATER=1 "
+            "timeout 90 claude -p 'reply with exactly: PONG' "
+            "--output-format text --dangerously-skip-permissions < /dev/null",
+            timeout=120,
         )
         out = p.stdout.read().strip()
+        err = p.stderr.read().strip()
         p.wait()
-        check("claude CLI can actually answer (as root)", "PONG" in out, out[:160])
+        detail = f"rc={p.returncode} stdout={out[:120]!r} stderr={err[:240]!r}"
+        check("claude CLI can actually answer (as root)", "PONG" in out, detail)
 
         # The agent writes result.json; prove the runner can read one back the
         # same way _collect will.

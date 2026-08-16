@@ -96,7 +96,9 @@ def render_context(envelope: ContextEnvelope) -> str:
     return (
         f"{problem.notation_guide.strip()}\n\n"
         f"Representation:\n```json\n"
-        f"{json.dumps(problem.representation, indent=2)}\n```"
+        f"{json.dumps(problem.representation, indent=2)}\n```\n\n"
+        f"Complete-objective manifest:\n```json\n"
+        f"{problem.projection_manifest.model_dump_json(indent=2)}\n```"
     )
 
 
@@ -184,7 +186,7 @@ def envelope_to_spec(
         # expiry; max_lifetime_s is the sandbox kill timer and defaults to 3600.
         # Mapping them 1:1 would kill every sandbox after a minute, so the
         # sandbox is given headroom over the lease rather than matching it.
-        max_lifetime_s=max(int(budget.wall_time_s * 10), 600),
+        max_lifetime_s=max(int(budget.wall_time_s * 1.25), 600),
         idle_timeout_s=120,
         max_turns=max_turns or budget.max_steps,
         # None means "keep the spec's own default" rather than "no model" --
@@ -205,5 +207,8 @@ def _criteria_from_schema(artifact_schema: dict[str, Any]) -> list[str]:
     """
     required = artifact_schema.get("required") or []
     criteria = [f"`payload` includes {key!r}" for key in required]
+    criteria.append(
+        "the artifact is one complete candidate satisfying every projected objective"
+    )
     criteria.append("`payload` validates against the schema shown below")
     return criteria

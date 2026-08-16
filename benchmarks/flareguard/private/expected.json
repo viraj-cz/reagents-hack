@@ -1,0 +1,13 @@
+{
+  "visibility": "EVALUATOR_ONLY_NEVER_SEND_TO_GOD_OR_MOUNT_IN_A_DEMIGOD_SANDBOX",
+  "oracle_version": 1,
+  "optimal_design": {
+    "positive_sensor_ids": ["S_CAL", "S_NAR", "S_TTR"],
+    "positive_quorum": 2,
+    "exclusion_sensor_ids": ["S_AHL", "S_SID"],
+    "persistence_part_id": "T_2H",
+    "reset_part_id": "D_FAST"
+  },
+  "optimal_burden": 7.7,
+  "expected_valid_optima": 1
+}

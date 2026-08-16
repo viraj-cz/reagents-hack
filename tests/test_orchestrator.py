@@ -91,6 +91,34 @@ async def test_demigod_tool_loop_cannot_reach_unbound_tools():
 
 
 @pytest.mark.asyncio
+async def test_inprocess_runtime_enforces_schema_tool_call_minimum():
+    spec = toy_domains()[0]
+    llm = ScriptedLLM.for_toy_pathway()
+    domain_problem, _ = await Transformer(llm).forward(toy_problem(), spec)
+    envelope = God(llm).build_envelope(spec, domain_problem)
+    envelope.artifact_schema = {**spec.artifact_schema, "x-min-tool-calls": 4}
+    draft = DemiGodResult(
+        claim="candidate",
+        confidence=0.5,
+        method="test stub",
+        payload={
+            "candidate_solution": {},
+            "constraint_results": {},
+            "certificate": {},
+            "conclusion": "candidate",
+        },
+        justification="checked",
+    )
+    trace = [{"tool": spec.tool_ids[0]} for _ in range(3)]
+    runtime = DemigodRuntime(
+        ScriptedLLM({f"demigod:{spec.name}": lambda **_: (draft, trace)})
+    )
+    result = await runtime.run(envelope, default_registry().bind(spec.tool_ids))
+    assert result.status == "failed"
+    assert "at least 4 brokered tool calls; observed 3" in (result.error or "")
+
+
+@pytest.mark.asyncio
 async def test_one_domain_refusal_does_not_kill_the_whole_run():
     """A transform that fails must cost ONE domain, not the orchestration.
 
@@ -178,9 +206,7 @@ async def test_forbidden_list_leak_is_repaired_not_fatal():
     assert len(trace.artifacts) == len(trace.specs), (
         "a leaky forbidden-list still cost a whole domain"
     )
-    assert not any(
-        "forbidden" in (f.error or "") for f in trace.failures
-    )
+    assert not any("forbidden" in (f.error or "") for f in trace.failures)
     # ...and it survived REPAIRED, not by ignoring the leak: the native term is
     # gone from what the demigod was shown.
     repaired = [e for e in trace.envelopes if e.domain.name == trace.specs[0].name]

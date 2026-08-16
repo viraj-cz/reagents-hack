@@ -5,8 +5,8 @@ representation domains, solving inside those domains with isolated demigods, and
 translating artifacts back into the original field.
 
 This file is the system context for the three branches that make up the
-hackathon stack. It describes the intended whole, then what each branch owns
-today, including seams that are not wired yet.
+hackathon stack. It describes the assembled whole and the remaining explicit
+boundaries between its components.
 
 ## The three layers
 
@@ -26,19 +26,22 @@ viraj/env             God-spawn               spawn-agents-environment
 | `God-spawn` | God. Invents domains, transforms, binds tools, integrates. | `God.solve(NativeProblem) -> NativeSolution` |
 | `spawn-agents-environment` | One demigod in one Modal sandbox. No God here. | `spawn_demigod(DemiGodSpec, run_id) -> DemiGodResult` |
 
-God owns decomposition and synthesis. The spawn branch owns one isolated worker.
+God owns projection and integration. The spawn branch owns one isolated worker.
 The env branch owns scoring. Do not collapse those jobs.
 
 Intended eval path:
 
 1. `viraj/env` calls `run_agent(task, work_dir)`.
 2. God turns that into a `NativeProblem` (statement = task, files = `work_dir/data`).
-3. God invents orthogonal domains and projects the problem. Inverse maps stay on God.
+3. God invents orthogonal domains and projects the complete problem into each.
+   Inverse maps stay on God.
 4. God emits `DemiGodSpec`s and calls `spawn_demigod` N times with one `run_id`, seeding `shared/` from `work_dir/data`.
 5. Each sandbox writes `out/<name>/result.json`.
 6. God reads those manifests, inverse-maps, integrates, and returns the eval JSON inside `<EVAL_ANSWER>`.
 
-Today God-spawn still runs demigods **in-process** (`DemigodRuntime`) instead of calling `spawn_demigod`. That in-process loop is a stand-in. The spawn branch is the real worker.
+God supports both runtimes: `DemigodRuntime` is the deterministic local/test
+path, while `SandboxDemigodRuntime` adapts the sealed envelope into a
+`DemiGodSpec` and calls `spawn_demigod` in Modal.
 
 ## Core idea
 
@@ -47,7 +50,7 @@ Fourier transform: project into a foreign language, work with limited tools, inv
 
 - **God** sees the original problem, invents domains, transforms, leases tools, integrates.
 - **Demigods** never see the original writeup, other demigods, credentials, or the rest of the catalog. Each one lives in a single representation and returns artifacts.
-- **Orthogonality** is about representation language (proof, spectral, rewrite, information, geometry, constraint), not biology subfields. If you can tell three artifacts are “about the pathway,” they were not orthogonal enough.
+- **Orthogonality** is about representation language (proof, spectral, rewrite, information, geometry, constraint), not biology subfields or task slices. Every artifact is a complete alternative solution to the same objective.
 - **Sponsor tools** (Paperclip, Phylo/Biomni, Proto, Benchling) are native-field I/O. God may use them to ingest or emit. A demigod should not get a biology vendor pack unless that *is* the invented language, and even then only exact IDs.
 
 ## God loop (`God-spawn`)
@@ -83,11 +86,11 @@ Axes (seating labels, not domains): `topology`, `conservation`, `dynamics`, `geo
 
 - `NativeProblem` — original field: statement, entities, constraints, question.
 - `DomainSpec` — invented world. Language is free; axes and tool IDs are not.
-- `DomainProblem` — problem already in that language. No native-field text.
+- `DomainProblem` — complete problem already in that language. Its projection manifest accounts for every source input, objective, constraint, and required output. No native-field text.
 - `InverseMap` — `s1 -> glucose`. God only. Never put in an envelope.
 - `ContextEnvelope` — spawn payload: sealed spec, domain problem, tool *schemas*, artifact schema, budget, forbidden rules.
 - `CapabilityLease` — immutable authority for one run: exact tool IDs, max calls, wall time, write flag.
-- `DomainArtifact` — in-process worker output (payload, justification, tool_trace).
+- `DomainArtifact` — complete candidate output (payload, justification, certificate, tool_trace).
 - `NativeSolution` — translated answer, per-domain contributions, conflicts, gaps.
 
 Isolation: `IsolationGuard` holds native terms on God’s side and scans envelope + artifact. Those terms are not written into the envelope (that would leak). Demigods start a **fresh** message list. No shared memory. No demigod-to-demigod channel.
@@ -115,7 +118,10 @@ If containers enabled: `formal.lean_check`, `formal.z3_solve`, `biology.sequence
 
 If MCP enabled: `paperclip.*` from `https://paperclip.gxl.ai/mcp`, `biomni.*` from `https://mcp.phylo.bio/mcp` (cap 24 each, optional allowlists). Cursor OAuth for those servers does **not** populate this catalog. Headless God still needs `PAPERCLIP_API_KEY` / `BIOMNI_MCP_AUTHORIZATION` to discover, or planning continues with local tools only.
 
-Spawn-agents registry is separate and closed. Today it has `pandas`. Tool keys there must match pre-baked Modal images. Free-text names fail at spec validation, not inside a billed sandbox.
+The spawn-agent package registry is separate and closed for packages such as
+`pandas`. Callable tools take the Broker path instead: God publishes the exact
+capability lease, the demigod receives only its URL and lease ID, and the Broker
+executes and audits every call. Free-text names fail before a billed sandbox.
 
 ## Demigod spawn (`spawn-agents-environment`)
 
@@ -156,17 +162,15 @@ Return the answer dict, or text containing `<EVAL_ANSWER>...</EVAL_ANSWER>`. Thi
 
 God plugs in by replacing `agent.py`’s `run_agent` body. Do not rewrite `runner.py` / `grader.py`.
 
-## Contract gaps (not wired)
+## Assembled integration surfaces
 
-| | God-spawn now | Spawn branch | Bench |
+| | God | Demigod / Broker | Bench |
 |---|---|---|---|
-| Input | `NativeProblem` + `DomainSpec` | `DemiGodSpec` | `task`, `work_dir` |
-| Worker | in-process `DemigodRuntime` | `spawn_demigod` / Modal | Claude CLI (placeholder) |
-| Tools | builtins + optional MCP/containers | closed image registry | Bash/Read/Write |
-| Isolation | sealed prompt + broker | sandbox + volumes | temp dir outside repo |
-| Output | in-memory `DomainArtifact` | files + `DemiGodResult` | exact JSON / `<EVAL_ANSWER>` |
-
-Keep God-spawn’s planner, transformer, critic, integrator, and leases. Change `_spawn` to emit `DemiGodSpec` and call `spawn_demigod`. Keep `viraj/env` as the CLI; implement `run_agent` as `God.solve`.
+| Input | `NativeProblem` + complete projection manifest | sealed `DemiGodSpec` | public task and files only |
+| Worker | local or `SandboxDemigodRuntime` | one Modal sandbox per demigod | evaluator process |
+| Tools | catalog, approval policy, immutable lease | leased HTTPS Broker calls plus closed image packages | no evaluator key in prompts |
+| Isolation | semantic seal + inverse maps retained by God | private output volume, scoped egress, no Modal token | private files remain evaluator-only |
+| Output | compared complete candidates + native verification | files + `DemiGodResult` + Broker-authored trace | structured answer and private score |
 
 ## How to run this branch
 

@@ -20,7 +20,7 @@ _MIN_TERM_LEN = 3
 def native_terms(problem: NativeProblem) -> set[str]:
     """Terms that identify the original field. God keeps these; demigods must not see them."""
     terms: set[str] = set()
-    for raw in (*problem.entities,):
+    for raw in (*problem.entities, *problem.sensitive_terms):
         cleaned = raw.strip()
         if len(cleaned) >= _MIN_TERM_LEN:
             terms.add(cleaned)
@@ -52,6 +52,7 @@ def domain_problem_text(problem: DomainProblem) -> str:
             problem.task,
             problem.notation_guide,
             _flatten(problem.representation),
+            _flatten(problem.projection_manifest.model_dump()),
         ]
     )
 

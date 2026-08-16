@@ -1,0 +1,15 @@
+{
+  "id": "adaptive-synthetic-circuit",
+  "statement": "Synthetic cells receive a sustained ligand beginning at minute 1. Y is the normalized pathway output, Z is a candidate regulatory factor, and surface-receptor abundance is measured independently. The intervention time courses are supplied in observations.csv. KO denotes a gene deletion. The transcription-block condition suppresses new RNA synthesis but does not directly affect reporter fluorescence during the eight-minute experiment. The minute-8 Y measurement for Z_KO is intentionally withheld.",
+  "entities": [
+    "ligand",
+    "surface receptor"
+  ],
+  "constraints": [
+    "Use only the supplied observations; the component labels are synthetic and carry no prior biological meaning.",
+    "Prefer the smallest signed causal architecture consistent with all interventions.",
+    "Treat values within 0.05 as experimentally indistinguishable.",
+    "A proposed mechanism must make a falsifiable prediction for the withheld measurement and the second-pulse experiment."
+  ],
+  "question": "Infer the smallest signed causal architecture explaining wild-type adaptation. Identify which observations distinguish it from Y-dependent negative feedback and receptor desensitization. Predict Y at minute 8 in Z_KO with a numerical range. Finally, predict whether a second ligand pulse shortly after washout should be weaker, similar, or stronger than the first pulse, and explain why."
+}
