@@ -1,0 +1,19 @@
+services:
+  reasoning-core:
+    image: reagents/reasoning-core:latest
+    build:
+      context: .
+      dockerfile: tooling/reasoning/Dockerfile
+
+  biology-core:
+    image: reagents/biology-core:latest
+    build:
+      context: .
+      dockerfile: tooling/biology/Dockerfile
+
+  proto-design:
+    image: reagents/proto-design:latest
+    build:
+      context: .
+      dockerfile: tooling/proto/Dockerfile
+
