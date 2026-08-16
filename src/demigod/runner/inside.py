@@ -27,6 +27,7 @@ from demigod.images import required_secret_names, resolve_image
 from demigod.layout import OUT_MOUNT, SPEC_PATH, RunLayout
 from demigod.result import RESULT_FILENAME, DemiGodResult
 from demigod.spec import DemiGodSpec
+from demigod.toolbox.client import DEFAULT_GRANT_FILE, ENV_LEASE, ENV_URL
 
 if TYPE_CHECKING:
     import modal
@@ -108,14 +109,22 @@ class InsideSandboxRunner:
                 workdir=OUT_MOUNT,
                 cpu=spec.cpu,
                 memory=spec.memory_mb,
-                # TODO: tighten once tool network needs are known per-registry
-                # entry. pandas needs none; the Agent SDK needs api.anthropic.com.
-                # block_network=True is wrong here -- the loop is inside.
+                # Isolation as a network fact rather than a prompt instruction.
+                # None (the default) means unrestricted, which is what this
+                # runner did before the broker landed; a list pins egress to the
+                # agent API plus the broker. See demigod/egress.py.
+                #
+                # `block_network=True` remains wrong here: the loop is INSIDE,
+                # so blocking everything blocks the agent itself.
+                outbound_domain_allowlist=spec.egress_domains,
                 verbose=True,
             )
             print(f"[demigod] sandbox {sandbox.object_id} up")
+            if spec.egress_domains is not None:
+                print(f"[demigod] egress pinned to {spec.egress_domains}")
 
             _write_spec(sandbox, spec)
+            _write_toolbox_grant(sandbox, spec)
             returncode = _exec_agent(sandbox, spec)
 
             return _collect(sandbox, spec, returncode, run_id)
@@ -147,6 +156,41 @@ def _write_spec(sandbox: modal.Sandbox, spec: DemiGodSpec) -> None:
     sandbox.filesystem.write_text(spec.model_dump_json(indent=2), SPEC_PATH)
 
 
+def _write_toolbox_grant(sandbox: modal.Sandbox, spec: DemiGodSpec) -> None:
+    """Materialize the broker grant at a stable path inside the sandbox.
+
+    Belt and braces with the env vars in `_agent_env`. The agent composes bash,
+    and bash composes sub-shells, heredocs and `env -i` -- any of which can lose
+    an exported variable, and the failure mode is an agent that concludes it has
+    no tools. A file cannot be lost that way.
+
+    Written outside both volume mounts, next to spec.json, for the reason
+    SPEC_PATH gives: it is control-plane data, and a credential in the agent's
+    output dir would be committed to a volume and listed in `files`.
+    """
+    if spec.toolbox is None:
+        return
+    sandbox.filesystem.write_text(
+        spec.toolbox.model_dump_json(indent=2), DEFAULT_GRANT_FILE
+    )
+    print(f"[demigod] toolbox lease {spec.toolbox.lease_id} -> {spec.toolbox.base}")
+
+
+def _agent_env(spec: DemiGodSpec) -> dict[str, str]:
+    """Environment for the agent process. AGENT_ENV plus the broker coordinates.
+
+    Note what is NOT here and must never be: a Modal token. Modal credentials
+    are workspace-wide, so a demigod holding one could spawn sandboxes and read
+    every sibling's output volume -- which is the isolation this whole design
+    exists to provide.
+    """
+    env = dict(AGENT_ENV)
+    if spec.toolbox is not None:
+        env[ENV_URL] = spec.toolbox.base
+        env[ENV_LEASE] = spec.toolbox.lease_id
+    return env
+
+
 def _exec_agent(sandbox: modal.Sandbox, spec: DemiGodSpec) -> int:
     """Run the in-sandbox entrypoint, streaming its logs to our stdout.
 
@@ -162,7 +206,7 @@ def _exec_agent(sandbox: modal.Sandbox, spec: DemiGodSpec) -> int:
         SPEC_PATH,
         workdir=OUT_MOUNT,
         timeout=spec.max_lifetime_s,
-        env=AGENT_ENV,
+        env=_agent_env(spec),
     )
     for line in proc.stdout:
         print(f"[{spec.name}] {line}", end="")
