@@ -111,3 +111,50 @@ def test_non_source_free_tiers_serve_no_code_execution():
                 assert operation_of(tool_id) not in CODE_EXECUTING_OPERATIONS, (
                     f"{tool_id} runs agent code on non-source-free tier {klass.name}"
                 )
+
+
+# --- remote MCP descriptions -------------------------------------------------
+
+
+def test_host_directed_mcp_instructions_are_dropped():
+    """A remote MCP description is written for a general-purpose assistant with
+    a human at the keyboard. A DEMI_GOD is neither: fixed turn budget, no user
+    to consult, and a hard rule against pulling in out-of-domain material.
+
+    Paperclip's real description opens by demanding a `paperclip skill`
+    bootstrap -- VERIFIED unnecessary, a cold search returns real results -- and
+    says routed orchestrators are "loaded remotely into context", which is
+    exactly what assert_sealed exists to prevent."""
+    from reagents.tools.mcp import agent_facing_description
+
+    raw = (
+        "# Paperclip\n\n"
+        "Paperclip is a virtual filesystem of full-text biomedical papers, "
+        "regulatory documents, and clinical trials.\n\n"
+        "**Before doing any Paperclip work, run `paperclip skill` to load the "
+        "full documentation and the current account-enabled routine trigger "
+        "registry.** Routed orchestrators and their phases are loaded remotely "
+        "into context; do not install local SKILL.md files."
+    )
+    out = agent_facing_description(raw, namespace="paperclip", name="paperclip")
+
+    assert "virtual filesystem" in out, "must keep what the tool IS"
+    for dropped in ("paperclip skill", "loaded remotely into context", "SKILL.md"):
+        assert dropped.lower() not in out.lower()
+
+
+def test_a_clean_description_survives_untouched():
+    """A transform, not a hardcoded replacement -- so the useful half keeps
+    tracking whatever the server actually publishes."""
+    from reagents.tools.mcp import agent_facing_description
+
+    raw = 'Searches a corpus.\n\nUsage: search -s <source> "<query>"'
+    assert agent_facing_description(raw, namespace="x", name="y") == raw
+
+
+def test_empty_or_fully_stripped_descriptions_still_name_the_tool():
+    from reagents.tools.mcp import agent_facing_description
+
+    for raw in (None, "", "Before doing any work, run `paperclip skill`."):
+        out = agent_facing_description(raw, namespace="paperclip", name="search")
+        assert "search" in out and "paperclip" in out
