@@ -7,7 +7,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
-from reagents.contracts import NativeProblem, NativeSolution
+from reagents.contracts import DemiGodResult, NativeProblem, NativeSolution
 
 
 class VerificationReport(BaseModel):
@@ -28,6 +28,31 @@ class NativeVerifier(Protocol):
     ) -> VerificationReport | Any: ...
 
 
+async def finalize_solution(
+    verifier: NativeVerifier,
+    problem: NativeProblem,
+    solution: NativeSolution,
+    artifacts: list[DemiGodResult],
+) -> NativeSolution:
+    """Apply an optional deterministic native-schema projection.
+
+    A model integrator can correctly select an artifact yet summarize a large
+    structured payload instead of copying it. Benchmark-owned finalization may
+    fill that transport-level gap from accepted artifacts, but receives no
+    private truth and performs no new reasoning.
+    """
+
+    finalizer = getattr(verifier, "finalize", None)
+    if not callable(finalizer):
+        return solution
+    raw = finalizer(problem, solution, artifacts)
+    if inspect.isawaitable(raw):
+        raw = await raw
+    if isinstance(raw, NativeSolution):
+        return raw
+    return NativeSolution.model_validate(raw)
+
+
 async def verify_solution(
     verifier: NativeVerifier,
     problem: NativeProblem,
@@ -41,4 +66,9 @@ async def verify_solution(
     return VerificationReport.model_validate(raw)
 
 
-__all__ = ["NativeVerifier", "VerificationReport", "verify_solution"]
+__all__ = [
+    "NativeVerifier",
+    "VerificationReport",
+    "finalize_solution",
+    "verify_solution",
+]

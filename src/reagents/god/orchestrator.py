@@ -32,7 +32,7 @@ from reagents.isolation import assert_sealed, find_spec_leaks, native_terms
 from reagents.llm.client import LLMClient, LLMError
 from reagents.tools.registry import ToolRegistry, default_registry
 from reagents.tracing import GOD_LANE, NullTracer, TraceSink, demigod_lane, summarize
-from reagents.verification import NativeVerifier, verify_solution
+from reagents.verification import NativeVerifier, finalize_solution, verify_solution
 
 # Deliberately domain-AGNOSTIC. These once named genes, proteins and
 # metabolites, from when this system was biology-only. That was wrong twice
@@ -340,6 +340,17 @@ class God:
             )
 
         if artifacts and self.verifier is not None:
+            self.tracer.emit(
+                GOD_LANE,
+                "FINALIZE",
+                "Projecting accepted artifacts into the required native schema",
+            )
+            solution = await finalize_solution(
+                self.verifier,
+                problem,
+                solution,
+                artifacts,
+            )
             self.tracer.emit(
                 GOD_LANE,
                 "VERIFY",

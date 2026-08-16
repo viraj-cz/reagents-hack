@@ -100,3 +100,48 @@ def test_missing_target_fails_before_private_scoring():
     score = score_solution({"structured_answer": answer}, private=True)
     assert not score["passed"] and score["score_10"] == 0
     assert any("missing targets" in error for error in score["errors"])
+
+
+def test_finalizer_copies_public_artifact_vectors_without_private_truth():
+    from reagents.contracts import DemiGodResult
+
+    answer = _answer("ridge")
+    candidates = {
+        item["target_id"]: {
+            "delta_vector": item["predicted_delta"],
+            "interaction_class": item["interaction_class"],
+            "confidence": item["confidence"],
+            "falsifier": item["falsifier"],
+        }
+        for item in answer["predictions"]
+    }
+    artifact = DemiGodResult(
+        domain_name="linear_superposition_residual",
+        claim="The residual algebra candidate is the primary vector source.",
+        payload={"candidate_solution": candidates},
+        confidence=0.6,
+        method="Copied the public candidate vectors returned by the Broker.",
+    )
+    incomplete = NativeSolution(
+        problem_id=load_problem().id,
+        answer="selected residual algebra",
+        structured_answer={
+            "selected_primary_vector_source": "linear_superposition_residual",
+            "predictions": [
+                {
+                    "target_id": item["target_id"],
+                    "interaction_class": item["interaction_class"],
+                    "confidence": item["confidence"],
+                    "falsifier": item["falsifier"],
+                }
+                for item in answer["predictions"]
+            ],
+        },
+        confidence=0.6,
+    )
+    finalized = NormanPerturbSeqVerifier().finalize(
+        load_problem(), incomplete, [artifact]
+    )
+    report = NormanPerturbSeqVerifier().verify(load_problem(), finalized)
+    assert report.passed
+    assert len(finalized.structured_answer["predictions"][0]["predicted_delta"]) == 64

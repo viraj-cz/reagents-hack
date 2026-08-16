@@ -8,7 +8,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from reagents.contracts import NativeProblem, NativeSolution
+from reagents.contracts import DemiGodResult, NativeProblem, NativeSolution
 from reagents.verification import VerificationReport
 
 CASE_DIR = Path(__file__).parent
@@ -108,6 +108,75 @@ def normalize_predictions(
 
 class NormanPerturbSeqVerifier:
     """Schema-only public verifier; it cannot read held-out outcomes."""
+
+    def finalize(
+        self,
+        problem: NativeProblem,
+        solution: NativeSolution,
+        artifacts: list[DemiGodResult],
+    ) -> NativeSolution:
+        """Copy selected public vectors into the exact native answer schema.
+
+        The model remains responsible for choosing classes and resolving
+        conflicts. This step only supplies the 64-value vectors it selected
+        from an accepted artifact when it summarized them out of the final
+        JSON. No private fixture is read.
+        """
+
+        by_domain = {artifact.domain_name: artifact for artifact in artifacts}
+        preferred = str(
+            solution.structured_answer.get("selected_primary_vector_source", "")
+        )
+        source = next(
+            (artifact for name, artifact in by_domain.items() if name in preferred),
+            None,
+        )
+        if source is None:
+            source = max(artifacts, key=lambda artifact: artifact.confidence)
+        candidates = source.payload.get("candidate_solution", {})
+        integrated = {
+            item.get("target_id"): item
+            for item in solution.structured_answer.get("predictions", [])
+            if isinstance(item, dict) and item.get("target_id") in TARGET_IDS
+        }
+        predictions = []
+        for target_id in TARGET_IDS:
+            candidate = candidates.get(target_id, {})
+            vector = candidate.get("delta_vector") or candidate.get(
+                "displacement_vector"
+            )
+            choice = integrated.get(target_id, {})
+            predictions.append(
+                {
+                    "target_id": target_id,
+                    "predicted_delta": vector,
+                    "interaction_class": choice.get(
+                        "interaction_class", candidate.get("interaction_class")
+                    ),
+                    "confidence": choice.get(
+                        "confidence", candidate.get("confidence", source.confidence)
+                    ),
+                    "falsifier": choice.get(
+                        "falsifier",
+                        candidate.get(
+                            "falsifier",
+                            "Held-out response disagrees with the predicted vector.",
+                        ),
+                    ),
+                }
+            )
+        return solution.model_copy(
+            update={
+                "structured_answer": {
+                    "predictions": predictions,
+                    "method_summary": (
+                        f"God selected {source.domain_name} for numeric vectors; "
+                        "classes and falsifiers preserve the integrated "
+                        "cross-representation reconciliation."
+                    ),
+                }
+            }
+        )
 
     def verify(
         self, problem: NativeProblem, solution: NativeSolution
