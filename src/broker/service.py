@@ -339,7 +339,7 @@ SPONSOR = ExecutorClass(
     # Remote MCP tools: no science stack, just an HTTP client. Isolated from the
     # science classes so a sponsor endpoint being slow cannot occupy a container
     # that a solver is queued behind.
-    namespaces=frozenset({"paperclip", "biomni"}),
+    namespaces=frozenset({"paperclip"}),
     extras=("httpx>=0.28,<1", "mcp>=1.27,<2"),
     memory_mb=2048,
     cpu=1.0,

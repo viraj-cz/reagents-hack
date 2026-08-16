@@ -15,10 +15,8 @@ from typing import Any
 from reagents.contracts import RiskTier, ToolAccess, ToolProvider
 from reagents.tools.registry import Tool, ToolExecutionError, ToolRegistry
 
-
 class MCPConfigurationError(RuntimeError):
     pass
-
 
 @dataclass(frozen=True)
 class MCPServerConfig:
@@ -55,7 +53,6 @@ class MCPServerConfig:
             return None
         return {item.strip() for item in raw.split(",") if item.strip()}
 
-
 SPONSOR_MCP_SERVERS = (
     MCPServerConfig(
         namespace="paperclip",
@@ -72,21 +69,7 @@ SPONSOR_MCP_SERVERS = (
         access=ToolAccess.WRITE,
         risk_tier=RiskTier.MODERATE,
     ),
-    MCPServerConfig(
-        namespace="biomni",
-        url="https://mcp.phylo.bio/mcp",
-        description=(
-            "Biomni integrated biology environment and managed biological "
-            "workflows."
-        ),
-        auth_header="Authorization",
-        auth_env="BIOMNI_MCP_AUTHORIZATION",
-        allowed_tools_env="BIOMNI_MCP_ALLOWED_TOOLS",
-        access=ToolAccess.WRITE,
-        risk_tier=RiskTier.MODERATE,
-    ),
-)
-
+    )
 
 def configure_sponsor_mcp(registry: ToolRegistry) -> None:
     """Register namespace loaders without making any network calls."""
@@ -95,7 +78,6 @@ def configure_sponsor_mcp(registry: ToolRegistry) -> None:
             config.namespace,
             lambda config=config: discover_mcp_tools(config),
         )
-
 
 class MCPToolExecutor:
     def __init__(self, config: MCPServerConfig, remote_name: str) -> None:
@@ -118,7 +100,6 @@ class MCPToolExecutor:
         return {
             "content": [_model_dump(block) for block in getattr(result, "content", [])]
         }
-
 
 async def discover_mcp_tools(config: MCPServerConfig) -> list[Tool]:
     """Connect only when selected, discover schemas, then create leased adapters."""
@@ -167,7 +148,6 @@ async def discover_mcp_tools(config: MCPServerConfig) -> list[Tool]:
         )
     return discovered
 
-
 _HOST_ONLY_MARKERS: tuple[str, ...] = (
     # Bootstrap the server wants an interactive client to run first. VERIFIED
     # UNNECESSARY: a cold `search -s pmc "..."` against Paperclip returns real
@@ -193,7 +173,6 @@ domain. Dropping these lines is a deliberate transform, not censorship -- and
 it is a TRANSFORM rather than a hardcoded replacement string so the useful half
 still tracks whatever the server actually publishes.
 """
-
 
 def agent_facing_description(
     remote_description: str | None, *, namespace: str, name: str
@@ -221,7 +200,6 @@ def agent_facing_description(
     if not trimmed:
         return f"{name} provided by the {namespace} MCP server."
     return trimmed
-
 
 @asynccontextmanager
 async def _mcp_session(config: MCPServerConfig) -> AsyncIterator[Any]:
@@ -251,14 +229,12 @@ async def _mcp_session(config: MCPServerConfig) -> AsyncIterator[Any]:
         await session.initialize()
         yield session
 
-
 def _model_dump(value: Any) -> Any:
     if hasattr(value, "model_dump"):
         return value.model_dump(mode="json", by_alias=True, exclude_none=True)
     if isinstance(value, (str, int, float, bool, type(None), list, dict)):
         return value
     return str(value)
-
 
 def _remote_access(remote: Any, default: ToolAccess) -> ToolAccess:
     annotations = getattr(remote, "annotations", None)

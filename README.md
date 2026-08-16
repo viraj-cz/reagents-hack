@@ -161,7 +161,7 @@ runs the identical code behind `--network none --read-only`.
 | `engineering` | `engineering.*` | Cantera, NumPy, SciPy, SymPy, Pint |
 | `lean` | `formal.lean_check` only | Lean 4 + mathlib (a large image; its own tier so Z3 never waits behind it) |
 | `design` | `design.proto_*` | Proto, from a pinned git ref. Off unless `REAGENTS_BROKER_PROTO=1` |
-| `sponsor` | `paperclip.*`, `biomni.*` | httpx, mcp |
+| `sponsor` | `paperclip.*`, .*` | httpx, mcp |
 
 ```bash
 uv run python scripts/preflight_executor.py                 # build + probe one tier
