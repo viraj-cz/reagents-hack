@@ -15,3 +15,6 @@ build/
 .pytest_cache/
 .ruff_cache/
 scratch/
+.eval_cache/
+.eval_workspace/
+results/

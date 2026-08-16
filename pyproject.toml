@@ -43,6 +43,9 @@ engineering = [
     "cantera>=3.1,<4",
     "openmm>=8.2,<9",
 ]
+txbench = [
+    "latch-eval-tools>=0.4.27",
+]
 
 [project.scripts]
 reagents = "reagents.__main__:main"

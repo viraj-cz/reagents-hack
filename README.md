@@ -366,3 +366,30 @@ Programmatic callers can pass a `TerminalTracer` or another `TraceSink` to
 view.
 
 Live LLM execution additionally requires the `llm` extra and `ANTHROPIC_API_KEY`.
+
+## TxBench-PP harness
+
+The public [TxBench-PP](https://benchmarks.bio/txbench) evals live in the
+`txbench-pp/` submodule. `agent.py` is the plug-in point: `run_agent` calls
+`God.solve`, seeds `work_dir/data` into the run's shared volume, and spawns
+one Modal demigod per invented domain. Do not rewrite `runner.py` or
+`grader.py`.
+
+```bash
+git submodule update --init txbench-pp
+uv sync --extra txbench --extra llm
+uv run latch login     # eval data lives on Latch; one-time browser login
+uv run python main.py --list
+uv run python main.py CTRL01_no_cc1_gate_for_crizotinib_hits
+```
+
+God's loop needs `ANTHROPIC_API_KEY` in `.env`. Demigods read theirs from the
+Modal secret `demigod-anthropic`. Defaults are 2 domains and 10 turns
+(`REAGENTS_TXBENCH_DOMAINS`, `REAGENTS_TXBENCH_TURNS`).
+
+`load_eval` splits each eval into a public `Task` and a private grader spec.
+Only the task reaches `run_agent`. The workspace is a temp directory with eval
+files hardlinked into `data/`. Return the answer dict, or text containing
+`<EVAL_ANSWER>...</EVAL_ANSWER>`. This repo has 12 public evals; the
+leaderboard is 100, withheld. Public scores are harness checks, not official
+numbers. See `TRAJECTORY_ANALYSIS.md` for what winning public trajectories do.

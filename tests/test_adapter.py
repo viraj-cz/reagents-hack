@@ -159,6 +159,12 @@ def test_mapped_tools_resolve_into_the_demigod_registry():
     assert spec.miscellaneous["unavailable_tools"] == ["graph.build"]
 
 
+def test_shared_files_add_pandas_so_the_sandbox_can_read_them():
+    spec = envelope_to_spec(make_envelope(), files=["observations.csv"])
+    assert spec.tools == ["pandas"]
+    assert spec.files == ["observations.csv"]
+
+
 def test_a_tool_map_naming_an_unregistered_key_fails_at_spec_time():
     """Mapping to a key demigod does not have must fail here, not inside a
     live sandbox as an ImportError.

@@ -59,10 +59,18 @@ class Integrator:
             f"Native problem id: {problem.id}\n"
             f"Statement: {problem.statement}\n"
             f"Question: {problem.question}\n"
-            f"Entities: {problem.entities}\n\n"
-            f"Inverse maps: {maps}\n\n"
-            f"Artifacts:\n"
+            f"Entities: {problem.entities}\n"
         )
+        if problem.constraints:
+            user += "\nConstraints (apply to the final answer):\n"
+            for constraint in problem.constraints:
+                user += f"- {constraint}\n"
+            user += (
+                "If a constraint requires a JSON object, `answer` must be that "
+                "object as compact JSON text — no markdown fences, no surrounding "
+                "prose. Put explanations in domain_contributions.\n"
+            )
+        user += f"\nInverse maps: {maps}\n\nArtifacts:\n"
         for artifact in artifacts:
             # `confidence` and `unknowns` are new to the integrator: the first
             # lets it weight conflicting claims instead of treating every
