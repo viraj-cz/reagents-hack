@@ -130,7 +130,16 @@ def envelope_to_spec(
     tool_map = tool_map or {}
     brokered = set(toolbox.tool_ids) if toolbox else set()
 
-    mapped = [tool_map[t] for t in envelope.domain.tool_ids if t in tool_map]
+    mapped = list(
+        dict.fromkeys(
+            tool_map[t] for t in envelope.domain.tool_ids if t in tool_map
+        )
+    )
+    # Shared input files are tables the demigod can only read if pandas is in
+    # the image. Without this, a plan that named only in-process tools spawned
+    # a sandbox that could see shared/ and had no way to open it.
+    if files and "pandas" not in mapped:
+        mapped.append("pandas")
     unmapped = [
         t
         for t in envelope.domain.tool_ids
