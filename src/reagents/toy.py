@@ -94,6 +94,63 @@ def simple_problem() -> NativeProblem:
     )
 
 
+def arithmetic_problem() -> NativeProblem:
+    """The EASY tier: one multiplication and one subtraction.
+
+    Here to be beneath the machinery, not to exercise it. There is no second
+    coordinate system worth inventing for `100 - 17 x 4.25`, so a planner free
+    to choose should choose none and answer it -- which is what it does. It is
+    the cheapest observable proof that the fan-out tracks the problem: measured
+    live at 2 model calls and 7.4s, against the two sealed demigods a fixed
+    count would have spent on it.
+    """
+    return NativeProblem(
+        id="shop-change",
+        statement=(
+            "A shop sells notebooks at 4.25 each. A customer buys 17 of them "
+            "and pays with a 100 note."
+        ),
+        entities=["notebook", "customer"],
+        constraints=["Give the amount in the same currency unit as the prices."],
+        question="How much change does the customer receive?",
+        required_outputs=["the change owed"],
+    )
+
+
+def schedule_problem() -> NativeProblem:
+    """The MEDIUM tier: real dependencies, one obvious representation.
+
+    Not arithmetic -- the answer needs the dependency structure, and the two
+    non-critical branches are both 9 days against the critical path's 10, so
+    guessing at the longest single task gets it wrong. But the representation
+    that settles it (a precedence graph and its longest walk) is so clearly the
+    right one that a rival language mostly paraphrases it. Live, GOD chose two
+    domains here: topology and geometry.
+    """
+    return NativeProblem(
+        id="release-schedule",
+        statement=(
+            "Five tasks must be completed to ship a release. Design takes 3 "
+            "days. Backend takes 5 days and cannot start until design is done. "
+            "Frontend takes 4 days and also cannot start until design is done. "
+            "Integration takes 2 days and needs both backend and frontend "
+            "finished. Documentation takes 6 days and needs only design "
+            "finished. The release goes out when every task is complete. "
+            "Any number of tasks may run at the same time."
+        ),
+        entities=["design", "backend", "frontend", "integration", "documentation"],
+        constraints=[
+            "A task starts only once every task it depends on has finished.",
+            "There is no limit on how many tasks run concurrently.",
+        ],
+        question=(
+            "What is the shortest possible time to ship, and which tasks "
+            "determine it?"
+        ),
+        required_outputs=["the shortest schedule length", "the determining tasks"],
+    )
+
+
 def toy_domains() -> list[DomainSpec]:
     return [
         DomainSpec(

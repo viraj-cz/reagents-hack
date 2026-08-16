@@ -165,9 +165,16 @@ class ResolutionApp:
             # call -- which reads as "the orchestrator broke" rather than "this
             # server was never set up for live inference".
             _require_live_support()
-        domain_count = int(body.get("domains") or 3)
-        if not 1 <= domain_count <= 5:
-            raise _HttpError(400, "domains must be between 1 and 5")
+        # `null`/absent means GOD decides how many domains the problem is worth,
+        # including none at all. Checked with `is None` rather than falsiness so
+        # an explicit 0 is still rejected by the range check below instead of
+        # being silently read as "dynamic".
+        raw_domains = body.get("domains")
+        domain_count: int | None = None
+        if raw_domains is not None:
+            domain_count = int(raw_domains)
+            if not 1 <= domain_count <= 5:
+                raise _HttpError(400, "domains must be between 1 and 5")
 
         execution = str(body.get("execution") or EXECUTION_INPROCESS)
         if execution not in EXECUTIONS:

@@ -92,7 +92,13 @@ class GodRequest(BaseModel):
 
     run_id: str
     problem: NativeProblem
-    domain_count: int = 2
+    domain_count: int | None = None
+    """How many DEMI_GODs to spawn, or None to leave it to GOD.
+
+    None by default: GOD reads the problem and decides, down to none at all for
+    something it can just answer. An integer pins the count for cost control and
+    binds in both directions -- it will spawn that many on a trivial problem."""
+
     max_turns: int = 12
     """Per-demigod turn cap. THE cost lever -- every turn is an Anthropic call."""
 

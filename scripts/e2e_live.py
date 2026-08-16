@@ -1,7 +1,7 @@
 """End-to-end: GOD plans and seals -> DEMI_GODs in sandboxes -> GOD integrates.
 
-    uv run python scripts/e2e_live.py                 # 2 domains, 6 turns each
-    uv run python scripts/e2e_live.py --problem flareguard --domains 4
+    uv run python scripts/e2e_live.py                 # GOD picks the domain count
+    uv run python scripts/e2e_live.py --domains 2     # pin it, for a bounded bill
     uv run python scripts/e2e_live.py --no-broker     # without brokered tools
 
 The only path that exercises the whole system at once. Everything below it has
@@ -10,13 +10,17 @@ the manifest round trip, nested spawning -- but the span from God's planner
 through the adapter into a sandbox and back into the integrator has not.
 
 COST. Every God phase and every demigod turn is an Anthropic call; Modal
-compute is cents beside that. Defaults are deliberately small: 2 domains, 6
-turns. Rough shape of one run at defaults:
+compute is cents beside that. THE DOMAIN COUNT IS NO LONGER FIXED -- GOD reads
+the problem and decides, so the bill is a function of how hard it judges the
+problem to be. A trivial one can cost a single call and spawn nothing at all; a
+hard one can spawn more sandboxes than the old default of 2 ever did. Rough
+shape of a run that lands on two domains:
 
     1 planner call + 2 transform calls + 1 integrate call   (God)
     2 sandboxes x <=12 turns                                (the demigods)
 
-Raise --domains/--turns only once the pipeline is known to work.
+Pass --domains to pin the count when the bill has to be predictable, and raise
+--turns only once the pipeline is known to work.
 
 Progress uses the same God/subagent terminal stream as the library entrypoint.
 """
@@ -104,8 +108,14 @@ def instrument(god: God) -> None:
     # `failed_domains=` keyword.
     async def plan(problem, *args, **kwargs):
         n = kwargs.get("n", args[0] if args else None)
-        stage(f"PLAN: inventing {n} orthogonal domains")
+        stage(
+            f"PLAN: inventing {n} orthogonal domains"
+            if n
+            else "PLAN: deciding how many orthogonal domains this is worth"
+        )
         specs = await planner_plan(problem, *args, **kwargs)
+        if not specs:
+            stage("PLAN: none earn a demigod; GOD answers this one directly")
         for s in specs:
             axes = ", ".join(a.value for a in s.axes)
             stage(f"PLAN: '{s.name}' [{axes}] tools={s.tool_ids}")
@@ -165,7 +175,7 @@ def make_toolbox(enabled: bool):
 
 
 async def run_once(
-    domains: int,
+    domains: int | None,
     turns: int,
     run_id: str,
     problem_name: str,
@@ -180,7 +190,7 @@ async def run_once(
     elif problem_name == "perturbseq2":
         os.environ["REAGENTS_ENABLE_NORMAN_V2_BENCHMARK"] = "1"
     problem, input_paths = load_problem(problem_name)
-    stage(f"START run_id={run_id} domains={domains} turns={turns}")
+    stage(f"START run_id={run_id} domains={domains or 'GOD decides'} turns={turns}")
     stage(f"PROBLEM: {problem.id} -- {problem.question}")
     shared_files: list[str] = []
     if input_paths:
@@ -377,7 +387,10 @@ async def run_once(
 
     # Artifacts survive on the volume regardless of what the integrator said.
     print(f"\nartifacts on volume: uv run modal volume ls demigod-run-{run_id}-out")
-    return 0 if trace.artifacts else 1
+    # `direct` runs have no artifacts BY DESIGN -- GOD judged the problem not
+    # worth a demigod and answered it. Failing them for an empty artifact list
+    # would report the cheap correct path as a broken run.
+    return 0 if (trace.artifacts or trace.direct) else 1
 
 
 def _print_tool_trace(artifact) -> None:
@@ -429,7 +442,12 @@ def load_env_file() -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--domains", type=int, default=2)
+    parser.add_argument(
+        "--domains",
+        type=int,
+        default=None,
+        help="Pin the domain count. Omitted, GOD decides from the problem.",
+    )
     parser.add_argument("--turns", type=int, default=12)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument(

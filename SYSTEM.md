@@ -33,9 +33,9 @@ Intended eval path:
 
 1. `viraj/env` calls `run_agent(task, work_dir)`.
 2. God turns that into a `NativeProblem` (statement = task, files = `work_dir/data`).
-3. God invents orthogonal domains and projects the complete problem into each.
-   Inverse maps stay on God.
-4. God emits `DemiGodSpec`s and calls `spawn_demigod` N times with one `run_id`, seeding `shared/` from `work_dir/data`.
+3. God decides how many orthogonal domains the problem is worth — possibly none — and projects the complete problem into each.
+   Inverse maps stay on God. No domain means God answers natively (`god/direct.py`) and steps 4–6 do not happen.
+4. God emits `DemiGodSpec`s and calls `spawn_demigod` once per domain with one `run_id`, seeding `shared/` from `work_dir/data`.
 5. Each sandbox writes `out/<name>/result.json`.
 6. God reads those manifests, inverse-maps, integrates, and returns the eval JSON inside `<EVAL_ANSWER>`.
 
@@ -70,9 +70,10 @@ God’s functions (it has no other jobs):
 
 | Function | Module | Job |
 |---|---|---|
-| `Planner.invent` | `god/planner.py` | Invent *n* domains: name, 1–2 axes, language, 2–4 catalog tool IDs, artifact schema, abstract forbidden rules. |
+| `Planner.invent` | `god/planner.py` | Invent domains — how many is the planner's judgement unless an operator pins `n`, and zero is legal. Each: name, 1–2 axes, language, 2–4 catalog tool IDs, artifact schema, abstract forbidden rules. |
 | `structural_critic` / `llm_critic` | same | Reject shared primary axes, tool Jaccard > 0.3, paraphrased languages, unknown tools. |
-| `Planner.plan` | same | `registry.load_deferred()` then invent/critic up to 4 rounds. |
+| `Planner.plan` | same | `registry.load_deferred()` then invent/critic up to 4 rounds. Returns `[]` when no domain earns its sandbox; one domain skips the pairwise critic. |
+| `answer_directly` | `god/direct.py` | The zero-domain ending: one native answer, nothing spawned, still natively verified. |
 | `Transformer.forward` | `god/transformer.py` | Project into domain symbols only. Retry on native-name leaks. |
 | `God.build_envelope` | `god/orchestrator.py` | Entire demigod-visible world. Strips God’s transform notes. |
 | `_spawn` | same | Write / high-risk approval, `registry.bind`, run the worker. |

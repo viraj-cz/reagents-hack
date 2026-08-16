@@ -1,6 +1,6 @@
 """`god` -- launch a GOD run, then check in on it from anywhere.
 
-    uv run god launch --problem simple --domains 2 --turns 12
+    uv run god launch --problem simple --turns 12
     uv run god status <run_id>
     uv run god watch  <run_id>
     uv run god list
@@ -310,7 +310,13 @@ def build_parser() -> argparse.ArgumentParser:
     launch.add_argument(
         "--problem-file", default=None, help="Path to a NativeProblem JSON file"
     )
-    launch.add_argument("--domains", type=int, default=2)
+    launch.add_argument(
+        "--domains",
+        type=int,
+        default=None,
+        help="Pin the DEMI_GOD count. Omit it and GOD decides from the problem, "
+        "including deciding to answer simple ones itself.",
+    )
     launch.add_argument("--model", default="claude-opus-4-8")
     launch.add_argument(
         "--turns",

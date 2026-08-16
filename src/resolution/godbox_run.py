@@ -40,7 +40,7 @@ def build_request(
     run_id: str,
     problem: Any,
     *,
-    domain_count: int,
+    domain_count: int | None,
     max_turns: int,
 ) -> Any:
     from godbox.layout import GodRequest

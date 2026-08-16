@@ -428,6 +428,14 @@ button {
   border: 1px solid var(--w-34);
 }
 
+/* `margin-left: auto` rather than a spacer element, because the row wraps: a
+   flex-grow spacer stays on line one with the label and leaves the control
+   flush LEFT on line two, which is the opposite of the intent. An auto margin
+   pushes it right on whichever line it lands on. */
+.execution-row .seg {
+  margin-left: auto;
+}
+
 .seg button {
   padding: 8px 14px;
   font-family: var(--mono);
@@ -440,6 +448,17 @@ button {
 
 .seg button:last-child {
   border-right: none;
+}
+
+/* The dynamic-domains option. A glyph rather than a word because it sits in a
+   row of single digits, and "AUTO" at this letter-spacing is wider than 2/3/4
+   put together. Sized up slightly: the seg's 10px is set for uppercase text and
+   renders this mark too faint to read as a control. */
+.seg button.icon {
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 0;
+  padding: 6px 12px;
 }
 
 .seg button[aria-pressed='true'] {
@@ -471,6 +490,38 @@ button {
 .preset[aria-pressed='true'] {
   border-color: var(--white);
   background: var(--w-12);
+}
+
+.preset-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+/* Difficulty reads as an outline, not a traffic light: the palette is two
+   colours by rule, and easy/medium/hard here means "how much a second opinion
+   is worth", not "how likely this is to go wrong". Weight carries the ramp. */
+.tier {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border: 1px solid var(--w-22);
+  color: var(--w-52);
+  white-space: nowrap;
+}
+
+.tier.medium {
+  border-color: var(--w-34);
+  color: var(--w-70);
+}
+
+.tier.hard {
+  border-color: var(--white);
+  color: var(--white);
+  font-weight: 700;
 }
 
 .preset .name {

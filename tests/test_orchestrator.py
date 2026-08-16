@@ -214,3 +214,92 @@ async def test_forbidden_list_leak_is_repaired_not_fatal():
     assert repaired[0].forbidden == list(ABSTRACT_FORBIDDEN)
     assert problem.entities[0] not in " ".join(repaired[0].forbidden)
     assert isinstance(solution, NativeSolution)
+
+
+@pytest.mark.asyncio
+async def test_god_answers_simple_problems_without_spawning_anything():
+    """Zero domains means zero sandboxes and a native answer.
+
+    The count is GOD's judgement now, so "this needs no demigod" has to be a
+    reachable ending rather than a run that spawns nothing and reports failure.
+    The trace tells the two apart: no artifacts AND no failures."""
+    from reagents.god.direct import DIRECT_CONTRIBUTION_KEY, DirectAnswer
+    from reagents.god.planner import InventedDomains
+
+    llm = ScriptedLLM(
+        {
+            "invent": InventedDomains(
+                domains=[],
+                rationale="a single arithmetic step",
+            ),
+            "direct": DirectAnswer(
+                answer="4",
+                confidence=0.99,
+                reasoning="2 + 2, carried out directly",
+            ),
+        }
+    )
+    god = God(llm)
+    solution = await god.solve(toy_problem())
+
+    assert solution.answer == "4"
+    assert solution.confidence == 0.99
+    assert solution.domain_contributions == {
+        DIRECT_CONTRIBUTION_KEY: "2 + 2, carried out directly"
+    }
+
+    trace = god.last_trace
+    assert trace.specs == []
+    assert trace.envelopes == []
+    assert trace.artifacts == []
+    assert trace.failures == [], "a direct answer is not a run whose demigods died"
+    assert trace.leaks == []
+    assert trace.solution is solution
+
+
+@pytest.mark.asyncio
+async def test_direct_answers_are_still_natively_verified():
+    """The least-scrutinised path does not get to skip the only hard check."""
+    from reagents.god.direct import DirectAnswer
+    from reagents.god.planner import InventedDomains
+    from reagents.verification import VerificationReport
+
+    class RejectingVerifier:
+        def verify(self, problem, solution):
+            return VerificationReport(passed=False, errors=["off by one"])
+
+    llm = ScriptedLLM(
+        {
+            "invent": InventedDomains(domains=[], rationale="trivial"),
+            "direct": DirectAnswer(answer="5", confidence=0.99),
+        }
+    )
+    solution = await God(llm, verifier=RejectingVerifier()).solve(toy_problem())
+
+    assert solution.verification["passed"] is False
+    assert solution.confidence <= 0.5, "a failed check must cost confidence"
+    assert "native verification: off by one" in solution.gaps
+
+
+@pytest.mark.asyncio
+async def test_direct_runs_are_marked_so_no_artifacts_is_not_read_as_failure():
+    """Exit codes key off `direct`, not off an empty artifact list."""
+    from reagents.god.direct import DirectAnswer
+    from reagents.god.planner import InventedDomains
+
+    llm = ScriptedLLM(
+        {
+            "invent": InventedDomains(domains=[], rationale="trivial"),
+            "direct": DirectAnswer(answer="4", confidence=0.9),
+        }
+    )
+    god = God(llm)
+    await god.solve(toy_problem())
+    assert god.last_trace.direct is True
+
+
+@pytest.mark.asyncio
+async def test_spawning_runs_are_not_marked_direct():
+    god = God(ScriptedLLM.for_toy_pathway())
+    await god.solve(toy_problem())
+    assert god.last_trace.direct is False
