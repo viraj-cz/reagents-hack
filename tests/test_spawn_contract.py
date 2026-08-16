@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from demigod.images import CATALOG, ImageResolutionError, resolve_image
 from demigod.layout import RunLayout
@@ -275,3 +275,66 @@ def test_other_errors_are_not_swallowed_as_turn_limits(message):
     from demigod.entrypoint import _is_turn_limit
 
     assert not _is_turn_limit(Exception(message))
+
+
+# --- model-response parsing --------------------------------------------------
+
+
+def test_balanced_extraction_beats_the_greedy_regex_on_truncation():
+    """A truncated reply that ends on a NESTED closing brace is what broke the
+    second live run. The old greedy `\\{.*\\}` matched first-{ to last-} and
+    returned a fragment whose outer object never closed, surfacing as
+    `ValidationError: EOF while parsing an object` -- a symptom that named
+    neither truncation nor the field. Balanced scanning returns None instead."""
+    from reagents.llm.anthropic_client import _extract_json_object
+
+    truncated = '{"representation": {"a": 1}, "task": "the conserved measure"'
+    assert _extract_json_object(truncated) is None
+
+
+def test_balanced_extraction_finds_a_complete_object_in_prose():
+    from reagents.llm.anthropic_client import _extract_json_object
+
+    assert (
+        _extract_json_object('Here you go: {"a": {"b": 2}} — hope that helps!')
+        == '{"a": {"b": 2}}'
+    )
+
+
+def test_braces_inside_strings_do_not_break_the_depth_count():
+    from reagents.llm.anthropic_client import _extract_json_object
+
+    text = '{"note": "use {curly} braces", "n": 1}'
+    assert _extract_json_object(text) == text
+
+
+def test_truncation_is_reported_as_truncation_not_as_a_schema_error():
+    """The diagnostic that was missing: stop_reason distinguishes 'raise
+    max_tokens' from 'the model wrote something malformed'."""
+    from reagents.llm.anthropic_client import _parse_model
+    from reagents.llm.client import LLMError
+
+    class Draft(BaseModel):
+        a: int
+
+    class FakeMessage:
+        stop_reason = "max_tokens"
+
+    with pytest.raises(LLMError) as e:
+        _parse_model('{"a": {"b": 1}', Draft, FakeMessage())
+    assert "max_tokens" in str(e.value)
+
+
+def test_complete_but_wrong_shape_is_reported_distinctly():
+    from reagents.llm.anthropic_client import _parse_model
+    from reagents.llm.client import LLMError
+
+    class Draft(BaseModel):
+        a: int
+
+    class FakeMessage:
+        stop_reason = "end_turn"
+
+    with pytest.raises(LLMError) as e:
+        _parse_model('{"a": "not-an-int"}', Draft, FakeMessage())
+    assert "did not match the schema" in str(e.value)
