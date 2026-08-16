@@ -169,9 +169,7 @@ def cmd_launch(args: argparse.Namespace) -> int:
         approved_write_tools=args.approve_write,
         approved_high_risk_tools=args.approve_high_risk,
         use_broker=args.broker,
-        verifier_id=(
-            "flareguard-public-v1" if args.problem == "flareguard" else None
-        ),
+        verifier_id=("flareguard-public-v1" if args.problem == "flareguard" else None),
         keep_alive_s=args.keep_alive,
     )
     handle = launch_god(

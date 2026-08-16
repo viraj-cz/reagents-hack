@@ -145,7 +145,7 @@ def main() -> int:
             ),
             (
                 "Anthropic key mounted",
-                ["sh", "-c", "test -n \"$ANTHROPIC_API_KEY\" && echo ok"],
+                ["sh", "-c", 'test -n "$ANTHROPIC_API_KEY" && echo ok'],
             ),
         ]:
             p = sandbox.exec(*cmd, timeout=60)

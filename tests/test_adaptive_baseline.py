@@ -12,9 +12,7 @@ SPEC.loader.exec_module(MODULE)
 
 def test_baseline_prompt_contains_only_public_inputs():
     prompt, digest = MODULE.public_prompt()
-    expected = json.loads(
-        (MODULE.CASE_DIR / "private" / "expected.json").read_text()
-    )
+    expected = json.loads((MODULE.CASE_DIR / "private" / "expected.json").read_text())
 
     assert "observations.csv" in prompt
     assert "type-1 incoherent feed-forward loop" not in prompt
