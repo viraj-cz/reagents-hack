@@ -124,7 +124,6 @@ class SandboxDemigodRuntime:
         # hosts beyond *.anthropic.com, so enabling it untested would break
         # every live run.
         restrict_egress: bool = False,
-        lease_wall_time_s: float | None = None,
     ) -> None:
         self.run_id = run_id
         self.tool_map = tool_map or {}
@@ -156,32 +155,6 @@ class SandboxDemigodRuntime:
         self.model = model or agent_model
         self.require_toolbox = require_toolbox
         self.tracer = tracer or NullTracer()
-        # THE LEASE CLOCK, and why it is not `Budget.wall_time_s`.
-        #
-        # That default is 60s, and it is right for the in-process runtime, where
-        # a bound pack is called microseconds after it is minted. Here the same
-        # 60s starts when GOD mints the lease -- BEFORE the sandbox is created,
-        # before the image is pulled, before the agent has read its envelope.
-        # A demigod that thinks for a minute and then reaches for a tool finds
-        # its authority already expired.
-        #
-        # Observed twice in one live run: "Toolbox lease expired (60s budget)
-        # before any tool call could be made", and a demigod that diagnosed its
-        # own malformed call and ran out of lease before the corrected one could
-        # land. The wall clock was not bounding authority, it was randomly
-        # denying it.
-        #
-        # So it expires WITH the sandbox rather than before it: authority for
-        # exactly as long as the holder exists. The bound that actually limits a
-        # demigod is `max_calls`, which is untouched, along with the tool set and
-        # the write flag. And `_finish_lease` revokes explicitly the moment the
-        # sandbox returns, so the ceiling only matters when something has already
-        # gone wrong.
-        self.lease_wall_time_s = float(
-            lease_wall_time_s
-            if lease_wall_time_s is not None
-            else DemiGodSpec.model_fields["max_lifetime_s"].default
-        )
 
     def set_tracer(self, tracer: TraceSink) -> None:
         """Use God's sink so sandbox and in-process runtimes stream alike."""
