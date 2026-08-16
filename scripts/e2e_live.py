@@ -260,12 +260,10 @@ async def run_once(
         ),
         tracer=TerminalTracer(),
         verifier=verifier,
-        budget=Budget(
-            max_tokens=4096,
-            max_steps=turns,
-            wall_time_s=1200,
-            max_tool_calls=24,
-        ),
+        # Defaults, for the same reason godbox/entrypoint.py uses them: deriving
+        # max_steps from --turns made the turn cap double as a kill switch, and
+        # a demigod killed mid-answer costs its whole spend for nothing.
+        budget=Budget(),
     )
     instrument(god)
     try:
