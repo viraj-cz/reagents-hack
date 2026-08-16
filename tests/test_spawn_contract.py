@@ -15,9 +15,14 @@ from typing import ClassVar
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from demigod.images import CATALOG, ImageResolutionError, resolve_image
+from demigod.images import (
+    CATALOG,
+    ImageResolutionError,
+    required_secret_names,
+    resolve_image,
+)
 from demigod.layout import RunLayout
-from demigod.registry import RegistryError, all_keys, validate_tool_keys
+from demigod.registry import REGISTRY, RegistryError, all_keys, validate_tool_keys
 from demigod.result import (
     ENVELOPE_FIELDS,
     DemiGodResult,
@@ -106,6 +111,56 @@ def test_uncovered_toolset_hard_errors_rather_than_building():
 def test_every_catalog_image_only_claims_registered_tools():
     for image in CATALOG:
         validate_tool_keys(sorted(image.tool_keys))
+
+
+def test_imaging_resolves_and_does_not_displace_the_small_image():
+    """The catalog has to stay NESTED for `resolve_image` to make good choices.
+    A tabular demigod must keep landing on demigod-data, not on the image that
+    carries torch."""
+    assert resolve_image(["imaging"]).name == "demigod-imaging"
+    assert resolve_image(["pandas", "imaging"]).name == "demigod-imaging"
+    assert resolve_image(["pandas"]).name == "demigod-data"
+    assert resolve_image([]).name == "demigod-base"
+
+
+def test_one_pin_per_package_across_any_image_that_co_installs_them():
+    """`PrebakedImage.build` concatenates every entry's `install` into ONE
+    pip_install, so two entries pinning the same package to different versions
+    is an unsatisfiable requirement set -- a failed bake, discovered at bake
+    time rather than here."""
+    for image in CATALOG:
+        pins: dict[str, str] = {}
+        specs = [s for k in sorted(image.tool_keys) for s in REGISTRY[k].install]
+        for spec in specs:
+            name, _, version = spec.partition("==")
+            assert version, f"{image.name}: {spec!r} is unpinned"
+            if name in pins:
+                assert pins[name] == version, (
+                    f"{image.name} would install {name} at both {pins[name]} "
+                    f"and {version}"
+                )
+            pins[name] = version
+
+
+def test_torch_is_installed_from_the_cpu_index_not_pypi():
+    """PyPI's linux torch wheel bundles CUDA -- several GB in an image that
+    `spawn_demigod` runs with no GPU, paid on every cold sandbox. The `+cpu`
+    local version exists only on the PyTorch index, so the pin cannot silently
+    fall back."""
+    imaging = next(i for i in CATALOG if i.name == "demigod-imaging")
+    assert imaging.base_pip_index_url == "https://download.pytorch.org/whl/cpu"
+    assert all(spec.endswith("+cpu") for spec in imaging.base_pip)
+    # And no entry may pin torch itself, or pip resolves it before the CPU
+    # build is in place.
+    for entry in REGISTRY.values():
+        assert not any(s.startswith("torch") for s in entry.install)
+
+
+def test_imaging_needs_no_credentials():
+    """Reading an image with a MODEL is `vision.read_image`, which is brokered
+    precisely so no key is ever mounted into a sandbox."""
+    assert REGISTRY["imaging"].secrets == ()
+    assert required_secret_names(["imaging", "pandas"]) == []
 
 
 # --- volume layout ----------------------------------------------------------

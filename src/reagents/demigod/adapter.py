@@ -32,6 +32,11 @@ someone else owns, the other is a library on your own disk.
   id, and the demigod calls the real function over HTTP with `toolbox call`.
   The ids do not change: `formal.z3_solve` is `formal.z3_solve` on both sides.
 
+One tool is BOTH, and `DEFAULT_TOOL_MAP` is where that is written down:
+`vision.read_image` is a broker callable, and choosing it also bakes the
+`imaging` pip stack into the sandbox, because sending an image to the broker
+means opening and re-encoding it locally first.
+
 Anything in neither -- no image key, no broker lease -- is still reported to the
 agent as unavailable, loudly, in `miscellaneous`. A silently-dropped tool
 produces an agent that invents results it had no way to compute.
@@ -52,6 +57,51 @@ _NON_SLUG = re.compile(r"[^a-z0-9]+")
 
 MAX_NAME_LEN = 32
 MIN_NAME_LEN = 3
+
+DEFAULT_TOOL_MAP: dict[str, str] = {
+    # Picking the brokered vision tool also bakes the local imaging stack in.
+    #
+    # These are two halves of one capability and GOD only gets to express one of
+    # them: the planner chooses from the *reagents* catalog, which has no notion
+    # of a pip package. Without this line a domain that asks to read images gets
+    # a sandbox that can send one to the broker and cannot open, window, crop or
+    # re-encode it first -- and the vision API takes PNG, not the 16-bit OME-TIFF
+    # sitting in shared/. Mapping it here means one GOD decision ("this domain's
+    # evidence is pictures") produces an agent that can both measure and see.
+    "vision.read_image": "imaging",
+}
+"""reagents tool id -> demigod image key, applied under any caller-supplied map.
+
+Caller-supplied entries win: this is a default, not a policy.
+"""
+
+IMAGE_SUFFIXES = (
+    ".tif",
+    ".tiff",
+    ".ome.tif",
+    ".ome.tiff",
+    ".ome.zarr",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".nd2",
+    ".czi",
+    ".lif",
+    ".svs",
+)
+"""Shared-file extensions that mean the run's inputs are images.
+
+Includes the vendor microscopy formats (`.nd2`, `.czi`, `.lif`, `.svs`) even
+though nothing in the `imaging` entry reads them. That is deliberate: the agent
+cannot open them, and it should discover that with tifffile and scikit-image in
+hand so it can say so precisely in `blockers`, rather than in a bare image where
+the whole diagnosis is "there is a file I cannot read".
+"""
+
+
+def _looks_like_image(path: str) -> bool:
+    return path.lower().endswith(IMAGE_SUFFIXES)
 
 
 def slugify_domain_name(name: str) -> str:
@@ -130,23 +180,25 @@ def envelope_to_spec(
     the broker. Off by default -- turning a prompt instruction into a firewall
     rule is a change in behaviour, and it should be one someone opted into.
     """
-    tool_map = tool_map or {}
+    tool_map = {**DEFAULT_TOOL_MAP, **(tool_map or {})}
     brokered = set(toolbox.tool_ids) if toolbox else set()
 
     mapped = list(
-        dict.fromkeys(
-            tool_map[t] for t in envelope.domain.tool_ids if t in tool_map
-        )
+        dict.fromkeys(tool_map[t] for t in envelope.domain.tool_ids if t in tool_map)
     )
     # Shared input files are tables the demigod can only read if pandas is in
     # the image. Without this, a plan that named only in-process tools spawned
     # a sandbox that could see shared/ and had no way to open it.
     if files and "pandas" not in mapped:
         mapped.append("pandas")
+    # Same argument, one format up: a shared .ome.tif is unreadable without an
+    # image stack, and pandas does not open one. Keyed off the files rather than
+    # off the plan because this is about what the run PUT in shared/, which GOD
+    # may not have reflected in its tool choices.
+    if any(_looks_like_image(f) for f in files or ()) and "imaging" not in mapped:
+        mapped.append("imaging")
     unmapped = [
-        t
-        for t in envelope.domain.tool_ids
-        if t not in tool_map and t not in brokered
+        t for t in envelope.domain.tool_ids if t not in tool_map and t not in brokered
     ]
 
     misc: dict[str, Any] = {

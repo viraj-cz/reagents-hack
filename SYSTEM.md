@@ -113,14 +113,17 @@ Lease is immutable **by broker policy**. `CapabilityLease` is documented as immu
 
 ### Catalog (God-spawn)
 
-Always local: `build_graph`, `rewrite_edge`, `find_cycles`, `cut`, `match_motif`, `simplify`, `solve`, `dimensional_check`, `simulate`, `sample`, `entropy`, `compress`, `embed`, `distance`.
+Always local: `build_graph`, `rewrite_edge`, `find_cycles`, `cut`, `match_motif`, `simplify`, `solve`, `dimensional_check`, `simulate`, `sample`, `entropy`, `compress`, `embed`, `distance`, `vision.read_image`.
+
+`vision.read_image` is the image path and is ungated so God's catalog matches the broker's. It is LOCAL only in the dispatch sense — it runs inline in the router, which is where `OPENAI_API_KEY` is mounted (`BROKER_CREDENTIAL_ENV_VARS`), never in a sandbox. Selecting it also maps to the `imaging` package key via `DEFAULT_TOOL_MAP`, so the agent can open and re-encode a file before sending it.
 
 If containers enabled: `formal.lean_check`, `formal.z3_solve`, `biology.sequence_stats`, `chemistry.rdkit_descriptors`, `design.proto_check`, `reasoning.python`, `biology.python`, `engineering.python`, `design.proto_run`.
 
 If MCP enabled: `paperclip.*` from `https://paperclip.gxl.ai/mcp`, `biomni.*` from `https://mcp.phylo.bio/mcp` (cap 24 each, optional allowlists). Cursor OAuth for those servers does **not** populate this catalog. Headless God still needs `PAPERCLIP_API_KEY` / `BIOMNI_MCP_AUTHORIZATION` to discover, or planning continues with local tools only.
 
 The spawn-agent package registry is separate and closed for packages such as
-`pandas`. Callable tools take the Broker path instead: God publishes the exact
+`pandas` and `imaging` (scikit-image, cellpose on CPU torch, tifffile,
+imagecodecs, OME-Zarr, dask, matplotlib). Callable tools take the Broker path instead: God publishes the exact
 capability lease, the demigod receives only its URL and lease ID, and the Broker
 executes and audits every call. Free-text names fail before a billed sandbox.
 

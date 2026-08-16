@@ -62,7 +62,7 @@ your symbols are translated back. Nothing else is assigned to fill a gap for you
 # Your tools
 
 {tools_section}
-{toolbox_section}
+{toolbox_section}{image_section}
 You have Read, Write, Edit, Glob, Grep and Bash. Anything not listed above is
 not installed, and installing things is not your job -- if you need a tool you
 do not have, that is a `blocker`, not a detour.
@@ -179,6 +179,7 @@ def build_system_prompt(spec: DemiGodSpec) -> str:
         )
 
     toolbox_section = build_toolbox_section(spec)
+    image_section = build_image_section(spec)
 
     misc_section = ""
     if spec.miscellaneous:
@@ -198,6 +199,7 @@ def build_system_prompt(spec: DemiGodSpec) -> str:
         files_section=files_section,
         tools_section=tools_section,
         toolbox_section=toolbox_section,
+        image_section=image_section,
         result_filename=RESULT_FILENAME,
         # The domain's artifact_schema replaces the generic `payload` slot, so
         # the agent is shown the exact structure it must produce rather than a
@@ -270,6 +272,75 @@ def build_toolbox_section(spec: DemiGodSpec) -> str:
         example=example,
         ids=", ".join(f"`{i}`" for i in ids),
     )
+
+
+VISION_TOOL_ID = "vision.read_image"
+"""The brokered vision tool, by id. Matches `reagents.tools.vision.TOOL_ID`.
+
+Duplicated as a literal rather than imported, and it has to be: `demigod` never
+imports `reagents` (tests/test_package_boundary.py enforces it), because that is
+what keeps GOD's planner unreadable from inside a sandbox. A tool id is a wire
+string on the toolbox protocol, which this package already owns both ends of.
+"""
+
+IMAGING_TOOL_KEY = "imaging"
+
+_IMAGE_RULE = """
+## Anything with an image in it goes through `{vision}`
+
+If the evidence for a claim is a picture -- a micrograph, a plate photograph, a
+gel or blot, a slide, a chromatogram, a scanned figure or plot, a screenshot of
+instrument output -- you call `{vision}` and look at it. This is not one option
+among several. An image you did not look at is an image you are guessing about,
+and a guess dressed as an observation is the worst thing you can put in a
+manifest.
+
+Two rules that decide whether the answer is any good:
+
+- **Never describe an image you have not sent.** A filename, a path, a caption
+  or a metadata field is not evidence of what is in the frame. If you cannot
+  send it, that is a `blocker`.
+- **Ask for the observation, not for a description.** "How many wells are
+  confluent, and which ones" is evidence. "Describe this image" is prose you
+  will not be able to cite.
+
+Encode it and pass it as `image_base64` (PNG/JPEG/WEBP/GIF, roughly 2.5 MB
+decoded at most -- crop or downscale to the region your question is about;
+convert TIFF first), or give a public `image_url`. Run
+`toolbox describe {vision}` for the exact schema, and save the answer with
+`-o` so the reading survives as an artifact.
+"""
+
+_MEASURE_ONLY_RULE = """
+## You can measure images, but you cannot see them
+
+`{imaging}` computes over pixels -- threshold, segment, count, quantify. Nothing
+in your environment looks at an image and tells you what is in it, and the
+brokered vision tool is not in your lease.
+
+So: report what you measured, and be explicit in `unknowns` about what a look at
+the image would have settled -- focus, artifacts, contamination, whether your
+segmentation actually found the objects you think it found. Do not narrate the
+content of an image from its filename or its metadata.
+"""
+
+
+def build_image_section(spec: DemiGodSpec) -> str:
+    """The image-handling rule, rendered only for agents it applies to.
+
+    Conditional on purpose. This paragraph is permanent context in every turn,
+    and a demigod reasoning about a rewrite system has no images and no vision
+    tool -- for it the rule is pure noise competing with the manifest contract
+    for attention. Two audiences get something, and they get different things:
+    an agent that CAN see is told to, and an agent that can only measure is told
+    where that stops.
+    """
+    grant = spec.toolbox
+    if grant is not None and VISION_TOOL_ID in grant.tool_ids:
+        return _IMAGE_RULE.format(vision=VISION_TOOL_ID)
+    if IMAGING_TOOL_KEY in spec.tools:
+        return _MEASURE_ONLY_RULE.format(imaging=IMAGING_TOOL_KEY)
+    return ""
 
 
 def build_task_prompt(spec: DemiGodSpec) -> str:

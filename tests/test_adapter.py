@@ -165,6 +165,47 @@ def test_shared_files_add_pandas_so_the_sandbox_can_read_them():
     assert spec.files == ["observations.csv"]
 
 
+def test_choosing_the_vision_tool_also_bakes_the_imaging_stack():
+    """The two halves of one capability. God can only name the broker callable;
+    without the default map the agent gets a sandbox that can send an image to
+    the broker and cannot open, window or re-encode one first."""
+    spec = envelope_to_spec(
+        make_envelope(tool_ids=["vision.read_image", "graph.build"])
+    )
+    assert spec.tools == ["imaging"]
+    assert spec.miscellaneous["unavailable_tools"] == ["graph.build"]
+
+
+def test_a_caller_supplied_map_still_wins_over_the_default():
+    spec = envelope_to_spec(
+        make_envelope(tool_ids=["vision.read_image", "graph.build"]),
+        tool_map={"vision.read_image": "pandas"},
+    )
+    assert spec.tools == ["pandas"]
+
+
+def test_shared_image_files_add_imaging_so_the_sandbox_can_open_them():
+    """Same argument as the pandas rule one format up: a shared .ome.tif is
+    unreadable in a bare image, and pandas does not open one."""
+    spec = envelope_to_spec(make_envelope(), files=["field01.ome.tif"])
+    assert spec.tools == ["pandas", "imaging"]
+
+
+def test_shared_csv_alone_does_not_drag_in_the_imaging_stack():
+    """It is the heaviest image in the catalog. Tabular runs must not pay for
+    torch because the rule was written too broadly."""
+    spec = envelope_to_spec(make_envelope(), files=["observations.csv"])
+    assert spec.tools == ["pandas"]
+
+
+def test_imaging_is_not_added_twice_when_both_paths_fire():
+    spec = envelope_to_spec(
+        make_envelope(tool_ids=["vision.read_image", "graph.build"]),
+        files=["plate.png"],
+    )
+    assert spec.tools.count("imaging") == 1
+
+
 def test_a_tool_map_naming_an_unregistered_key_fails_at_spec_time():
     """Mapping to a key demigod does not have must fail here, not inside a
     live sandbox as an ImportError.
