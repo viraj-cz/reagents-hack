@@ -355,6 +355,28 @@ The 35M checkpoint runs on CPU in seconds, which is why this tier has no `gpu=`
 and therefore costs nothing at min_containers=0. Switch to
 `esm2_t33_650M_UR50D` for quality and add `gpu="A10G"` -- the accelerator is
 then attached to THIS function alone, never held while a demigod is thinking.
+
+NO STRUCTURE PREDICTION HERE, AND THAT IS DELIBERATE. The obvious way to add
+ESMFold without hosting it is the public endpoint at
+`api.esmatlas.com/foldSequence/v1/pdb/`. Measured 2026-08-16, it is not usable
+for this system:
+
+    known 78-mer      -> 200 in 1.18s
+    tiled 400-mer     -> 200 in 1.14s
+    401+ residues     -> 413, hard cap at 400
+    novel 90-mer, x4  -> 504 every time (~29s gateway timeout)
+
+A 400-residue fold does not complete in 1.1s, so the fast 200s are cache hits
+and anything needing real inference times out. Retries do not warm it. That
+fails exactly where we need it: a demigod submits sequences nobody has folded
+before. Caveat on the measurement -- one novel sequence, one IP -- but the
+400-mer succeeding AFTER a 150-mer had already failed argues for the cache
+explanation over simple rate limiting.
+
+If structure is genuinely needed, self-host ESMFold as its own GPU tier rather
+than reaching for the API. Note that `esm_contacts` below already gives the
+residue-residue contact map, which is the topology of the fold and the part
+that survives the seal as pure numbers.
 """
 
 ESM = ExecutorClass(
