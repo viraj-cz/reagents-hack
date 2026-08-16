@@ -1,7 +1,8 @@
 """End-to-end: GOD plans and seals -> DEMI_GODs in sandboxes -> GOD integrates.
 
     uv run python scripts/e2e_live.py                 # 2 domains, 6 turns each
-    uv run python scripts/e2e_live.py --problem flareguard --domains 4 --broker
+    uv run python scripts/e2e_live.py --problem flareguard --domains 4
+    uv run python scripts/e2e_live.py --no-broker     # without brokered tools
 
 The only path that exercises the whole system at once. Everything below it has
 been proven separately -- images, mounts, the filesystem API, the agent loop,
@@ -32,7 +33,7 @@ import time
 import uuid
 from pathlib import Path
 
-from reagents.contracts import Budget, NativeProblem, RiskTier
+from reagents.contracts import Budget, NativeProblem
 from reagents.demigod.sandbox_runtime import SandboxDemigodRuntime, seed_shared_files
 from reagents.god.orchestrator import God
 from reagents.llm.anthropic_client import DEFAULT_MODEL
@@ -145,15 +146,14 @@ def instrument(god: God) -> None:
 def make_toolbox(enabled: bool):
     """The TOOLBOX_BROKER provider for `SandboxDemigodRuntime`, or None.
 
-    OPT-IN, and it stays opt-in. Passing a session mints a live credential per
-    demigod and points it at a deployed broker; that should be something a
-    caller asked for, not something a default did. Without it the run is exactly
-    what it was -- and what it was is the reason this flag exists: a demigod with
-    no brokered tools solves numerically by writing its own Python through Bash,
-    which works, costs turns, and proves nothing about the broker.
+    ON by default now, off with `--no-broker`. It was opt-in while the broker
+    was unproven, and the cost of that caution was runs reporting `brokered
+    tool calls: 0` with a healthy router: a demigod with no brokered tools
+    solves numerically by writing its own Python through Bash, which works,
+    costs turns, and proves nothing about the broker.
 
-    Imported here rather than at module scope so a plain run never constructs a
-    `modal.App` for the broker or touches its grant store.
+    Imported here rather than at module scope so `--no-broker` never constructs
+    a `modal.App` for the broker or touches its grant store.
     """
     if not enabled:
         return None
@@ -169,10 +169,9 @@ async def run_once(
     turns: int,
     run_id: str,
     problem_name: str,
-    broker: bool = False,
-    approve_high_risk: bool = False,
+    broker: bool = True,
+    require_broker: bool = False,
     result_out: Path | None = None,
-    approved_high_risk_tools: set[str] | None = None,
     model: str = DEFAULT_MODEL,
 ) -> int:
     started_at = time.time()
@@ -225,29 +224,11 @@ async def run_once(
     # lane-labelled, so a parallel fan-out is readable in a single terminal --
     # no tmux, no per-sandbox tail. The orchestrator and SandboxDemigodRuntime
     # already emit into it; God.__init__ forwards the sink to the runtime.
-    # Operator approval is a HUMAN decision the orchestrator refuses to make
-    # for itself, so a script that never offers it can never reach a code-
-    # running tool: `reasoning.python` is RiskTier.HIGH, and a run without this
-    # flag fails that domain with "high-risk tools require operator approval"
-    # before the sandbox is even created. Observed live -- it is why the first
-    # brokered run reached zero container tools.
-    high_risk = set(approved_high_risk_tools or set())
-    if approve_high_risk:
-        high_risk.update(
-            spec.id
-            for spec in default_registry().specs()
-            if spec.risk_tier == RiskTier.HIGH
-        )
-    if high_risk:
-        stage(
-            f"OPERATOR: approving {len(high_risk)} high-risk tools: {sorted(high_risk)}"
-        )
     llm = make_llm(model)
     god = God(
         llm,
         registry=registry,
         domain_count=domains,
-        approved_high_risk_tools=high_risk,
         # The seam. Swap for the default in-process runtime and the same God
         # loop runs without any infrastructure at all.
         runtime=SandboxDemigodRuntime(
@@ -255,8 +236,16 @@ async def run_once(
             max_turns=turns,
             shared_files=shared_files,
             toolbox=make_toolbox(broker),
-            require_toolbox=broker,
-            restrict_egress=broker,
+            # DECOUPLED from `broker` on purpose. Both of these were tied to it
+            # when `--broker` was an explicit opt-in, where "I asked for the
+            # broker" reasonably meant "and enforce it". The broker is the
+            # DEFAULT now, and defaulting these with it would mean every run
+            # without a deployed broker fails every demigod (require_toolbox)
+            # under an egress policy the code itself calls untested
+            # (restrict_egress: "enabling it untested would break every live
+            # run"). Strictness stays something you ask for: --require-broker.
+            require_toolbox=require_broker,
+            restrict_egress=require_broker,
             model=model,
         ),
         tracer=TerminalTracer(),
@@ -353,9 +342,6 @@ async def run_once(
                     ).hexdigest(),
                     "started_at_unix": started_at,
                     "elapsed_s": round(time.time() - started_at, 3),
-                    "approved_high_risk_tools": sorted(
-                        approved_high_risk_tools or set()
-                    ),
                     "broker_required": broker,
                     "egress_restricted": broker,
                     "god_usage": (
@@ -465,16 +451,6 @@ def main() -> int:
         "real held-out Norman responses from raw training primitives and "
         "demigod-authored models",
     )
-    parser.add_argument(
-        "--approve-high-risk",
-        action="store_true",
-        help=(
-            "Grant operator approval for RiskTier.HIGH tools (reasoning.python, "
-            "engineering.python, biology.python -- they execute arbitrary code). "
-            "Without this a demigod granted one fails before spawning, which is "
-            "the gate working as designed. Set it deliberately."
-        ),
-    )
     parser.add_argument("--run-id", default=None)
     parser.add_argument(
         "--result-out",
@@ -483,23 +459,20 @@ def main() -> int:
         help="Write the solution, artifacts, and failures to a local JSON record.",
     )
     parser.add_argument(
-        "--approve-high-risk-tool",
-        action="append",
-        default=[],
-        metavar="TOOL_ID",
-        help=(
-            "Record operator approval for one exact high-risk tool ID. Repeat "
-            "the option to approve more than one; no wildcard is supported."
-        ),
+        "--require-broker",
+        action="store_true",
+        help="fail a demigod outright if the broker is unreachable, and pin "
+        "sandbox egress to the agent API plus the broker. Off by default: "
+        "without it an absent broker costs the tools, not the run.",
     )
     parser.add_argument(
-        "--broker",
-        action="store_true",
-        help="publish each demigod's lease to the deployed TOOLBOX_BROKER and "
-        "hand it the URL, so it can call brokered tools instead of writing its "
-        "own Python. Requires `uv run modal deploy -m broker.service` (or "
-        "TOOLBOX_BROKER_URL pointing at a `modal serve` URL). Off by default: "
-        "minting a live credential should be an explicit act.",
+        "--no-broker",
+        dest="broker",
+        action="store_false",
+        help="do NOT publish a lease; each demigod reasons from shared/ and "
+        "whatever Python it writes itself. The broker is on by default -- a "
+        "demigod that can reach its tools should. Use this to exercise the "
+        "spawn path alone, or when no broker is deployed.",
     )
     args = parser.parse_args()
 
@@ -553,9 +526,8 @@ def main() -> int:
             run_id,
             args.problem,
             broker=args.broker,
-            approve_high_risk=args.approve_high_risk,
+            require_broker=args.require_broker,
             result_out=args.result_out,
-            approved_high_risk_tools=set(args.approve_high_risk_tool),
             model=args.model,
         )
     )

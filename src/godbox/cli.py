@@ -167,7 +167,6 @@ def cmd_launch(args: argparse.Namespace) -> int:
         max_turns=args.turns,
         model=args.model,
         approved_write_tools=args.approve_write,
-        approved_high_risk_tools=args.approve_high_risk,
         use_broker=args.broker,
         verifier_id=("flareguard-public-v1" if args.problem == "flareguard" else None),
         keep_alive_s=args.keep_alive,
@@ -329,7 +328,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Seconds GOD stays up after finishing, for poking at it. Billed.",
     )
     launch.add_argument("--approve-write", nargs="*", default=[], metavar="TOOL_ID")
-    launch.add_argument("--approve-high-risk", nargs="*", default=[], metavar="TOOL_ID")
     launch.add_argument(
         "--broker",
         action="store_true",

@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 
-from reagents.contracts import RiskTier, ToolAccess, ToolProvider
+from reagents.contracts import ToolAccess, ToolProvider
 from reagents.tools.registry import Tool, ToolExecutionError, ToolRegistry
 
 class MCPConfigurationError(RuntimeError):
@@ -29,7 +29,6 @@ class MCPServerConfig:
     allowed_tools_env: str | None = None
     max_tools: int = 24
     access: ToolAccess = ToolAccess.READ
-    risk_tier: RiskTier = RiskTier.LOW
 
     def headers(self) -> dict[str, str]:
         if not self.auth_header:
@@ -67,7 +66,6 @@ SPONSOR_MCP_SERVERS = (
         # Unknown/unannotated remote operations default to write-denied. Properly
         # annotated read-only search/read tools are downgraded during discovery.
         access=ToolAccess.WRITE,
-        risk_tier=RiskTier.MODERATE,
     ),
     )
 
@@ -130,7 +128,6 @@ async def discover_mcp_tools(config: MCPServerConfig) -> list[Tool]:
                         executor=MCPToolExecutor(config, remote.name),
                         provider=ToolProvider.MCP,
                         access=_remote_access(remote, config.access),
-                        risk_tier=config.risk_tier,
                         cost_class="remote",
                         latency_class="network",
                         defer_loading=True,

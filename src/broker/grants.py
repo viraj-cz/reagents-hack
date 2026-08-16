@@ -156,7 +156,7 @@ def mint_grant(
     """Wrap an existing lease for publication. Does NOT create authority.
 
     Leases are minted by `ToolRegistry.mint_lease` under GOD's policy checks
-    (operator approval for write and high-risk tools). If the broker could mint
+    (operator approval for write tools). If the broker could mint
     its own, a bug here would become a privilege escalation there.
     """
     return Grant(
