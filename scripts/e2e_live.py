@@ -253,7 +253,35 @@ async def run_once(
         ),
     )
     instrument(god)
-    solution = await god.solve(problem)
+    try:
+        solution = await god.solve(problem)
+    except Exception as exc:
+        if result_out is not None:
+            result_out.parent.mkdir(parents=True, exist_ok=True)
+            result_out.write_text(
+                json.dumps(
+                    {
+                        "kind": "reagents_pipeline",
+                        "status": "failed",
+                        "run_id": run_id,
+                        "problem_id": problem.id,
+                        "model": model,
+                        "started_at_unix": started_at,
+                        "elapsed_s": round(time.time() - started_at, 3),
+                        "error_type": type(exc).__name__,
+                        "error": str(exc),
+                        "god_usage": (
+                            llm.usage_summary()
+                            if hasattr(llm, "usage_summary")
+                            else {"model": model}
+                        ),
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            print(f"\nfailed run record: {result_out}")
+        raise
 
     stage("COMPLETE")
     trace = god.last_trace

@@ -12,6 +12,7 @@ from reagents.god.anonymize import anonymize_problem
 from reagents.isolation import find_spec_leaks, native_terms
 from reagents.llm.client import LLMClient
 from reagents.tools.registry import ToolRegistry, UnknownToolError, tool_jaccard
+from reagents.tracing import GOD_LANE, NullTracer, TraceSink
 
 JACCARD_THRESHOLD = 0.3
 LANGUAGE_OVERLAP_THRESHOLD = 0.5
@@ -35,6 +36,8 @@ Each domain MUST:
 - name a representation language (graph, algebra, orbits, measures, rewrite system, ...)
   not a strategy ("think harder about pathways" is illegal)
 - choose 2-4 tools from the allowed tool list only
+- use tool descriptions to bind one coherent representation family; when the
+  catalog is large enough, keep tool sets disjoint across domains
 - include an artifact JSON schema requiring candidate_solution (object),
   constraint_results (object), certificate (object), and conclusion (string)
 - list abstract forbidden rules
@@ -229,7 +232,12 @@ def structural_critic(
 
 
 class Planner:
-    def __init__(self, llm: LLMClient, registry: ToolRegistry) -> None:
+    def __init__(
+        self,
+        llm: LLMClient,
+        registry: ToolRegistry,
+        tracer: TraceSink | None = None,
+    ) -> None:
         self.llm = llm
         self.registry = registry
         self.last_plan_compromises: list[str] = []
@@ -237,7 +245,7 @@ class Planner:
 
         Non-empty means `plan` ran out of rounds and returned its best set
         anyway. Readable by a caller that would rather fail than proceed."""
-
+        self.tracer = tracer or NullTracer()
         self.last_symbol_map: dict[str, str] = {}
         """Symbol -> native entity for the most recent plan. GOD's alone.
 
@@ -252,20 +260,16 @@ class Planner:
         *,
         avoid: list[DomainSpec] | None = None,
         forbidden_axes: list[Axis] | None = None,
-        rejected_because: list[str] | None = None,
+        feedback: list[str] | None = None,
     ) -> list[DomainSpec]:
         avoid = avoid or []
         forbidden_axes = forbidden_axes or []
-        retry = ""
-        if rejected_because:
-            retry = (
-                "The previous attempt was rejected for these reasons. Fix them "
-                "rather than varying the wording:\n"
-                + "\n".join(f"- {r}" for r in rejected_because)
-                + "\n\n"
-            )
+        feedback = feedback or []
+        catalog = [
+            {"id": spec.id, "description": spec.description}
+            for spec in self.registry.specs()
+        ]
         user = (
-            f"{retry}"
             f"Invent exactly {n} domains for this native problem.\n\n"
             f"id: {problem.id}\n"
             f"statement: {problem.statement}\n"
@@ -273,10 +277,11 @@ class Planner:
             f"constraints: {problem.constraints}\n"
             f"question: {problem.question}\n\n"
             f"Allowed axes: {[a.value for a in Axis]}\n"
-            f"Allowed tools: {self.registry.ids()}\n"
+            f"Allowed tool catalog: {catalog}\n"
             f"Do not use primary axes: {[a.value for a in forbidden_axes]}\n"
-            f"Do not reuse names: {[s.name for s in avoid]}\n"
-            f"Existing languages to stay away from: {[s.language for s in avoid]}\n"
+            f"Prior domains to replace or stay distinct from: "
+            f"{[{'name': s.name, 'language': s.language, 'tool_ids': s.tool_ids} for s in avoid]}\n"
+            f"Rejection reasons to correct: {feedback}\n"
         )
         invented = await self.llm.complete(
             system=INVENT_SYSTEM,
@@ -329,7 +334,7 @@ class Planner:
         # than nothing. Scored by how many objections the critic raised.
         best: list[DomainSpec] = specs
         best_reasons: list[str] = ["not yet judged"]
-        for _ in range(max_rounds):
+        for round_index in range(max_rounds):
             structural = structural_critic(specs, self.registry, terms=terms)
             verdict = structural
             if structural.ok:
@@ -337,8 +342,16 @@ class Planner:
                 if verdict.ok:
                     self.last_plan_compromises = []
                     return specs
-            if len(verdict.reasons) < len(best_reasons):
+            if best_reasons == ["not yet judged"] or len(verdict.reasons) < len(
+                best_reasons
+            ):
                 best, best_reasons = specs, verdict.reasons
+            self.tracer.emit(
+                GOD_LANE,
+                "REPLAN",
+                f"domain set rejected on round {round_index + 1}/{max_rounds}",
+                data=list(verdict.reasons),
+            )
             colliding = set(verdict.colliding_names)
             if not colliding:
                 colliding = {s.name for s in specs}
@@ -349,11 +362,7 @@ class Planner:
                 len(colliding),
                 avoid=specs,
                 forbidden_axes=forbidden_axes,
-                # WHY the previous attempt was rejected. Regenerating without it
-                # is asking the model to guess, and it will happily reproduce
-                # the same leak -- the Transformer already feeds its leaks back
-                # for exactly this reason (see transformer.forward).
-                rejected_because=verdict.reasons,
+                feedback=verdict.reasons,
             )
             specs = kept + replacements
 

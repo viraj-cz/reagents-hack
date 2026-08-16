@@ -70,7 +70,7 @@ class God:
         # demigod can grant itself. IDs must match the discovered catalog exactly.
         self.approved_write_tools = frozenset(approved_write_tools or set())
         self.approved_high_risk_tools = frozenset(approved_high_risk_tools or set())
-        self.planner = Planner(llm, self.registry)
+        self.planner = Planner(llm, self.registry, tracer=self.tracer)
         self.transformer = Transformer(llm)
         self.integrator = Integrator(llm)
         # WHERE a demigod executes is injected, not hardcoded. The default runs
