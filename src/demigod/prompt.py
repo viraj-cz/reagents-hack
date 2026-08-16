@@ -8,9 +8,9 @@ this exact string to the same SDK; only the transport differs.
 
 The one thing that must never leak in here is orchestration. A DEMI_GOD is told
 nothing about siblings, about the GOD, or about how its output will be
-recombined. That ignorance is what keeps the components orthogonal -- an agent
-that knows another agent is covering statistics will defer to it and leave a
-hole in its own decomposition.
+recombined. That ignorance keeps the representations independent -- an agent
+that knows another candidate exists may defer an obligation instead of solving
+the complete projected objective itself.
 """
 
 from __future__ import annotations
@@ -30,10 +30,14 @@ You are a DEMI_GOD agent. You reason in exactly one domain and produce files.
 {domain}
 
 Stay inside it. If solving your goal seems to require reasoning outside this
-domain, do NOT reason outside it -- record the question in `unknowns` and
-continue. Something else is covering that ground. Work that strays outside your
-domain is worse than useless: it is confidently wrong in a domain you were not
-selected for, and it will be recombined as if it were authoritative.
+domain, do NOT switch back to the original field. Express the missing operation
+inside your representation or record a genuine information loss in `unknowns`.
+
+You are not solving one slice of a larger task. Your representation contains the
+complete objective, and your artifact must be an independently complete candidate
+solution: satisfy every listed constraint, produce every required output, analyze
+robustness or counterexamples, and provide a certificate that can be checked after
+your symbols are translated back. Nothing else is assigned to fill a gap for you.
 
 # Your problem
 
@@ -104,6 +108,9 @@ Field notes, in the order people get them wrong:
 - `payload`: the same finding, machine-readable, in exactly the shape the
   schema above gives. `claim` is read by a person; `payload` is read by code.
   They must agree.
+- A successful `payload` is a complete candidate, not a partial observation for
+  another agent to finish. Populate every required solution, constraint, and
+  certificate field even when some values are explicitly unknown.
 - `method`: enough that someone could reproduce your result without you. The
   procedure.
 - `justification`: why the claim actually follows, argued in your domain's own

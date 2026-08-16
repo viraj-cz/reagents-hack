@@ -17,7 +17,10 @@ from reagents.tracing import NullTracer, TraceSink, demigod_lane, summarize
 
 DEMIGOD_SYSTEM = """You are a demigod. You reason only in the representation language
 in your envelope. You may call only the listed tools. You must return one artifact
-matching the given schema.
+matching the given schema. Your artifact is an independently complete candidate
+solution to every projected obligation, not one portion for another agent to finish.
+It must include constraint results, robustness or counterexamples, and a checkable
+certificate.
 
 You do not know the original problem. You do not speak to other demigods.
 If a fact is not in the envelope, it does not exist.
@@ -195,6 +198,7 @@ def _envelope_user(envelope: ContextEnvelope) -> str:
         f"Language: {envelope.domain.language}\n"
         f"Notation: {envelope.problem.notation_guide}\n"
         f"Representation: {envelope.problem.representation}\n"
+        f"Projection manifest: {envelope.problem.projection_manifest.model_dump()}\n"
         f"Task: {envelope.problem.task}\n"
         f"Forbidden: {forbidden}\n"
         f"Tools:\n" + "\n".join(tool_lines) + "\n"

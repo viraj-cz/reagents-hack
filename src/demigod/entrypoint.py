@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -57,12 +58,24 @@ async def run_agent(spec: DemiGodSpec) -> int:
     print(f"[entrypoint] {spec.name}: domain={spec.domain!r} tools={spec.tools}")
 
     truncated = False
+    runtime_metadata: dict[str, object] = {"model": spec.model}
     try:
         async for message in query(prompt=build_task_prompt(spec), options=options):
             # Coarse but useful: this is what streams back to the caller's
             # console. TODO: structured logging + token/cost accounting once the
             # GOD needs to budget across many DEMI_GODs.
             print(f"[agent] {_summarize(message)}", flush=True)
+            if hasattr(message, "num_turns"):
+                runtime_metadata.update(
+                    {
+                        "num_turns": getattr(message, "num_turns", None),
+                        "duration_ms": getattr(message, "duration_ms", None),
+                        "duration_api_ms": getattr(message, "duration_api_ms", None),
+                        "total_cost_usd": getattr(message, "total_cost_usd", None),
+                        "usage": getattr(message, "usage", None),
+                        "stop_reason": getattr(message, "stop_reason", None),
+                    }
+                )
     except Exception as e:
         if not _is_turn_limit(e):
             raise
@@ -79,7 +92,10 @@ async def run_agent(spec: DemiGodSpec) -> int:
             flush=True,
         )
 
-    return _verify_manifest(spec, truncated=truncated)
+    code = _verify_manifest(spec, truncated=truncated)
+    if code == 0:
+        _attach_runtime_metadata(runtime_metadata)
+    return code
 
 
 _TURN_LIMIT_MARKERS = ("maximum number of turns", "max_turns")
@@ -202,6 +218,15 @@ def _verify_manifest(spec: DemiGodSpec, *, truncated: bool = False) -> int:
         f"{len(result.files)} artifact(s)"
     )
     return 0
+
+
+def _attach_runtime_metadata(metadata: dict[str, object]) -> None:
+    """Add runner-owned usage data without trusting the agent to report it."""
+
+    result = DemiGodResult.read(OUT_MOUNT)
+    clean = json.loads(json.dumps(metadata, default=str))
+    result.miscellaneous = {**result.miscellaneous, "runtime": clean}
+    result.write(OUT_MOUNT)
 
 
 def _salvage(spec: DemiGodSpec, *, reason: str) -> int:

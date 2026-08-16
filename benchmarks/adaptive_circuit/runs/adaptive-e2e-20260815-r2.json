@@ -1,0 +1,403 @@
+{
+  "run_id": "adaptive-e2e-20260815-r2",
+  "problem_id": "adaptive-synthetic-circuit",
+  "approved_high_risk_tools": [
+    "reasoning.python"
+  ],
+  "solution": {
+    "problem_id": "adaptive-synthetic-circuit",
+    "answer": "ARCHITECTURE (smallest signed causal graph explaining wild-type adaptation): a type-1 incoherent feedforward loop. Ligand (D) both (i) drives surface receptor and pathway output Y up quickly via a fast positive arm, and (ii) drives a slow regulator Z whose production reads the input (not Y), and Z in turn represses Y. Concretely: D --(+)--> R, R --(+)--> Y (fast), R --(+)--> Z (slow, synthesis-dependent), Z --(-)--> Y. Y rises within one minute of ligand onset (~0.02 -> 0.96), then relaxes toward baseline as Z accumulates (0.05 -> ~0.91), with output well described by Y ~ 1.06 - Z while ligand is held. There is no directed cycle: adaptation is a feedforward negative arm converging on the output, not a loop. Receptor abundance (R level) is inert (0.99-1.01 throughout), so it is not the adaptation variable.\n\nDISTINGUISHING OBSERVATIONS.\n(1) Against Y-dependent negative feedback: the readout-node deletion condition (Y_KO / Z time course = 0.11, 0.29, 0.61, 0.89) shows Z rises to essentially its normal, full-amplitude course even with Y absent (max delta ~0.02 vs baseline Z). A feedback architecture requires Z production to be driven by Y, so with Y ablated Z could only decay; instead it rises fully. The mirror check: under transcription-block, Y is held high yet Z stays pinned at 0.05-0.06 -- a Y-driven producer would charge Z here and does not. This proves Z is charged by the input, not by the output.\n(2) Against receptor desensitization: surface-receptor abundance is flat (span ~0.02) across every condition while Y swings ~0.81. If adaptation were carried by a self-attenuating receptor, the receptor level would have to fall; it does not, so no receptor in-edge carries effective sign. Also, transcription-block abolishes the return-to-baseline (adaptation is lost), which a receptor-relaxation mechanism would leave intact.\n\nWITHHELD PREDICTION -- Y at minute 8 in Z_KO: approximately 0.93, range [0.90, 0.95] (defensible outer bound [0.88, 0.98]). Rationale: deleting Z removes the only negative in-edge at Y, leaving the residual graph D->R->Y, identical to the residual graph produced by transcription-block; both must therefore give indistinguishable Y. Transcription-block holds Y near 0.90 at minute 8, and Z_KO carries a small (~+0.03) constant offset above it, plus a weak input-independent leak. A value below ~0.85 would refute the architecture; the adapting-feedback alternative would instead predict ~0.15, a separation of roughly 0.78.\n\nSECOND PULSE: WEAKER. The negative arm's state is held on the slow regulator Z, which is charged by the input and is NOT reset when ligand is removed. At the end of the first sustained epoch Z ~ 0.91; shortly after washout it has decayed only slightly, so when the second pulse arrives the repressor is still loaded and immediately suppresses the fast excursion. Predicted second peak ~0.15-0.45 (roughly 16-45% of the first peak ~0.96), the exact value depending on how much Z has cleared during the washout. The direction (weaker) is robust to the unmeasured Z decay rate because Z remains strictly positive for any short washout; only the magnitude is uncertain. Full recovery to a comparable pulse requires a washout of order 3 Z-decay times (~10 min) so that Z falls below ~0.10. Note: receptor abundance being intact at the second pulse does NOT license a full re-rise -- the inhibitor sits downstream of the receptor gate, so gate availability is the wrong invariant.",
+    "confidence": 0.86,
+    "domain_contributions": {
+      "signed_interaction_graph": "Established the 4-edge minimal signed topology by path/cycle sign algebra: D-(+)->R, R-(+)->Y, R-(+)->Z, Z-(-)->Y, with no directed cycle. Identified the two sole discriminators: the Y_KO/Z block (Z rises normally with Y removed) refutes Y-dependent feedback (P->M edge absent), and the flat receptor column refutes receptor desensitization (M->R edge absent). Flagged that a strictly-cyclic negative-feedback constraint is unsatisfiable given the data and must be read as a feedforward negative arm. Withheld cell 0.92, interval [0.86,0.98], equal within tolerance to the transcription-block value 0.90. Second pulse: smaller, because the negative arm's state node stays charged across washout; peak scales with residual Z.",
+      "adaptation_kinetics_field": "Provided the rate-law level confirmation: dY = alpha*ligand - beta*Z*Y (input-driven fast production, Z-dependent sink, no significant Z-independent decay); dZ = gamma*ligand - delta*Z (production reads INPUT not Y, delta ~0.285/min, tau_slow ~3.5 min). Term-level falsification: feedback requires dZ ~ gamma*Y, contradicted by Z rising to 0.89 with Y=0 and staying pinned under transcription-block despite high Y; desensitization requires a receptor drain term, contradicted by flat receptor. Derived structural setpoint invariance Y(inf)=alpha*delta/(beta*gamma) and conserved pool S=Y+Z~1.0. Withheld prediction 0.95 [0.93,0.98] bracketed below by transcription-block 0.90 and above by the Z_KO early plateau 0.98. Second pulse weaker with quantitative washout dependence (recovery at Dw >= ~3 tau_slow ~10 min).",
+      "intervention_discriminator_lattice": "Cast the problem as a discernibility lattice: C1 (Z_KO) and P2 (second pulse) are the transverse symmetry-breaking columns (0.918 bits each), jointly isolating the true mechanism; C0, transcription-block and the withheld resample are degenerate/calibration columns. Confirmed the incoherent feedforward motif Y ~ 1.06 - 1.00*Z (subtractive unit-gain inhibition), excluded the Y->Z edge (Z invariant under readout deletion) and excluded receptor entirely (invariant across all conditions). Withheld Y(8)|Z_KO = 0.93, tight [0.92,0.94]. Second-pulse peak = 1.06 - Z(t_pulse), weaker for any positive residual Z, predicted 0.15-0.45. Noted the transcription-block slow droop (0.95->0.90) is not explained by the minimal graph and may hint at a fourth slower arm at threshold."
+    },
+    "conflicts": [
+      "Withheld Y(8)|Z_KO point estimate differs slightly across artifacts: 0.93 (lattice, tight [0.92,0.94]), 0.92 (signed graph, [0.86,0.98]), 0.95 (kinetics, [0.93,0.98]). Resolved to ~0.93 with range [0.90,0.95]: all three agree it is a high, near-non-adapting value indistinguishable within tolerance from the transcription-block minute-8 value (~0.90), and all agree it is far above the adapting alternative (~0.15).",
+      "Second-pulse magnitude range differs: 0.15-0.45 (lattice/discriminator, Y_peak=1.06-Z) vs 0.26-0.52 (kinetics, using S-Z with S~1.0) vs a graph table spanning 0.1 (M=0.90) to 0.93 (full washout). All agree the SIGN is 'weaker' for a short washout; the spread reflects the unmeasured Z decay constant and the unspecified washout duration. Reported as ~0.15-0.45 for a short washout, with the understanding that a longer washout raises it.",
+      "Whether the negative arm is literally a multiplicative sink (beta*Z*Y) or a subtractive/mass-action transfer (Y ~ S - Z, unit-gain) is not resolved; the linear fit Y ~ 1.06 - Z favors subtractive, but both give identical answers to the asked questions."
+    ],
+    "gaps": [
+      "The Z decay/clearance rate after ligand removal is never measured (no washout condition in the data), so the second-pulse magnitude is a range, not a point; only the 'weaker' direction is firm. A ligand-off time course would collapse this.",
+      "The withheld Z_KO minute-8 value rests on extrapolation from early Z_KO samples (only to ~t=2) anchored to the transcription-block trace; a single direct Z_KO sample at t=4 or t=8 would tighten it.",
+      "The definition of 'shortly after washout' is not quantified against the time grid; the 'weaker' call holds for washouts short relative to the ~3.5 min slow timescale, and would eventually approach a full re-rise past ~10 min.",
+      "The slow ~0.05 droop under transcription-block (0.95->0.90) is not explained by the 4-edge minimal graph and sits exactly at the resolution threshold; it may indicate an additional slow arm requiring a further intervention to expose.",
+      "A strictly-cyclic reading of 'negative feedback' is incompatible with the data; the answer relaxes this to a feedforward negative arm converging on the output. If a strict cycle were enforced, the best surviving (but data-refuted) alternative would be output-through feedback.",
+      "The receptor level is invariant while the receptor gates flux to both Y and Z, so a sign-gauge twin (flipping all receptor-incident edge signs) is unfalsifiable from these data; the receptor's own direction of change under ligand was not resolved."
+    ]
+  },
+  "artifacts": [
+    {
+      "claim": "The lattice completes to a row present in NONE of the supplied rows. Observations force the minimal signed graph \u039b\u2192(+)\u03a6, \u039b\u2192(+)\u03a8 (slow, synthesis-dependent), \u03a8\u2192(\u2212)\u03a6, with \u03a6\u2192\u03a8 excluded (\u03a8 is unchanged when the readout node is deleted, max |\u0394\u03a8|=0.02) and \u03a1 disconnected (\u03a1 spans 0.99\u20131.01 across every condition and \u03c4, spread 0.02 \u2264 0.05). That is a type-1 incoherent feed-forward loop, and the C0 rise-then-relax is quantitatively \u03a8-mediated: \u03a6 \u2248 1.06 \u2212 1.00\u00b7\u03a8 while \u039b is held, max residual 0.04. C1 (\u03a8 deletion) and C2 (synthesis block) null the SAME arm and are observationally identical at threshold (max |\u0394\u03a6| = 0.03 over all co-sampled \u03c4), so {C1, C2, P1} form one intervention symmetry class; C0 and P2 are separate classes. On row-discrimination, C1 breaks the symmetry separating M1 from {M2,M3} (0.918 bits) and P2 breaks the symmetry separating M3 from {M1,M2} (0.918 bits); C0, C2 and P1 leave all three rows degenerate (0 bits). {C1, P2} is the minimal column set guaranteeing isolation of a single row (their product partition is the discrete partition, 1.585 = log2 3); ex post, C1 realizing as sustained lands in the singleton {M1}, so C1 alone suffices given the data actually seen. The withheld entry \u03a6(\u03c4=8) under C1 is 0.93, tight range [0.92, 0.94], threshold band [0.88, 0.98] \u2014 three independent extrapolators (multiplicative shape transfer from the \u03a8-null C2 course, additive C1\u2212C2 offset, and C2 leak-rate extension) agree to within 0.002. The P2 excursion is WEAKER than the C0 initial excursion: predicted peak 0.15\u20130.45 versus 0.96, i.e. 16\u201345% of it. Critically, no supplied row survives every column \u2014 M2 and M3 are killed by C1 (they predict relaxation, \u03a6(\u03c4=8)\u22480.15, against an observed sustained ~0.93), and M1 is killed by C2 (it predicts relaxation where sustained elevation is observed, a 0.75 discrepancy) and by P2 (it predicts a near-full re-rise where the graph forces blunting). The true row is the hybrid M1*: M1's C1 entry, a corrected sustained C2 entry, and M3's P2 entry.",
+      "confidence": 0.82,
+      "payload": {
+        "findings": [
+          {
+            "intervention": "C1",
+            "discriminates": [
+              "M1 vs {M2,M3}",
+              "eliminates M2",
+              "eliminates M3"
+            ],
+            "predicted_signature": "\u27f0\u2197 sustained, no relaxation. Observed \u03a6 = 0.98 (\u03c4=1), 0.97 (\u03c4=2); \u03a6(\u03c4=8) predicted 0.93. Rank 1 by row-discriminative information: 0.918 bits, partition {M1}|{M2,M3}. Symmetry class K1. Necessity test of the \u03a8 arm."
+          },
+          {
+            "intervention": "P2",
+            "discriminates": [
+              "M3 vs {M1,M2}",
+              "eliminates M1",
+              "eliminates M2"
+            ],
+            "predicted_signature": "\u2197\u0336 blunted re-excursion \u2014 WEAKER than the C0 initial excursion. Predicted peak 0.15\u20130.45 vs C0 peak 0.96 (16\u201345%). \u03a6_peak = 1.06 \u2212 \u03a8(t_pulse) with \u03a8 still \u22480.6\u20130.91 at the second pulse. Rank 2: 0.918 bits, partition {M1,M2}|{M3}. Symmetry class K2. Persistence test of the \u03a8 arm; transverse to C1."
+          },
+          {
+            "intervention": "C2",
+            "discriminates": [
+              "eliminates M1",
+              "eliminates M2",
+              "eliminates M3"
+            ],
+            "predicted_signature": "\u27f0\u2197 sustained. Observed \u03a6 = 0.95 (\u03c4=1) \u2192 0.90 (\u03c4=8), with \u03a8 flat at 0.05\u20130.06 (spread 0.01). Rank 3: 0 row-bits (all three rows tabled it as \u27f0\u2198, leaving them degenerate) yet maximal falsifying information \u2014 its realized value has zero likelihood under all three rows, forcing the graph amendment. Symmetry class K1, degenerate with C1 (max |\u0394\u03a6| = 0.03 \u2264 0.05)."
+          },
+          {
+            "intervention": "P1",
+            "discriminates": [],
+            "predicted_signature": "\u03a6(\u03c4=8) | C1 = 0.93; tight range [0.92, 0.94]; threshold band [0.88, 0.98]. Three independent extrapolators agree to 0.002. Rank 4: 0 bits, and 0 bits conditional on C1 \u2014 same symmetry class K1, so it replicates rather than discriminates. Falsifier: any value < 0.85 refutes the graph; the adapting alternative predicts \u22480.15, a separation of 0.78 \u2248 15 threshold widths."
+          },
+          {
+            "intervention": "C0",
+            "discriminates": [],
+            "predicted_signature": "\u27f0\u2198 rise-then-relax. \u03a6 0.96 \u2192 0.15 as \u03a8 0.10 \u2192 0.91, obeying \u03a6 \u2248 1.06 \u2212 1.00\u00b7\u03a8 (max residual 0.04). Rank 5: 0 bits \u2014 all three rows reproduce it by construction. Calibration column, not a test. Symmetry class K0."
+          }
+        ],
+        "symmetry_classes": [
+          "INTERVENTION CLASSES (observational identity at threshold 0.05): K0 = {C0} \u2014 \u03a8 arm intact, \u03a6 adapts. K1 = {C1, C2, P1} \u2014 \u03a8 arm nulled by two independent routes plus the late resample; max |\u0394\u03a6| between C1 and C2 over all co-sampled \u03c4 = 0.03 \u2264 0.05, hence observationally identical. K2 = {P2} \u2014 \u03a8 arm intact and pre-charged; the only column probing \u03a8 persistence rather than \u03a8 necessity.",
+          "ROW CLASSES, per column, as tabled: C0 \u2192 {M1,M2,M3}; C1 \u2192 {M1} | {M2,M3}; C2 \u2192 {M1,M2,M3}; P1 \u2192 {M1,M2,M3} (withheld, no partition); P2 \u2192 {M1,M2} | {M3}; joint C1\u00d7P2 \u2192 {M1} | {M2} | {M3} (discrete, 1.585 bits).",
+          "SYMMETRY-BREAKING COLUMNS: C1 (separates M1 from M2,M3) and P2 (separates M3 from M1,M2). DEGENERATE COLUMNS: C0, C2, P1 \u2014 each induces the trivial one-class partition and leaves all three rows indistinguishable.",
+          "ROW SURVIVAL: M1 ELIMINATED (C2 discrepancy 0.75; P2 predicts near-full re-rise against forced blunting). M2 ELIMINATED (C1: predicts \u03a6(\u03c4=8)\u22480.15, observed \u22480.93). M3 ELIMINATED (C1, same discrepancy) though its P2 entry is the correct one. No supplied row survives every column; the true row is the hybrid M1* = M1's C1 entry + corrected sustained C2 entry + M3's P2 entry. Per the no-collapse constraint, M1/M2/M3 are NOT merged \u2014 they are separated by C1 and P2 at threshold and each is independently refuted."
+        ],
+        "conclusion": "Minimal signed graph over {\u039b,\u03a6,\u03a8,\u03a1}: \u039b\u2192(+)\u03a6 fast, \u039b\u2192(+)\u03a8 slow and synthesis-dependent, \u03a8\u2192(\u2212)\u03a6 subtractive with unit gain (\u03a6 \u2248 1.06 \u2212 1.00\u00b7\u03a8 while \u039b is held, max residual 0.04). \u03a6\u2192\u03a8 is excluded \u2014 \u03a8 is invariant under deletion of the readout node (max |\u0394\u03a8| = 0.02). \u03a1 is excluded entirely \u2014 invariant at 0.99\u20131.01 across every condition and every \u03c4 (spread 0.02). The motif is a type-1 incoherent feed-forward loop; the C0 rise-then-relax is modulator-mediated, not gate-mediated. Symmetry-breaking columns: C1 and P2, 0.918 bits each, transverse partitions. Degenerate columns: C0, C2, P1, 0 bits each \u2014 though C2's realized value falsifies all three tabled rows and is the highest-surprise column in the set. Minimal isolating column set: {C1, P2} ex ante (their product is the discrete partition, 1.585 = log2 3); {C1} suffices ex post because its realized sustained value lands in the singleton cell. WITHHELD ENTRY \u03a6(\u03c4=8) under C1 = 0.93, tight range [0.92, 0.94], threshold band [0.88, 0.98]; falsified by any value below 0.85. P2 AMPLITUDE: WEAKER than the C0 initial excursion \u2014 predicted peak 0.15\u20130.45 against 0.96, i.e. 16\u201345%. The direction is robust to the unmeasured \u03a8 decay constant, since \u03a6_peak = 1.06 \u2212 \u03a8(t_pulse) and \u03a8(t_pulse) > 0 under any decay law; only the magnitude is uncertain. \u03a1 integrity at the second pulse does not license a full re-rise because the inhibitor sits downstream of the gate \u2014 the inference M1 and M2 get wrong."
+      },
+      "method": "1) Read /run/shared/observations.csv. 2) Mapped its columns and conditions onto the lattice by structural role, not by label meaning: 'ligand' is the only 0\u21921-at-\u03c4=1-and-held switch (= \u039b); 'Y' is the only channel showing the rise-then-relax course that defines C0 (= \u03a6); 'Z' is the candidate internal modulator whose knockout condition is truncated exactly at the withheld sample point (= \u03a8); 'surface_receptor' is the third independently measured channel (= \u03a1). Conditions map WT\u2192C0, Z_KO\u2192C1 (and its \u03c4=8 sample is the withheld P1 entry), transcription_block\u2192C2; Y_KO is deletion of the readout node itself \u2014 not a lattice column, used only as an edge-exclusion constraint. 3) Wrote /run/out/analyze.py, which computes, all at threshold 0.05: \u03a1 spread across every condition\u00d7\u03c4; per-\u03c4 |\u0394\u03a8| between C0 and the readout-deleted condition (tests the \u03a6\u2192\u03a8 edge); \u03a8 spread under C2 (tests whether C2 nulls the \u03a8 arm); per-\u03c4 |\u0394\u03a6| between C1 and C2 over co-sampled \u03c4 (tests the C1\u2245C2 intervention degeneracy); a two-point least-extremes fit of \u03a6 against \u03a8 under C0 with residuals at every sample (quantifies the \u03a8\u22a3\u03a6 edge); three independent extrapolators for the withheld \u03a6(\u03c4=8)|C1; a \u03a8-decay scenario sweep for the P2 peak via the fitted law; and partition entropies H = \u2212\u03a3(|p|/n)log2(|p|/n) for each tabled column under a uniform prior over {M1,M2,M3}, plus the joint C1\u00d7P2 partition. 4) Emitted /run/out/analysis.json (all numbers), /run/out/completed_lattice.json (filled cells, symmetry classes, ranking, minimal sets, row-survival verdicts) and /run/out/causal_graph.md (the signed graph with its per-edge evidence). Re-run: python3 /run/out/analyze.py.",
+      "justification": "SYMMETRY. Every structural conclusion here is an invariance argument at the stated threshold, never an appeal to what the labels denote. \u03a1 is expelled from the graph because it is invariant under the entire intervention set: a variable that does not move under any column cannot be the carrier of a signature that does move, and no column constrains an edge touching it. The \u03a6\u2192\u03a8 edge is expelled because \u03a8's course is invariant under deletion of the readout node (max |\u0394\u03a8| = 0.02 < 0.05) \u2014 the modulator arm is autonomous, which converts the motif from feedback to feed-forward. Conversely, the \u03a8\u22a3\u03a6 edge is retained because two mechanically independent perturbations of the \u03a8 arm \u2014 deleting the node and blocking synthesis of the new internal message \u2014 produce \u03a6 courses that are degenerate with each other (max |\u0394\u03a6| = 0.03) and nonidentical to C0 (0.75 at \u03c4=8). Two distinct interventions collapsing into one observational class is exactly the signature of a shared arm, and the arm is signed negative because removing it removes only the downward limb, never the rise. The magnitude of the sign is pinned by \u03a6 \u2248 1.06 \u2212 1.00\u00b7\u03a8, residuals \u2264 0.04 at every C0 sample: subtractive, unit-gain inhibition. Per the constraint against collapsing distinct mechanisms, I do NOT merge C1 and C2 as mechanisms \u2014 they are distinct perturbations that happen to be observationally identical within threshold; that is a statement about the readout's resolving power, not about the interventions being the same thing. INFORMATION. Discriminative value is the entropy of the partition a column induces on the row set, under a uniform prior. C0 induces the trivial partition and is therefore a calibration column with 0 bits: it is the column every row was built to reproduce, so it cannot separate them. C1 and P2 each induce a 1|2 split worth 0.918 bits, and their partitions are transverse \u2014 C1 cuts {M1} off, P2 cuts {M3} off \u2014 so their product is the discrete partition and jointly they carry the full 1.585 bits. No single column can, and no other pair is transverse, which makes {C1, P2} the unique minimal isolating set ex ante. P1 is worth 0 bits conditional on C1 because it lives in the same symmetry class K1: it re-samples the same nulled arm at a later \u03c4, so it replicates rather than discriminates. C2 is the informative anomaly. It is worth 0 row-bits as tabled \u2014 all three rows predict identical relaxation \u2014 yet its realized value is sustained elevation, which has zero likelihood under all three. A column with zero discriminative information but unbounded surprise is the diagnostic that the row set itself is misspecified, and that is precisely what it is telling us: the tabled lattice assumed the blocked internal message does not touch the readout, and it does. This is why the completed row is a hybrid rather than one of M1/M2/M3, and I decline to force the data into the nearest supplied row. WITHHELD ENTRY. Under C1 the inhibitory arm is absent, so the fitted law gives \u03a6 = min(cap, 1.06 \u2212 0) = saturating near 0.98, and the only decrement available is the slow \u039b-independent leak measured in the other \u03a8-null condition (0.95\u21920.90 over seven steps, \u22480.007/step). Three estimators built on different assumptions \u2014 multiplicative shape transfer, additive offset, and leak-rate extension \u2014 converge on 0.93 with a spread of 0.002, far inside the 0.05 threshold, so the entry is well determined. It is falsifiable and decisive: the competing adapting architecture predicts \u22480.15, a separation of 0.78, more than fifteen threshold widths; any measured value below 0.85 refutes the graph outright. P2 AMPLITUDE. Weaker, and the sign of that answer is robust to what I could not measure. The peak obeys \u03a6_peak = 1.06 \u2212 \u03a8(t_pulse); \u03a8 at the end of the first \u039b epoch is 0.91, and under any decay law whatsoever \u03a8(t_pulse) is strictly positive when the second pulse arrives shortly after removal, so \u03a6_peak(P2) < \u03a6_peak(C0) = 0.96 strictly. Only the magnitude depends on the unmeasured \u03a8 decay constant, and the scenario sweep bounds it at 0.15 (\u03a8 undecayed) to 0.45 (\u03a8 half-decayed), i.e. 16\u201345% of the C0 excursion. The trap that M1 and M2 fall into is inferring full recovery from \u03a1's integrity: \u03a1 is indeed intact at the second pulse, but the inhibitor sits downstream of the gate, so gate integrity is simply the wrong invariant to reason from. Refractoriness here is set by modulator persistence, not by gate availability. M3's blunted entry is right, for a reason M3's own C1 entry contradicts \u2014 which is the sharpest evidence that the true row is outside the supplied set.",
+      "evidence": [
+        "analysis.json",
+        "completed_lattice.json",
+        "causal_graph.md",
+        "analyze.py"
+      ],
+      "files": [
+        "result.json",
+        "analyze.py",
+        "analysis.json",
+        "completed_lattice.json",
+        "causal_graph.md"
+      ],
+      "tool_trace": [],
+      "unknowns": [
+        "The \u03a8 decay time constant after \u039b removal is never measured \u2014 no condition in observations.csv switches \u039b off. This bounds the P2 magnitude to a 0.15\u20130.45 interval rather than a point. The SIGN (weaker) is unaffected, since \u03a8(t_pulse) > 0 under any decay law, but a \u039b-off time course would collapse the interval to a point.",
+        "'Shortly after removal of the first input' in the P2 definition is not quantified in units commensurate with the \u03c4 grid. I treat it as 0\u20132 \u03c4-steps after removal; a longer delay moves the prediction toward the upper end of 0.45 and, past roughly 3 \u03a8 half-lives, would eventually approach a full re-rise. The predicted ordering (P2 < C0) holds for any delay short relative to the \u03a8 decay constant.",
+        "C1 has no \u03c4=4 or \u03c4=8 sample; the withheld entry rests on extrapolation from the co-sampled \u03c4=0,1,2 points anchored to the other \u03a8-null column. Three independent estimators agree to 0.002, but all three inherit the assumption that the slow leak observed under C2 also applies under C1.",
+        "The \u03a6 cap is not directly measured: the fitted intercept 1.06 exceeds every observed \u03a6 (max 0.98), so saturation near 1.0 is inferred, not observed. This affects the upper end of the withheld-entry band but not its sign or its separation from the adapting alternative.",
+        "The observed slow decrement under C2 (0.95 \u2192 0.90 over seven steps) is not explained by the minimal graph, which predicts a flat course once the \u03a8 arm is nulled. It is 0.05, exactly at threshold, so it is at the edge of being ignorable. It may indicate a fourth, slower arm below the resolving power of this intervention set \u2014 an additional column would be needed to expose it.",
+        "The mapping of source-file labels onto {\u039b,\u03a6,\u03a8,\u03a1} and onto {C0,C1,C2} is made on structural grounds (switch profile, which channel carries the defining C0 signature, which knockout is truncated at the withheld sample point). It is the only self-consistent assignment I could construct, but it is an inference, not a given.",
+        "One condition in the source data deletes the readout node itself. It is not a member of the supplied column set, so I did not admit it as a lattice column; I used it solely as an edge-exclusion constraint on \u03a6\u2192\u03a8. Whether it should be promoted to a column is a question for whoever owns the intervention set.",
+        "OUT OF DOMAIN, deferred: what the nodes and interventions physically are, whether the fitted unit-gain subtractive law reflects any particular kinetic scheme, and any mechanistic account of why the \u039b\u2192\u03a8 arm is synthesis-dependent. I reasoned only over the discernibility lattice \u2014 signatures, degeneracies, partitions and their entropies \u2014 and attached no real-world semantics to the synthetic labels."
+      ],
+      "blockers": [
+        "Tools reasoning.python, entropy, distance and compress were selected for this domain but are not reachable from this environment. I substituted a self-contained script (analyze.py) using only the standard library: partition entropies computed directly from H = \u2212\u03a3 p log2 p, and degeneracy tested by max absolute difference against the 0.05 threshold rather than by a distance-tool metric. The threshold is given as an absolute tolerance on the observable, so max-abs is the faithful reading; had a different metric been intended, the C1/C2 degeneracy verdict (max |\u0394\u03a6| = 0.03) is the one call close enough to threshold to be metric-sensitive.",
+        "No supplied row is consistent with every column, so the task's implicit premise \u2014 that one of M1/M2/M3 is correct \u2014 does not hold. I completed the lattice with the amended row M1* rather than forcing the data into the nearest supplied row, and flagged all three eliminations explicitly."
+      ],
+      "isolation_violations": [],
+      "miscellaneous": {
+        "threshold": 0.05,
+        "node_mapping_basis": "structural role only: switch profile 0\u21921-at-\u03c4=1-and-held identifies \u039b; the channel carrying the defining C0 rise-then-relax identifies \u03a6; the candidate modulator whose deletion condition is truncated exactly at the withheld sample point identifies \u03a8; the third independently measured channel identifies \u03a1",
+        "fitted_law": "\u03a6 \u2248 min(cap, 1.06 \u2212 1.00\u00b7\u03a8) while \u039b held; max residual 0.04 over C0 samples at \u03c4=1,2,4,8",
+        "entropy_units": "bits, uniform prior over {M1,M2,M3}, H_prior = log2 3 = 1.585",
+        "withheld_entry_point_estimate": 0.93,
+        "withheld_entry_estimators": {
+          "multiplicative_shape_transfer": 0.928,
+          "additive_offset": 0.93,
+          "leak_rate_extension": 0.93
+        },
+        "P2_verdict": "WEAKER",
+        "P2_peak_range": [
+          0.15,
+          0.45
+        ],
+        "C0_peak_reference": 0.96
+      },
+      "demigod_name": "intervention-discriminator-latti",
+      "domain_name": "intervention_discriminator_lattice",
+      "run_id": "adaptive-e2e-20260815-r2",
+      "status": "ok",
+      "error": null
+    },
+    {
+      "claim": "The unique minimal-edge (4-edge) signed multigraph consistent with the observation table is D-(activate)->R, R-(activate)->P, R-(activate)->M, M-(repress)->P: two D->P paths, the short one D,R,P net-positive and the long one D,R,M,P net-negative. This sign-incoherent feed-forward reproduces C1 (transient-positive then return to baseline under sustained D) and C3 (the slow deletable edge is R->M, which terminates at M, not P), but it contains NO directed cycle, so C2 as literally written is unsatisfiable jointly with the data: every 4-edge member that does carry a negative cycle requires either edge P->M (refuted by the Y_KO rows, where M rises normally with node P removed) or edge M->R (refuted by the R column, flat to 0.02 while P swings 0.81). C2 must be weakened from 'negative cycle' to 'negative path opposing a positive path at a shared sink'. Family F_thru_output is eliminated by the single cell-block Y_KO/M(Z)/t=1..8; the receptor-gate-fatigue topology is eliminated by the surface_receptor column alone; no other cells separate the three. The withheld cell OP_del_M/P/tick8 is 0.92 in [0.86, 0.98], indistinguishable within eps=0.05 from OP_block_new_flux/P/t8 = 0.90 and far from baseline/P/t8 = 0.15. A second sustained-D onset shortly after washout gives a SMALLER transient at P, by much more than eps, because the negative arm's state node M is still charged (M=0.91 at the end of the first stimulus versus 0.05 at first onset) and P's reachable amplitude tracks 0.98*(1-M) at the instant of onset.",
+      "confidence": 0.82,
+      "payload": {
+        "findings": [
+          {
+            "edge": "D -> R",
+            "sign": "activate",
+            "supporting_intervention": "baseline (WT): P rises 0.02 -> 0.96 within one tick of D onset, so the shortest D->P path is net positive; with R->P activate this fixes D->R activate. Gauge caveat: the all-repress variant of the three R-incident edges is path-sign-equivalent and unfalsifiable because R's level is invariant."
+          },
+          {
+            "edge": "R -> P",
+            "sign": "activate",
+            "supporting_intervention": "baseline/P/t=1 = 0.96 and OP_del_M(Z_KO)/P/t=1,2 = 0.98, 0.97 -- with node M removed the surviving D->R->P path holds P high under sustained D."
+          },
+          {
+            "edge": "R -> M",
+            "sign": "activate",
+            "supporting_intervention": "Y_KO (node_removal of output P) / M(Z) / t=1,2,4,8 = 0.11, 0.29, 0.61, 0.89, indistinguishable from baseline (max |delta| 0.02 <= eps): M rises with node P deleted, so M's source is upstream of P. OP_block_new_flux pins M at 0.05-0.06, identifying R->M as the slow-synthesis edge (terminates at M, not P, so C3 holds)."
+          },
+          {
+            "edge": "M -> P",
+            "sign": "repress",
+            "supporting_intervention": "OP_del_M (Z_KO) / P / t=1,2 = 0.98, 0.97 versus baseline 0.96, 0.80: deleting node M abolishes return-to-baseline. Confirmed by OP_block_new_flux, where M never accumulates and P holds at 0.90 through t=8 with the M->P edge itself intact."
+          },
+          {
+            "edge": "P -> M",
+            "sign": "ABSENT",
+            "supporting_intervention": "Y_KO / M(Z) / t=1..8 indistinguishable from baseline/M. Eliminates contrast family F_thru_output."
+          },
+          {
+            "edge": "M -> R",
+            "sign": "ABSENT",
+            "supporting_intervention": "R (surface_receptor) column, all conditions all ticks: span 0.02 <= eps while baseline P swings 0.81. Eliminates the receptor-gate-fatigue topology (self-attenuating cycle localized at R)."
+          },
+          {
+            "edge": "D -> R (second multiplicity slot)",
+            "sign": "ABSENT / unidentifiable",
+            "supporting_intervention": "No cell of the table distinguishes one D->R edge from two parallel D->R edges of the same sign; parallel same-sign edges add no path of new sign and no cycle. Dropped by minimality."
+          }
+        ],
+        "candidate_topologies": [
+          "CHOSEN (minimal, 4 edges, data-consistent): D-(activate)->R, R-(activate)->P, R-(activate)->M, M-(repress)->P. D->P paths: [D,R,P] net +, [D,R,M,P] net -. Directed cycles: NONE. Satisfies C1 and C3; VIOLATES C2 as literally written.",
+          "Gauge twin of the chosen graph (also 4 edges, observationally identical): D-(repress)->R, R-(repress)->P, R-(repress)->M, M-(repress)->P. Flipping all three edges incident to R preserves every D->P and D->M path sign; R's level is invariant so nothing can separate them.",
+          "T_cycP = F_thru_output (4 edges, satisfies C1+C2+C3 on paper): D-(activate)->R, R-(activate)->P, P-(activate)->M, M-(repress)->P. Negative cycle P->M->P passes through the output. ELIMINATED by Y_KO/M.",
+          "T_R = receptor-gate-fatigue / F_upstream (4 edges, satisfies C1+C2+C3 on paper): D-(activate)->R, R-(activate)->P, R-(activate)->M, M-(repress)->R. Negative cycle R->M->R upstream of P, does not pass through P. ELIMINATED by the R column.",
+          "Minimal cycle-bearing stratum overall: 4 edges, 40 enumerated members (see graphs_c1c2c3.json). EVERY member uses edge P->M or edge M->R, and both are refuted by the table -- hence no data-consistent graph satisfies C2."
+        ],
+        "distinguishing_observations": [
+          "Y_KO / M(Z) / t = 1,2,4,8 (values 0.11, 0.29, 0.61, 0.89) versus baseline / M(Z) / same ticks (0.10, 0.30, 0.63, 0.91): max |delta| = 0.02 <= eps = 0.05. SOLE discriminator against F_thru_output -- proves the negative arm branches from R, not from P. This block is not among observation_table.conditions but is present in observations.csv.",
+          "R (surface_receptor) column, every condition and every tick: range [0.99, 1.01], span 0.02 <= eps, while baseline P falls 0.96 -> 0.15 over the same ticks. SOLE discriminator against the receptor-gate-fatigue topology -- no in-edge to R carries effective sign.",
+          "OP_del_M (Z_KO) / P(Y) / t = 1,2 (0.98, 0.97) versus baseline / P / t = 1,2 (0.96, 0.80): fixes the sign of M->P as repress and shows M is necessary for return-to-baseline. Does NOT discriminate among the three rival topologies.",
+          "OP_block_new_flux (transcription_block) / M(Z) / t = 1..8 pinned at 0.05-0.06 with P held at 0.95 -> 0.90: identifies R->M as the slow edge and verifies C3 (the deleted edge terminates at M, not P). Does NOT discriminate the chosen graph from F_thru_output, since deleting P->M would flatten M identically.",
+          "NON-discriminating by construction: baseline / P and baseline / M alone. All three rival 4-edge topologies reproduce the baseline adaptation trace exactly; only the two node_removal-plus-latent-column reads above separate them."
+        ],
+        "withheld_cell_prediction": {
+          "cell": "condition OP_del_M (Z_KO), column P (Y), tick 8",
+          "point_estimate": 0.92,
+          "interval": [
+            0.86,
+            0.98
+          ],
+          "estimator_envelope": [
+            0.91,
+            0.93
+          ],
+          "estimators": {
+            "offset_transfer_from_OP_block_new_flux": 0.93,
+            "ratio_transfer_from_OP_block_new_flux": 0.929,
+            "linear_self_extrapolation": 0.91,
+            "geometric_self_extrapolation": 0.912
+          },
+          "indistinguishable_within_eps_from": "OP_block_new_flux / P / t=8 = 0.90 (delta 0.02 <= 0.05)",
+          "distinguishable_from": "baseline / P / t=8 = 0.15 (delta 0.77)",
+          "topological_reason": "node_removal of M deletes the only negative-sign in-edge at P, leaving residual graph D-(activate)->R-(activate)->P -- exactly the residual graph produced by OP_block_new_flux. Same residual graph must give indistinguishable P. The residual ~0.06 droop from t=1 is common-mode (it also appears in OP_block_new_flux) and carries no sign."
+        },
+        "reonset_prediction": {
+          "verdict": "smaller",
+          "margin_vs_eps": "much larger than eps = 0.05 unless washout is long enough for M to fall below ~0.10",
+          "first_peak": 0.96,
+          "predicted_second_peak_vs_residual_M": {
+            "M=0.90": 0.1,
+            "M=0.70": 0.29,
+            "M=0.50": 0.49,
+            "M=0.20": 0.78,
+            "M=0.05 (full washout)": 0.93
+          },
+          "justification": "The negative arm is feed-forward, not a cycle, so its state is held on node M and is not reset when the driver returns to zero. M = 0.91 at the end of the first sustained D versus 0.05 at first onset. Along the whole baseline trace P tracks 0.98*(1-M) ((0.10,0.96) vs 0.88; (0.30,0.80) vs 0.69; (0.63,0.43) vs 0.36; (0.91,0.15) vs 0.09), so the amplitude reachable at P at any onset is set by M's level at that instant. A re-onset applied 'shortly' after washout fires the fast positive path D,R,P into an output whose repressing in-edge is already loaded. Recovery is governed by M's clearance rate, which the graph fixes as the reverse of the slow edge R->M and which the table does not measure."
+        },
+        "conclusion": "Minimal-edge answer: the 4-edge sign-incoherent feed-forward D-(activate)->R, R-(activate)->P, R-(activate)->M, M-(repress)->P (plus its unfalsifiable R-incident sign-gauge twin). It satisfies C1 and C3 but contains no directed cycle, so C2 as written is unsatisfiable jointly with the data and must be relaxed to 'a net-negative path opposing a net-positive path at a shared sink'. Family F_thru_output is refuted by exactly one cell-block, Y_KO/M(Z)/t=1..8, where M rises normally with node P removed; the receptor-gate-fatigue topology is refuted by exactly one column, surface_receptor, flat to 0.02 <= eps while P swings 0.81. Neither the baseline rows nor the two listed operator rows separate the three rivals, so both discriminators lie outside observation_table.conditions as declared. Withheld cell OP_del_M/P/tick8 = 0.92, interval [0.86, 0.98], indistinguishable within eps from OP_block_new_flux/P/t8 = 0.90 because both operators leave the identical residual graph at P. A second sustained-D onset shortly after washout yields a strictly smaller transient at P, by far more than eps, because the negative arm's state node M is still charged at re-onset."
+      },
+      "method": "1) enumerate.py: exhaustive enumeration of all 2^7 presence patterns over the seven candidate_edge slots (including the duplicated D->R multiplicity slot) crossed with all sign assignments in {activate:+1, repress:-1}; 1584 members have at least one D->P path. For each member all simple D->P paths and all simple directed cycles are computed, with net sign = product of edge signs. Predicates applied purely over paths/cycles: C1a = shortest D->P path net-positive; C1b = a strictly longer net-negative D->P path OR a negative cycle sharing a node with the D->P path set; C2 = some directed cycle net-negative; C3 = the slow edge on the adaptation arm does not terminate at P. Outputs graphs_all.json, graphs_c1c2c3.json, graphs_c1c3_ffwd.json, minimal.json. 2) data_filter.py: reads /run/shared/observations.csv under the mapping D=ligand, R=surface_receptor, M=Z, P=Y and baseline=WT, OP_del_M=Z_KO, OP_block_new_flux=transcription_block, then runs four cell-level tests (T1 edge P->M via node_removal(P); T2 in-edges to R via the R column span; T3 sign of M->P via node_removal(M); T4 identity of the slow edge and C3 via OP_block_new_flux) each compared against indistinguishability_eps=0.05. Writes discriminating_cells.json. 3) Withheld cell predicted by four independent estimators (offset transfer and ratio transfer from the topologically identical OP_block_new_flux P trace, plus linear and geometric self-extrapolation from the two surviving Z_KO ticks); point = mean, interval = estimator envelope widened by eps. Writes withheld_prediction.json. 4) Re-onset amplitude predicted by inverting the empirical negative-arm transfer P ~= 0.98*(1-M) fitted on the four baseline (M,P) pairs and evaluating it at candidate residual M levels at re-onset. Writes reonset_prediction.json. Rerun: python3 enumerate.py && python3 data_filter.py.",
+      "justification": "Everything follows from path and cycle sign algebra plus four cell comparisons, with no appeal to node identity beyond measured role. (a) Adaptation under a sustained driver requires two influences of opposite net sign converging on the output at different path lengths. In this candidate edge set only three 4-edge arrangements achieve that while respecting C3: T_ff (R->M-|P, no cycle), T_cycP (P->M-|P, negative cycle through the output = F_thru_output), and T_R (R->M-|R, negative cycle upstream of P = gate fatigue). They are indistinguishable on the P and M columns under all three listed conditions, so the table's listed conditions alone cannot decide. (b) The decisive topological question is where the negative arm branches from. Under T_cycP node P is the only source on M's single in-edge, so node_removal(P) must pin M at its t=0 level; instead M runs 0.05->0.89, matching baseline to max |delta| 0.02 <= eps. Edge P->M is therefore absent and F_thru_output dies. (c) Under T_R the only route from the negative cycle to P is through node R, so P can only fall if R falls; R's total span over the entire table is 0.02 <= eps while P falls 0.96->0.15. No in-edge to R carries effective sign, so edge M->R is absent and gate fatigue dies. (d) What remains has no cycle at all, which is why C2 cannot hold. This is a real conflict between the supplied constraints and the supplied data, not an artifact of the enumeration: the enumerator confirms the minimal cycle-bearing stratum is exactly 4 edges and every member of it uses P->M or M->R. (e) Node R has in-degree 1, out-degree 2, and an observationally invariant level, so flipping the signs of all three edges incident to R preserves every D->P and D->M path sign; the minimal stratum therefore contains exactly two gauge-equivalent members and no observation can separate them. (f) The withheld cell: node_removal(M) deletes the only negative-sign in-edge at P, leaving the residual graph D-(+)->R-(+)->P, which is precisely the residual graph left by OP_block_new_flux. Two conditions with the same residual graph must give indistinguishable P; the observed offset at t=1,2 is a constant +0.03, so t=8 lands at 0.90+0.03 = 0.93, and the self-extrapolations bracket it downward to 0.91. (g) The re-onset: because the negative arm is feed-forward rather than a cycle, its state is held on node M and is not reset by the driver returning to zero. At re-onset the repressing in-edge at P is already loaded, so the positive arm through R fires into an output that is pre-suppressed. Amplitude is smaller; only if M has cleared below ~0.10 would the second transient be comparable within eps.",
+      "evidence": [
+        "topologies.md",
+        "minimal.json",
+        "graphs_c1c2c3.json",
+        "graphs_c1c3_ffwd.json",
+        "discriminating_cells.json",
+        "withheld_prediction.json",
+        "reonset_prediction.json"
+      ],
+      "files": [
+        "result.json",
+        "topologies.md",
+        "enumerate.py",
+        "data_filter.py",
+        "graphs_all.json",
+        "graphs_c1c2c3.json",
+        "graphs_c1c3_ffwd.json",
+        "minimal.json",
+        "discriminating_cells.json",
+        "withheld_prediction.json",
+        "reonset_prediction.json"
+      ],
+      "tool_trace": [],
+      "unknowns": [
+        "C2 is in direct conflict with the observation table. I report the conflict rather than resolve it: either C2 was meant loosely (negative feedback in the informal sense, covering an incoherent feed-forward negative arm) or one of the two refuting cell-blocks is unreliable. An orchestrator should decide which. If C2 is enforced strictly, the best surviving answer is the 4-edge F_thru_output graph, which is refuted only by the Y_KO block.",
+        "The clearance rate of node M -- equivalently the decay of the negative arm's stored state once the driver goes to zero -- is not observable in this table. OP_block_new_flux only ever holds M at its floor and never shows M decaying from a high level, and no washout rows exist. This is the single quantity needed to turn the goal-4 answer from 'smaller' into a number, and to say how long a washout must be before the second transient becomes comparable within eps.",
+        "The sign gauge at node R (flip all three R-incident edges) is unfalsifiable from this table because R's level is invariant under every condition. If any measurement exists that resolves R's own direction of change under D, it would collapse the minimal stratum from two members to one.",
+        "The second D->R multiplicity slot is unidentifiable: parallel same-sign edges create no new path sign and no cycle, so no cell can detect it. Dropped by minimality, not by evidence.",
+        "Why R's measured level is invariant while R evidently gates flux to both P and M is not a question my axes (causality, topology) can answer -- it is a statement about what the R column measures, not about the graph. Deferred.",
+        "The mapping from csv column names to the declared signal_columns (ligand=D, surface_receptor=R, Z=M, Y=P) and from csv conditions to the declared conditions (WT/Z_KO/transcription_block) is inferred, not given. It is forced by role and by operator semantics (Z_KO abolishes adaptation = node_removal of the modulator; transcription_block pins the slow node), but it is an inference. The presence of an undeclared fourth block Y_KO is the main sign that the declared observation_table is incomplete relative to the file.",
+        "Absolute time units: observation_table declares ticks 1..8 while the csv time_min axis is 0,1,2,4,8. I read tick 8 as time_min 8 and treat the axis as ordinal-with-gaps; the extrapolation to Z_KO t=8 spans a gap of 6 unobserved units and is therefore the weakest number I report."
+      ],
+      "blockers": [
+        "Tools build_graph, find_cycles, rewrite_edge and formal.z3_solve are not reachable in this environment. I substituted a hand-written exhaustive enumerator (enumerate.py) that performs the cycle census and sign algebra directly. The search space is small enough (1584 members) that exhaustive enumeration is a complete substitute for a solver; no result below rests on a simulated tool call.",
+        "The withheld cell's condition block (Z_KO) is truncated at time_min 2 in observations.csv -- ticks 4 and 8 are both absent, not just the withheld cell. The tick-8 prediction therefore rests on cross-condition transfer from OP_block_new_flux rather than on within-condition interpolation."
+      ],
+      "isolation_violations": [],
+      "miscellaneous": {
+        "enumeration_counts": {
+          "members_with_a_D_to_P_path": 1584,
+          "satisfying_C1_C2_C3": 500,
+          "minimal_edge_count_C1_C2_C3": 4,
+          "minimal_members_C1_C2_C3": 40,
+          "satisfying_C1_C3_with_no_cycle": 92,
+          "minimal_edge_count_no_cycle": 4,
+          "minimal_members_no_cycle": 8,
+          "minimal_members_no_cycle_after_collapsing_multiplicity_slot": 4,
+          "data_consistent_minimal_members": 2
+        },
+        "column_mapping": {
+          "D": "ligand",
+          "R": "surface_receptor",
+          "M": "Z",
+          "P": "Y"
+        },
+        "condition_mapping": {
+          "baseline": "WT",
+          "OP_del_M": "Z_KO",
+          "OP_block_new_flux": "transcription_block",
+          "undeclared_extra": "Y_KO = node_removal on output node P; the decisive block"
+        },
+        "eps": 0.05
+      },
+      "demigod_name": "signed-interaction-graph",
+      "domain_name": "signed_interaction_graph",
+      "run_id": "adaptive-e2e-20260815-r2",
+      "status": "ok",
+      "error": null
+    },
+    {
+      "claim": "Architecture A (incoherent feedforward) is the minimal signed structure consistent with the data: \u03a6\u0307 = \u03b1\u00b7\u039e \u2212 \u03b2\u00b7\u03a8\u00b7\u03a6 (fast, \u03c4_fast \u226a 1) coupled to \u03a8\u0307 = \u03b3\u00b7\u039e \u2212 \u03b4\u00b7\u03a8 (slow, \u03b4 \u2248 0.285 min\u207b\u00b9, \u03c4_slow \u2248 3.5 min), with the carrier state \u03a1 inert (\u03bc \u2248 0). Because the slow branch integrates the input, \u03a8(\u221e)=\u03b3\u03be\u2080/\u03b4 and the quasi-steady balance \u03b1\u03be\u2080 = \u03b2\u03a8\u03a6 gives \u03a6(\u221e) = \u03b1\u03b4/(\u03b2\u03b3) with \u03be\u2080 cancelling identically \u2014 the setpoint is input-amplitude invariant, which is exact adaptation. Architecture B is rejected by the \u03a8 channel under \u03a6-ablation: with \u03a6 clamped at 0 the slow state still rises 0.05\u21920.89, superimposable on baseline (max deviation 0.02), whereas \u03a8\u0307 = \u03b3\u03a6 \u2212 \u03b4\u03a8 would force monotone decay; and under \u0398 a sustained-high \u03a6 fails to charge \u03a8 at all. Architecture C is rejected by the \u03a1 channel: \u03a1 = 1.00 \u00b1 0.01 across every condition and every time under 7 min of sustained input, so \u03bc \u2248 0 and C degenerates to a non-adapting first-order law whose steady state scales with \u03be\u2080; \u0398 independently kills C by abolishing adaptation, which a carrier-relaxation mechanism would not do. The conserved quantity is S = \u03a6 + \u03a8: the step loads S \u2248 1.0 at \u03c4\u2080 (up from 0.07 pre-stimulus), S is then conserved within tolerance while its contents transfer \u03a6\u2192\u03a8 one-for-one (regression of \u03a6 on \u03a8 gives slope \u22121.02, max residual 0.026), and only afterwards leaks at 0.006 min\u207b\u00b9. Under \u0394_\u03a8 the slow state is identically zero, so the \u2212\u03b2\u03a8\u03a6 sink vanishes identically and \u03a6 has no return path: \u03a6*(8)|\u0394_\u03a8 \u2208 [0.93, 0.98], point estimate 0.95, i.e. complete loss of adaptation. For the second pulse the peak is weaker: at t=8 the slow state sits at 0.91 and relaxes only as exp(\u2212\u0394w/3.5 min) toward 0.05, so after any short washout it retains most of its loading (\u03a8(\u03c4\u2081) \u2248 0.80 at \u0394w=0.5, 0.70 at \u0394w=1, 0.54 at \u0394w=2) and the sink is already large at re-step, clamping the pulse-2 peak near S \u2212 \u03a8(\u03c4\u2081) \u2248 0.26\u20130.52 against a pulse-1 peak of 0.96; recovery to 'similar' needs \u0394w \u2273 10 min \u2248 3\u03c4_slow.",
+      "confidence": 0.82,
+      "payload": {
+        "findings": [
+          {
+            "variable": "\u03a6",
+            "rate_law": "\u03a6\u0307 = \u03b1\u00b7\u039e(t) \u2212 \u03b2\u00b7\u03a8\u00b7\u03a6   [+ on input, \u2212 on the \u03a8\u00b7\u03a6 product; no \u03a8-independent decay: \u0398 bounds any \u03ba\u00b7\u03a6 term at \u03ba \u2272 0.008 min\u207b\u00b9]",
+            "timescale": "fast, \u03c4_fast \u226a 1 min; steps to plateau \u22480.96 within one sampling interval of \u03c4\u2080=1"
+          },
+          {
+            "variable": "\u03a8",
+            "rate_law": "\u03a8\u0307 = \u03b3\u00b7\u039e(t) \u2212 \u03b4\u00b7\u03a8   [production reads the INPUT, not \u03a6 \u2014 this is the A-vs-B discriminator; \u03b3\u2080/\u03b4 = 0.05 sets the pre-stimulus level]",
+            "timescale": "slow, \u03b4 \u2248 0.285 min\u207b\u00b9, \u03c4_slow \u2248 3.5 min; 0.05 \u2192 0.91 over t\u2208[1,8]"
+          },
+          {
+            "variable": "\u03a1",
+            "rate_law": "\u03a1\u0307 \u2248 0 (\u03bc \u2248 0, \u03bd(1\u2212\u03a1) at its fixed point \u03a1*=1) \u2014 the carrier is inert and is NOT the adaptation variable; this rejects architecture C",
+            "timescale": "no resolvable dynamics; range 0.02 over the whole panel, below the 0.05 tolerance"
+          },
+          {
+            "variable": "S = \u03a6 + \u03a8",
+            "rate_law": "conserved-then-relaxed integral quantity: S jumps 0.07 \u2192 \u22481.0 at \u03c4\u2080, then \u1e60 \u2248 \u22120.006 min\u207b\u00b9 while \u03a6\u2192\u03a8 transfer proceeds one-for-one (slope \u22121.02, max resid 0.026)",
+            "timescale": "conserved on \u03c4_slow; relaxes on a third, much longer timescale \u226b 8 min"
+          },
+          {
+            "variable": "setpoint",
+            "rate_law": "\u03a6(\u221e) = \u03b1\u03b4/(\u03b2\u03b3), independent of \u03be\u2080 \u2014 the input amplitude cancels, so lim \u03a6(t) = \u03a6(0\u207b) is structural, not tuned. Baseline is consistent: \u03a6(0\u207b)=0.02, \u03a6(8)=0.15 still descending.",
+            "timescale": "approached on \u03c4_slow; ~90% complete by t=8"
+          }
+        ],
+        "withheld_prediction": {
+          "low": 0.93,
+          "high": 0.98
+        },
+        "second_pulse": "weaker",
+        "conclusion": "Select architecture A, the incoherent feedforward: the input drives both a fast production term on \u03a6 and, independently, a slow state \u03a8 that acts back on \u03a6 only as a multiplicative sink. Discriminators: (i) against B, the \u03a8 channel under the \u03a6-ablation condition \u2014 \u03a8 rises to 0.89 with \u03a6 identically 0, which a \u03a6-driven production term cannot do, reinforced by \u0398 where a sustained-high \u03a6 leaves \u03a8 pinned at 0.05; (ii) against C, the \u03a1 channel under sustained input in every condition \u2014 \u03a1 is flat at 1.00, so the desensitization drain \u03bc\u00b7\u039e\u00b7\u03a1 is absent, and separately \u0398 abolishes adaptation, which a carrier-relaxation mechanism would leave intact. Setpoint invariance follows because the slow branch integrates \u039e, making \u03a8(\u221e) \u221d \u03be\u2080 so that \u03be\u2080 cancels out of the fast-branch balance and \u03a6(\u221e) = \u03b1\u03b4/(\u03b2\u03b3) is amplitude-independent. The conserved integral quantity is S = \u03a6 + \u03a8 \u2248 1.0 over the stimulated epoch: adaptation is the transfer of a fixed quantum from the fast state into the slow state. Removing the \u03a8-production term sets \u03a8 \u2261 0, so the sink is identically zero and \u03a6 never returns: \u03a6*(8)|\u0394_\u03a8 = 0.95 [0.93, 0.98], bracketed below by the \u0398 value 0.90 (which retains a weak sink at \u03a8=0.05) and above by the \u0394_\u03a8 plateau 0.98. In the two-pulse protocol the slow variable is the memory: at \u03c4\u2081 = 8 + \u0394w it has relaxed by only exp(\u2212\u0394w/3.5), so for any short washout it is still heavily loaded (\u22650.54 for \u0394w \u2264 2 min) and the sink \u2212\u03b2\u03a8\u03a6 suppresses the second excursion the moment the step arrives \u2014 the pulse-2 peak is WEAKER, roughly S \u2212 \u03a8(\u03c4\u2081) \u2248 0.26\u20130.52 versus 0.96, with full recovery requiring \u0394w \u2273 3\u03c4_slow \u2248 10 min. The system is refractory on the slow timescale, the characteristic dynamical signature of feedforward adaptation whose memory variable is charged by the input rather than reset by the output."
+      },
+      "method": "1) Read /run/shared/observations.csv. Mapped the four supplied condition tokens and three supplied column tokens once onto the symbol set (baseline, \u0394_\u03a8, \u0398, \u03a6-ablation; \u03a6, \u03a8, \u03a1) and worked thereafter only in state-variable terms; the mapping is recorded in derived_metrics.json under channel_map/condition_map. 2) Ran four structural tests in analyze.py, each a sign/necessity test on a rate-law term rather than a curve fit: (T1) excursion of the carrier channel \u03a1 under sustained input across all conditions, testing for the \u2212\u03bc\u00b7\u039e\u00b7\u03a1 drain required by C; (T2) trajectory of \u03a8 under the \u03a6-ablation condition against baseline, testing whether the \u03a8 production term reads \u03a6 (B) or \u039e (A); (T3) magnitude of the \u03a6 return limb under \u0398 where \u03a8 is pinned, testing necessity and exclusivity of the \u2212\u03b2\u00b7\u03a8\u00b7\u03a6 sink; (T4) conservation test on S = \u03a6 + \u03a8 over the stimulated epoch across all three conditions, plus least-squares regression of \u03a6 on \u03a8 over the baseline stimulated points. 3) Estimated the slow rate constant \u03b4 by grid least-squares of \u03a8(t) = \u03a8\u221e + (\u03a8(\u03c4\u2080) \u2212 \u03a8\u221e)\u00b7exp(\u2212\u03b4(t\u2212\u03c4\u2080)) on 8 pooled \u03a8 observations (baseline + \u03a6-ablation), with \u03a8\u221e constrained to \u2264 1 by normalization; only two constants were fitted and no parameter was introduced that the data do not constrain. 4) Predicted \u03a6*(8)|\u0394_\u03a8 by two independent routes \u2014 conservation (S at the last \u0394_\u03a8 sample, minus the S-leak rate measured under \u0398, minus \u03a8(8)=0) and direct integration of the fast branch with the sink identically zero (plateau persistence) \u2014 then took the midpoint and clipped to the hard brackets [\u03a6(8)|\u0398, max \u03a6|\u0394_\u03a8] = [0.90, 0.98]. 5) Predicted the second-pulse peak by propagating \u03a8 through the washout with the fitted \u03b4 and evaluating the conservation relation peak = S \u2212 \u03a8(\u03c4\u2081) over a scan of \u0394w \u2208 [0.5, 12] min, calling weaker/similar/stronger against the 0.05 tolerance. Re-run with: python3 /run/out/analyze.py (stdlib only), which regenerates derived_metrics.json and analysis_stdout.txt.",
+      "justification": "The selection is forced by term-level falsification, not by goodness of fit, which is why it survives the small number of time points. Architecture B's slow branch is \u03a8\u0307 = \u03b3\u03a6 \u2212 \u03b4\u03a8; that term is a statement that the slow state cannot charge without output. The \u03a6-ablation condition sets \u03a6 \u2261 0 and therefore sets B's entire production term to zero, so B's unique prediction is \u03a8(t) = \u03a8(0)e^{\u2212\u03b4t}, monotone decay from 0.05. The measured \u03a8 instead rises to 0.89 and lies within 0.02 of the baseline \u03a8 trace at every shared time \u2014 a full-amplitude slow response with the putative driver removed. No choice of \u03b3, \u03b4 rescues this, because the discrepancy is in the sign of \u03a8\u0307, not its magnitude. \u0398 supplies the mirror-image refutation: there \u03a6 is held near 0.9 for seven minutes, the most favourable possible condition for a \u03a6-driven production term, and \u03a8 does not move off 0.05. Architecture C's slow branch is \u03a1\u0307 = \u2212\u03bc\u00b7\u039e\u00b7\u03a1 + \u03bd(1\u2212\u03a1), which asserts that sustained input must drain the carrier; \u03a1 is measured directly and never leaves 1.00 \u00b1 0.01 while \u03a6 falls by 0.81, so \u03bc \u2248 0 and the term is absent. With \u03bc = 0 the fast branch reduces to \u03a6\u0307 = \u03b1\u039e \u2212 \u03ba\u03a6, whose steady state \u03b1\u03be\u2080/\u03ba is proportional to the input amplitude and cannot satisfy the conservation condition lim \u03a6 = \u03a6(0\u207b) for a sustained step. \u0398 closes C independently: C's slow variable is not a produced species, so freezing production of transcript-derived slow states should leave C's adaptation intact, yet \u0398 removes the return limb entirely (\u03a6 falls 0.05 under \u0398 against 0.81 at baseline). What remains \u2014 the only surviving signed structure \u2014 is a slow state charged by the input and acting as a sink on the fast state, which is A. Its minimality is checked term by term: delete the \u2212\u03b2\u03a8\u03a6 sink and the \u0398 trajectory becomes the baseline trajectory (contradicted); delete the \u03b3\u039e source and the \u0394_\u03a8 trajectory becomes the baseline trajectory (contradicted); add a \u03a8-independent decay \u03ba\u03a6 and \u0398 bounds it at \u03ba \u2272 0.008 min\u207b\u00b9, indistinguishable from the residual S-leak, so it is not required. Exact adaptation then follows from the topology alone, not from tuning: because the slow branch integrates the input, its steady value \u03b3\u03be\u2080/\u03b4 is proportional to \u03be\u2080, and it enters the fast branch multiplicatively against a production term also proportional to \u03be\u2080, so \u03be\u2080 cancels identically in the balance \u03b1\u03be\u2080 = \u03b2\u03a8\u03a6 and \u03a6(\u221e) = \u03b1\u03b4/(\u03b2\u03b3) is a fixed setpoint for every step amplitude. This is the conservation statement of the problem, and it holds for A but not for C at any parameter values. The conservation axis gives an independent handle that does not depend on the algebraic form of the sink at all. Over the stimulated epoch S = \u03a6 + \u03a8 is 1.06, 1.10, 1.06, 1.06 at baseline, 1.00 to 0.96 under \u0398, and 0.98, 0.97 under \u0394_\u03a8 \u2014 a single loaded quantum of \u22481.0, conserved within tolerance while \u03a6 and \u03a8 trade one-for-one (regression slope \u22121.02, residuals \u22640.026, all inside the 0.05 tolerance). Adaptation is therefore literally the drainage of a conserved pool from the fast compartment into the slow one, and the fast state is slaved to \u03a6 \u2248 S \u2212 \u03a8. Both predictions follow from that relation with no additional parameters. Under \u0394_\u03a8, \u03a8 \u2261 0 is measured, not assumed, so the sink \u2212\u03b2\u03a8\u03a6 is identically zero and the fast branch has no return path at all; \u03a6 must hold its loaded value, decaying only at the residual S-leak of 0.006 min\u207b\u00b9. The conservation route gives 0.936 and the no-sink integration route gives 0.97, and the truth is bracketed by two hard bounds of opposite sign: \u0398's 0.90 is a strict lower bound because \u0398 retains a weak sink (\u03a8 = 0.05 > 0) that \u0394_\u03a8 does not have, and the \u0394_\u03a8 plateau of 0.98 is a strict upper bound because nothing in the structure can raise \u03a6 above the value it reached. Hence [0.93, 0.98] with point estimate 0.95, an interval whose half-width sits inside the stated tolerance. The two-pulse answer turns entirely on where the slow variable sits at re-step, since it is the only memory in the system. \u03a8(8) = 0.91 and, with the input off, relaxes as 0.05 + 0.86\u00b7exp(\u2212\u0394w/3.5 min). A washout described as short is short compared to \u03c4_slow, so at \u03c4\u2081 the slow state is still heavily loaded \u2014 0.80 at \u0394w = 0.5 min, 0.70 at 1 min, 0.54 at 2 min, i.e. only 11 to 38 percent relaxed. Because the sink is multiplicative in \u03a8, it is already at near-full strength the instant the second step arrives, and the fast state is clamped near S \u2212 \u03a8(\u03c4\u2081), giving peaks of roughly 0.26 to 0.52 against a pulse-1 peak of 0.96 \u2014 a deficit an order of magnitude larger than the 0.05 tolerance, so the call is robust and not a marginal difference. The peak recovers monotonically with \u0394w and only reaches parity at \u0394w \u2273 3\u03c4_slow \u2248 10 min. This refractoriness on the slow timescale is precisely the dynamical signature that distinguishes a memory variable charged by the input from one reset by the output, and it is also the sharpest available falsifier: a full-amplitude second peak after a short washout would be incompatible with the measured \u03b4 and would demand a different slow branch.",
+      "evidence": [
+        "derived_metrics.json",
+        "analysis.md",
+        "analyze.py",
+        "analysis_stdout.txt"
+      ],
+      "files": [
+        "result.json",
+        "analyze.py",
+        "derived_metrics.json",
+        "analysis.md",
+        "analysis_stdout.txt"
+      ],
+      "tool_trace": [],
+      "unknowns": [
+        "Absolute values of \u03b1, \u03b2, \u03b3 individually are not identifiable from these data; only the combinations \u03b1\u03b4/(\u03b2\u03b3) (the setpoint) and \u03b4 (the slow rate) are constrained. \u03c4_fast is bounded only as \u226a 1 min because the first post-onset sample is already at plateau \u2014 no sample resolves the rising edge.",
+        "The literal product form of the sink is under-determined. Taking the fast branch to quasi-steady state with \u2212\u03b2\u00b7\u03a8\u00b7\u03a6 predicts \u03a6 \u221d 1/\u03a8, whereas the data trace a linear \u03a6 \u2248 S \u2212 \u03a8 with slope \u22121.02. The signed topology of A is what the data fix; whether the transfer term is \u03b2\u00b7\u03a8\u00b7\u03a6 or a mass-action \u03a6\u2192\u03a8 transfer is not resolved by five time points. Both yield the same setpoint invariance and the same answers to (3) and (4).",
+        "\u03a8's asymptote fits to the edge of its normalized range (pinned at 1.0), so \u03b4 = 0.285 min\u207b\u00b9 is known to roughly \u00b120%. This shifts the \u0394w at which pulse 2 becomes 'similar' (\u22488-12 min) but not the 'weaker' verdict for short \u0394w.",
+        "The \u0394_\u03a8 condition is sampled only to t = 2, so \u03a6*(8)|\u0394_\u03a8 is a 6-minute extrapolation resting on \u03a8 \u2261 0 killing the sink identically and on the \u0398 bracket. A single \u0394_\u03a8 sample at t = 4 or 8 would collapse the interval.",
+        "\u0394w is not specified numerically in the protocol. The 'weaker' call is stated for \u0394w \u2272 5 min; the full \u0394w-dependence is tabulated in derived_metrics.json under second_pulse.scan so the call can be re-read at whatever \u0394w is actually used.",
+        "Whether S = \u03a6 + \u03a8 is a true structural conservation or a coincidence of the particular \u03b1:\u03b3 ratio cannot be settled without a second step amplitude \u03be\u2080. A \u03be\u2080-titration would also test setpoint invariance directly rather than by extrapolation.",
+        "OUT OF DOMAIN, deferred: the identity, molecular mechanism, and native-field meaning of the three measurement channels and of the \u0398 perturbation; whether \u03a1's flatness is biologically expected; any interpretation of what physical species carries the conserved pool S. Not reasoned about here.",
+        "OUT OF DOMAIN, deferred: measurement-noise model, replicate structure, and formal uncertainty propagation for the reported intervals. The 0.05 tolerance was applied as a hard threshold as instructed rather than as a statistical model."
+      ],
+      "blockers": [
+        "The tools simulate, solve, reasoning.python and dimensional_check were selected for this domain but are not reachable. Numerical work was done instead with a self-written stdlib-only Python script (analyze.py) executed via the shell \u2014 closed-form quasi-steady-state analysis plus grid least-squares and analytic exponential propagation, rather than a stiff ODE integrator. This limits the ODE integration in step (3)/(4) to analytic relaxation solutions and the conservation relation \u03a6 \u2248 S \u2212 \u03a8; no direct forward numerical integration of the coupled system with fitted \u03b1, \u03b2 was performed, since \u03b1 and \u03b2 are not separately identifiable from the supplied data anyway.",
+        "The withheld condition \u0394_\u03a8 is truncated at t = 2 while the requested prediction is at t = 8, so no interpolation is possible and the answer necessarily rests on structural extrapolation.",
+        "The washout interval \u0394w is left unspecified by the protocol, so the second-pulse answer is given for short \u0394w (the stated case) with a full \u0394w scan supplied alongside."
+      ],
+      "isolation_violations": [],
+      "miscellaneous": {
+        "delta_per_min": 0.285,
+        "tau_slow_min": 3.51,
+        "conserved_quantity": "S = \u03a6 + \u03a8 \u2248 1.0 over the stimulated epoch (pre-stimulus 0.07); leak 0.0057 per min",
+        "phi_vs_psi_regression_slope": -1.0193,
+        "phi_vs_psi_max_residual": 0.0264,
+        "rho_range_whole_panel": 0.02,
+        "psi_max_deviation_baseline_vs_phi_ablation": 0.02,
+        "phi_drop_t1_to_t8_baseline": 0.81,
+        "phi_drop_t1_to_t8_THETA": 0.05,
+        "withheld_point_estimate": 0.95,
+        "second_pulse_peak2_over_peak1": {
+          "dw_0.5": 0.26,
+          "dw_1": 0.36,
+          "dw_2": 0.52,
+          "dw_3": 0.64,
+          "dw_5": 0.8,
+          "dw_8": 0.92
+        },
+        "washout_for_similar_min": 9.98,
+        "rejected": {
+          "B_output_feedback": "\u03a8 channel under \u03a6-ablation: \u03a8 rises 0.05\u21920.89 with \u03a6\u22610 (max dev 0.02 from baseline); \u03a8\u0307=\u03b3\u03a6\u2212\u03b4\u03a8 forces monotone decay. Also \u0398: \u03a6 held \u22480.9 for 7 min, \u03a8 never leaves 0.05.",
+          "C_carrier_relaxation": "\u03a1 channel, all conditions, sustained input: \u03a1 = 1.00, range 0.02 \u21d2 \u03bc\u22480; C then reduces to a \u03be\u2080-scaling first-order law with no setpoint invariance. Also \u0398 abolishes adaptation, which C cannot explain."
+        }
+      },
+      "demigod_name": "adaptation-kinetics-field",
+      "domain_name": "adaptation_kinetics_field",
+      "run_id": "adaptive-e2e-20260815-r2",
+      "status": "ok",
+      "error": null
+    }
+  ],
+  "failures": [],
+  "leaks": []
+}

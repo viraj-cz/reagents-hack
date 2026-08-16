@@ -18,3 +18,7 @@ scratch/
 .eval_cache/
 .eval_workspace/
 results/
+
+# Real benchmark source matrices are reproducibly downloaded, never committed
+# or shipped into GOD/DEMI_GOD images. Derived public/private fixtures are kept.
+benchmarks/perturbseq_norman/data/source/

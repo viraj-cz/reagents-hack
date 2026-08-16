@@ -73,7 +73,10 @@ def _instrument(god: Any, status: StatusWriter) -> None:
     runtime_run = god.runtime.run
 
     async def plan(*args: Any, **kwargs: Any) -> Any:
-        await status.set_phase(Phase.PLANNING, "inventing orthogonal domains")
+        await status.set_phase(
+            Phase.PLANNING,
+            "inventing complete alternative representations",
+        )
         specs = await planner_plan(*args, **kwargs)
         await status.set_domains([s.name for s in specs])
         for spec in specs:
@@ -110,7 +113,9 @@ def _instrument(god: Any, status: StatusWriter) -> None:
         return result
 
     async def integrate(*args: Any, **kwargs: Any) -> Any:
-        await status.set_phase(Phase.INTEGRATING, "recombining artifacts")
+        await status.set_phase(
+            Phase.INTEGRATING, "comparing complete candidate artifacts"
+        )
         return await integrator_integrate(*args, **kwargs)
 
     god.planner.plan = plan
@@ -179,12 +184,27 @@ async def _solve(
     write it keeps every terminal write on the sync side of `asyncio.run`,
     where the docstring on `complete()` already claims it is.
     """
+    from reagents.contracts import Budget
     from reagents.demigod.sandbox_runtime import SandboxDemigodRuntime
     from reagents.god.orchestrator import God
     from reagents.llm.client import make_llm
 
+    toolbox = None
+    if request.use_broker:
+        from broker.session import modal_session
+
+        toolbox = modal_session()
+
+    verifier = None
+    if request.verifier_id == "flareguard-public-v1":
+        from benchmarks.flareguard import FlareGuardVerifier
+
+        verifier = FlareGuardVerifier()
+    elif request.verifier_id is not None:
+        raise ValueError(f"unknown native verifier {request.verifier_id!r}")
+
     god = God(
-        make_llm(),
+        make_llm(request.model),
         domain_count=request.domain_count,
         # Operator approval arrives in the request and cannot be widened from
         # in here. An empty set means no write and no high-risk tool spawns.
@@ -193,7 +213,19 @@ async def _solve(
         # THE SEAM, unchanged. GOD does not know it is itself in a sandbox;
         # this is the same runtime `scripts/e2e_live.py` passes from a laptop.
         runtime=SandboxDemigodRuntime(
-            run_id=request.run_id, max_turns=request.max_turns
+            run_id=request.run_id,
+            max_turns=request.max_turns,
+            toolbox=toolbox,
+            require_toolbox=request.use_broker,
+            restrict_egress=request.use_broker,
+            agent_model=request.model,
+        ),
+        verifier=verifier,
+        budget=Budget(
+            max_tokens=4096,
+            max_steps=request.max_turns,
+            wall_time_s=min(request.max_turns * 75, 1800),
+            max_tool_calls=24,
         ),
     )
     _instrument(god, status)

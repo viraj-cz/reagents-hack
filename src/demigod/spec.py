@@ -14,14 +14,15 @@ from pydantic import BaseModel, Field, field_validator
 from demigod.toolbox.protocol import ToolboxGrant
 
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]{1,30}[a-z0-9]$")
+DEFAULT_AGENT_MODEL = "claude-opus-4-8"
 
 
 class Problem(BaseModel):
     """The problem statement, split into the three things an agent actually needs.
 
-    The GOD writes this per-domain. It is the *component* of the decomposed
-    problem, not the whole problem -- a DEMI_GOD should never be told about its
-    siblings (that is what makes the components orthogonal).
+    The GOD writes this per-domain. It is the complete problem projected into
+    one representation. A DEMI_GOD is not told about siblings; orthogonality
+    comes from the coordinate system, not from dividing the objective.
     """
 
     context: str = Field(..., description="What the agent needs to know to start.")
@@ -112,6 +113,14 @@ class DemiGodSpec(BaseModel):
         description=(
             "Escape hatch. Passed through verbatim into the system prompt as "
             "JSON. Use for hints, constraints, priors, anything not yet modeled."
+        ),
+    )
+
+    model: str = Field(
+        DEFAULT_AGENT_MODEL,
+        description=(
+            "Exact Claude model alias used by the agent SDK. Pinning this makes "
+            "pipeline and control runs comparable instead of inheriting a CLI default."
         ),
     )
 

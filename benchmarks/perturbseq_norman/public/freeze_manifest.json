@@ -1,0 +1,13 @@
+{
+  "benchmark_id": "norman-perturbseq-heldout-combinations-v1",
+  "frozen_before_model_calls": true,
+  "source_url": "https://ndownloader.figshare.com/files/34027562",
+  "source_sha256": "b679c157fea550ef5be4dad91da9dff1f5d8287313ad3f3537f6cf14d4bcd434",
+  "split_salt": "reagents-norman-v1",
+  "prepare_script_sha256": "440687274008ff71fe0d0ab2918861c79efea52578aa5c06860fd39412fc3d9c",
+  "test_pair_selection_uses_expression": false,
+  "test_pairs_sha256": "1b74e6964007ac1ab8a6bb4e4c565ec3dce536c6dd482ce67835046d03325f00",
+  "private_expected_sha256": "fac3fcfc8fd99b5f814852435da9b623496de75a91913402bdf8da821c4c8800",
+  "public_question_sha256": "dcf303e1ff639bb3422024ff8655c9e1920dff16ddf1b49d2d24b34ca79f4c69",
+  "public_tool_data_sha256": "6c31ef53b413ffde2cc4844d49ea61f8fbdda43ab48742ae74cebdb80bcaa02a"
+}

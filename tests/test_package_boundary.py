@@ -1,6 +1,6 @@
 """The GOD/DEMI_GOD image asymmetry, enforced offline.
 
-Three packages, and the dependency direction between them is a security
+Five packages, and the dependency direction between them is a security
 boundary rather than a style preference:
 
     godbox   -> reagents -> demigod
@@ -29,6 +29,7 @@ from godbox.images import (
     FORBIDDEN_IN_DEMIGOD_IMAGE,
     GOD_LOCAL_SOURCES,
     GOD_PIP,
+    GOD_SOURCE_IGNORE,
 )
 
 SRC = Path(__file__).resolve().parent.parent / "src"
@@ -102,10 +103,33 @@ def test_demigod_images_do_not_install_the_modal_client() -> None:
     assert not [pkg for pkg in AGENT_RUNTIME if pkg.split("=")[0].strip() == "modal"]
 
 
-def test_god_image_ships_all_three_packages() -> None:
-    """GOD is the one place all three meet: it reasons with `reagents`, spawns
-    with `demigod`, and reports with `godbox`."""
-    assert set(GOD_LOCAL_SOURCES) == {"reagents", "demigod", "godbox"}
+def test_god_image_ships_orchestration_but_demigods_do_not() -> None:
+    """GOD holds orchestration, Broker client, and closed verifier code."""
+    assert set(GOD_LOCAL_SOURCES) == {
+        "reagents",
+        "demigod",
+        "broker",
+        "godbox",
+        "benchmarks",
+    }
+
+
+def test_god_image_excludes_evaluator_only_benchmark_data() -> None:
+    """Held-out fixtures remain local to the post-run grader."""
+    assert GOD_SOURCE_IGNORE == ("**/private/**", "**/data/source/**")
+    tree = ast.parse((SRC / "godbox" / "images.py").read_text(encoding="utf-8"))
+    source_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "add_local_python_source"
+    ]
+    assert len(source_calls) == 1
+    ignore = next(
+        keyword.value for keyword in source_calls[0].keywords if keyword.arg == "ignore"
+    )
+    assert isinstance(ignore, ast.Name) and ignore.id == "GOD_SOURCE_IGNORE"
 
 
 def test_god_image_installs_the_modal_client_pinned() -> None:

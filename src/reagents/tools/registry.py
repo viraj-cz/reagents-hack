@@ -344,4 +344,13 @@ def default_registry() -> ToolRegistry:
         from reagents.tools.mcp import configure_sponsor_mcp
 
         configure_sponsor_mcp(registry)
+    if os.environ.get("REAGENTS_ENABLE_NORMAN_BENCHMARK", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        from reagents.tools import norman
+
+        for tool in norman.all_tools():
+            registry.register(tool)
     return registry

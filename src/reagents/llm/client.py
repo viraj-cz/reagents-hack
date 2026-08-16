@@ -44,12 +44,12 @@ class LLMClient(Protocol):
     Validation still happens against `response_model`."""
 
 
-def make_llm() -> LLMClient:
+def make_llm(model: str | None = None) -> LLMClient:
     """Anthropic when ANTHROPIC_API_KEY is set; otherwise the scripted toy client."""
     if os.environ.get("ANTHROPIC_API_KEY"):
         from reagents.llm.anthropic_client import AnthropicLLM
 
-        return AnthropicLLM()
+        return AnthropicLLM(model=model) if model is not None else AnthropicLLM()
     from reagents.llm.scripted import ScriptedLLM
 
     return ScriptedLLM.for_toy_pathway()

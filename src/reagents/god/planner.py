@@ -17,9 +17,17 @@ JACCARD_THRESHOLD = 0.3
 LANGUAGE_OVERLAP_THRESHOLD = 0.5
 DEFAULT_DOMAIN_COUNT = 3
 MAX_PLAN_ROUNDS = 4
+COMPLETE_ARTIFACT_KEYS = frozenset(
+    {"candidate_solution", "constraint_results", "certificate", "conclusion"}
+)
 
 INVENT_SYSTEM = """You are God. You do not solve the problem.
 You invent representation domains so isolated demigods can reason in a foreign language.
+
+This is NOT work decomposition. Every domain is an alternative coordinate system for
+the COMPLETE native problem. Every demigod must be able to return an independently
+complete candidate solution; God will compare alternative proofs rather than assemble
+partial answers.
 
 Each domain MUST:
 - have a short identifier name (snake_case)
@@ -27,7 +35,8 @@ Each domain MUST:
 - name a representation language (graph, algebra, orbits, measures, rewrite system, ...)
   not a strategy ("think harder about pathways" is illegal)
 - choose 2-4 tools from the allowed tool list only
-- include an artifact JSON schema with required findings (array) and conclusion (string)
+- include an artifact JSON schema requiring candidate_solution (object),
+  constraint_results (object), certificate (object), and conclusion (string)
 - list abstract forbidden rules
 
 NAMING RULE, AND IT IS CHECKED MECHANICALLY. Four fields are scanned for the
@@ -45,12 +54,17 @@ entity, and to a domain name built from one.
 You may reason ABOUT the entities to choose good representations; you may not
 carry their names into these four fields.
 
+The transform_prompt must explicitly preserve every input, constraint, objective, and
+required output while changing only the representation language. Reject any language
+that makes only one aspect of the problem easier but cannot express a full solution.
+
 Cover distinct axes. Do not invent executable tools."""
 
 CRITIC_SYSTEM = """You are God's orthogonality critic.
 Reject a set of domains if any two are paraphrases, share a primary axis, or describe a
 strategy instead of a representation. Return colliding domain names to regenerate.
-Accept only if the languages are genuinely different representations."""
+Accept only if the languages are genuinely different representations and EACH domain's
+artifact is a complete candidate solution, never a partial contribution."""
 
 
 class InventedDomains(BaseModel):
@@ -170,6 +184,13 @@ def structural_critic(
             primary[spec.primary_axis] = spec.name
 
     for spec in specs:
+        required = set(spec.artifact_schema.get("required") or [])
+        missing_artifacts = sorted(COMPLETE_ARTIFACT_KEYS - required)
+        if missing_artifacts:
+            reasons.append(
+                f"{spec.name}: artifact schema is partial; missing {missing_artifacts}"
+            )
+            colliding.add(spec.name)
         try:
             registry.bind(spec.tool_ids)
         except (UnknownToolError, ValueError) as exc:

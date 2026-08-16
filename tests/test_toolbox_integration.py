@@ -355,6 +355,36 @@ def test_a_broker_outage_does_not_stop_the_demigod(monkeypatch, pack_registry):
     assert "formal.z3_solve" in env.spec.miscellaneous["unavailable_tools"]
 
 
+def test_required_broker_outage_fails_closed(monkeypatch, pack_registry):
+    class DeadSession:
+        def grant(self, pack, *, label=""):
+            raise RuntimeError("broker unreachable")
+
+    env = FakeRuntimeEnv()
+    monkeypatch.setattr("reagents.demigod.sandbox_runtime.spawn_demigod", env.spawn)
+    runtime = SandboxDemigodRuntime(
+        run_id="r1", toolbox=DeadSession(), require_toolbox=True
+    )
+    result = asyncio.run(
+        runtime.run(make_envelope(), bind(pack_registry, ["formal.z3_solve"]))
+    )
+    assert result.status == "failed"
+    assert "required Broker lease publication failed" in (result.error or "")
+    assert env.spec is None
+
+
+def test_runtime_pins_the_requested_agent_model(monkeypatch, pack_registry):
+    session = local_session()
+    env = FakeRuntimeEnv()
+    monkeypatch.setattr("reagents.demigod.sandbox_runtime.spawn_demigod", env.spawn)
+    runtime = SandboxDemigodRuntime(
+        run_id="r1", toolbox=session, agent_model="claude-opus-4-8"
+    )
+    asyncio.run(runtime.run(make_envelope(), bind(pack_registry, ["graph.build"])))
+    assert env.spec is not None
+    assert env.spec.model == "claude-opus-4-8"
+
+
 def test_without_a_toolbox_the_runtime_behaves_exactly_as_before(
     monkeypatch, pack_registry
 ):

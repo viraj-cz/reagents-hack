@@ -14,9 +14,11 @@ from reagents.llm.client import LLMClient
 
 INTEGRATE_SYSTEM = """You are God integrating demigod artifacts.
 You have the inverse maps from domain symbols back to native entities.
-Translate each artifact into the native field, resolve conflicts, and answer the
-original question. Do not invent new domain reasoning. Integration is translation
-plus conflict resolution, not concatenation of essays.
+Each artifact is intended to be a COMPLETE alternative solution in a different
+coordinate system. Translate each candidate into the native field, compare their
+constraint results and certificates, resolve conflicts, and select or reconcile a
+complete answer to the original question. Never combine incomplete fragments into an
+answer no demigod actually established. Do not invent new domain reasoning.
 
 `domain_contributions` must contain an entry ONLY for a domain whose artifact
 appears below. Domains listed as failed produced nothing: do not describe what
@@ -27,6 +29,7 @@ unvalidated reasoning as if it had been checked."""
 
 class IntegrationDraft(BaseModel):
     answer: str
+    structured_answer: dict = Field(default_factory=dict)
     confidence: float = Field(ge=0.0, le=1.0)
     domain_contributions: dict[str, str] = Field(default_factory=dict)
     conflicts: list[str] = Field(default_factory=list)
@@ -60,6 +63,9 @@ class Integrator:
             f"Statement: {problem.statement}\n"
             f"Question: {problem.question}\n"
             f"Entities: {problem.entities}\n"
+            f"Native inputs: {problem.inputs}\n"
+            f"Required outputs: {problem.required_outputs}\n"
+            f"Native answer JSON schema: {problem.answer_schema}\n"
         )
         if problem.constraints:
             user += "\nConstraints (apply to the final answer):\n"
@@ -105,6 +111,7 @@ class Integrator:
         return NativeSolution(
             problem_id=problem.id,
             answer=draft.answer,
+            structured_answer=draft.structured_answer,
             confidence=draft.confidence,
             domain_contributions=draft.domain_contributions,
             conflicts=draft.conflicts,

@@ -157,7 +157,7 @@ class TerminalTracer:
             return [("heading", "\n◇ Choosing useful representations"), ("muted", f"  {detail}")]
         if kind == "PLAN" and isinstance(data, list):
             lines: list[tuple[str, str]] = [
-                ("normal", f"  Selected {len(data)} complementary approaches:")
+                ("normal", f"  Selected {len(data)} complete alternative representations:")
             ]
             for item in data:
                 if not isinstance(item, dict):
@@ -209,7 +209,15 @@ class TerminalTracer:
         if kind in {"REJECT", "FAILURE"}:
             return [("warning", f"  ! {detail}")]
         if kind == "INTEGRATE":
-            return [("heading", "\n◇ Synthesizing the findings"), ("muted", f"  {detail}")]
+            return [("heading", "\n◇ Comparing complete candidates"), ("muted", f"  {detail}")]
+        if kind == "VERIFY":
+            if data is None:
+                return [
+                    ("heading", "\n◇ Validating in the original domain"),
+                    ("muted", f"  {detail}"),
+                ]
+            passed = isinstance(data, dict) and data.get("passed") is True
+            return [("success" if passed else "warning", f"  {'✓' if passed else '!'} {detail}")]
         if kind == "DONE":
             confidence = None if not isinstance(data, dict) else data.get("confidence")
             artifacts = None if not isinstance(data, dict) else data.get("artifacts")

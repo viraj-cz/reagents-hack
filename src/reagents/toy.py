@@ -6,9 +6,17 @@ from reagents.contracts import Axis, DomainSpec, NativeProblem
 
 ARTIFACT_SCHEMA = {
     "type": "object",
-    "required": ["findings", "conclusion"],
+    "required": [
+        "candidate_solution",
+        "constraint_results",
+        "certificate",
+        "conclusion",
+    ],
     "properties": {
         "findings": {"type": "array", "items": {"type": "string"}},
+        "candidate_solution": {"type": "object"},
+        "constraint_results": {"type": "object"},
+        "certificate": {"type": "object"},
         "conclusion": {"type": "string"},
         "confidence": {"type": "number"},
     },

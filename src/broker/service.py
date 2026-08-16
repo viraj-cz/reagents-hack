@@ -87,6 +87,9 @@ BROKER_ENV: dict[str, str] = {
     # And they must run IN PROCESS here. A Modal container has no Docker daemon;
     # `docker run` is the laptop path. See reagents.tools.container.
     "REAGENTS_TOOL_RUNTIME": "inprocess",
+    # Training-only, generated benchmark summaries. The private held-out values
+    # are not in the reagents package and therefore cannot enter this image.
+    "REAGENTS_ENABLE_NORMAN_BENCHMARK": "1",
 }
 
 
