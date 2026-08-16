@@ -33,9 +33,11 @@ import time
 import uuid
 from pathlib import Path
 
+from reagents.contracts import RiskTier
 from reagents.demigod.sandbox_runtime import SandboxDemigodRuntime
 from reagents.god.orchestrator import God
 from reagents.llm.client import make_llm
+from reagents.tools.registry import default_registry
 from reagents.toy import simple_problem, toy_problem
 from reagents.tracing import TerminalTracer
 
@@ -129,7 +131,12 @@ def make_toolbox(enabled: bool):
 
 
 async def run_once(
-    domains: int, turns: int, run_id: str, problem_name: str, broker: bool
+    domains: int,
+    turns: int,
+    run_id: str,
+    problem_name: str,
+    broker: bool,
+    approve_high_risk: bool = False,
 ) -> int:
     problem = simple_problem() if problem_name == "simple" else toy_problem()
     stage(f"START run_id={run_id} domains={domains} turns={turns}")
@@ -139,9 +146,26 @@ async def run_once(
     # lane-labelled, so a parallel fan-out is readable in a single terminal --
     # no tmux, no per-sandbox tail. The orchestrator and SandboxDemigodRuntime
     # already emit into it; God.__init__ forwards the sink to the runtime.
+    # Operator approval is a HUMAN decision the orchestrator refuses to make
+    # for itself, so a script that never offers it can never reach a code-
+    # running tool: `reasoning.python` is RiskTier.HIGH, and a run without this
+    # flag fails that domain with "high-risk tools require operator approval"
+    # before the sandbox is even created. Observed live -- it is why the first
+    # brokered run reached zero container tools.
+    high_risk = set()
+    if approve_high_risk:
+        high_risk = {
+            spec.id
+            for spec in default_registry().specs()
+            if spec.risk_tier == RiskTier.HIGH
+        }
+        stage(
+            f"OPERATOR: approving {len(high_risk)} high-risk tools: {sorted(high_risk)}"
+        )
     god = God(
         make_llm(),
         domain_count=domains,
+        approved_high_risk_tools=high_risk,
         # The seam. Swap for the default in-process runtime and the same God
         # loop runs without any infrastructure at all.
         runtime=SandboxDemigodRuntime(
@@ -253,6 +277,16 @@ def main() -> int:
         help="simple = 5-entity valve pipeline (default, for testing the "
         "pipeline); pathway = the 9-entity glycolysis problem",
     )
+    parser.add_argument(
+        "--approve-high-risk",
+        action="store_true",
+        help=(
+            "Grant operator approval for RiskTier.HIGH tools (reasoning.python, "
+            "engineering.python, biology.python -- they execute arbitrary code). "
+            "Without this a demigod granted one fails before spawning, which is "
+            "the gate working as designed. Set it deliberately."
+        ),
+    )
     parser.add_argument("--run-id", default=None)
     parser.add_argument(
         "--broker",
@@ -310,7 +344,14 @@ def main() -> int:
 
     run_id = args.run_id or f"e2e{uuid.uuid4().hex[:6]}"
     return asyncio.run(
-        run_once(args.domains, args.turns, run_id, args.problem, args.broker)
+        run_once(
+            args.domains,
+            args.turns,
+            run_id,
+            args.problem,
+            args.broker,
+            args.approve_high_risk,
+        )
     )
 
 
