@@ -1,0 +1,14 @@
+{
+  "benchmark_id": "norman-perturbseq-diverse-batch-design-v1",
+  "source_url": "https://ndownloader.figshare.com/files/34027562",
+  "source_sha256": "b679c157fea550ef5be4dad91da9dff1f5d8287313ad3f3537f6cf14d4bcd434",
+  "split_salt": "reagents-norman-diverse-batch-v1",
+  "frozen_before_model_calls": true,
+  "candidate_selection_uses_expression": false,
+  "feature_selection_uses_candidates": false,
+  "program_basis_and_centers_use_training_only": true,
+  "metric_hyperparameters_fixed": true,
+  "public_question_sha256": "2d139b14999dad030c24964d763bd6bdb2944a776bb8d00bb397cb434cfc568c",
+  "public_training_data_sha256": "d52123f9d55e22643d33c360c9bd2272859a010f4aa5e2d266d3ccbc75bbd3a9",
+  "private_expected_sha256": "45be3f81029b103b2452350ff8c0a7f30eab7903961034d2a5fc9bd156feb1a5"
+}

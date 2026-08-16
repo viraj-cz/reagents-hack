@@ -1,0 +1,916 @@
+{
+  "id": "norman-perturbseq-diverse-batch-design-v1",
+  "statement": "Choose a ten-combination CRISPRa Perturb-seq follow-up batch from real unmeasured Norman K562 combinations to maximize discovery of strong, diverse non-additive genetic interactions.",
+  "entities": [
+    "AHR",
+    "ARID1A",
+    "ARRDC3",
+    "ATL1",
+    "BAK1",
+    "BCL2L11",
+    "BCORL1",
+    "BPGM",
+    "C19orf26",
+    "C3orf72",
+    "CBFA2T3",
+    "CBL",
+    "CDKN1A",
+    "CDKN1B",
+    "CDKN1C",
+    "CEBPA",
+    "CEBPB",
+    "CEBPE",
+    "CELF2",
+    "CITED1",
+    "CKS1B",
+    "CLDN6",
+    "CNN1",
+    "CNNM4",
+    "COL1A1",
+    "COL2A1",
+    "CSRNP1",
+    "DLX2",
+    "DUSP9",
+    "EGR1",
+    "ELMSAN1",
+    "ETS2",
+    "FEV",
+    "FOSB",
+    "FOXA1",
+    "FOXA3",
+    "FOXF1",
+    "FOXL2",
+    "FOXO4",
+    "GLB1L2",
+    "HES7",
+    "HK2",
+    "HNF4A",
+    "HOXA13",
+    "HOXB9",
+    "HOXC13",
+    "IER5L",
+    "IGDCC3",
+    "IKZF3",
+    "IRF1",
+    "ISL2",
+    "JUN",
+    "KIAA1804",
+    "KIF18B",
+    "KIF2C",
+    "KLF1",
+    "KMT2A",
+    "LHX1",
+    "LYL1",
+    "MAML2",
+    "MAP2K3",
+    "MAP2K6",
+    "MAP4K3",
+    "MAP4K5",
+    "MAP7D1",
+    "MAPK1",
+    "MEIS1",
+    "MIDN",
+    "NCL",
+    "NIT1",
+    "OSR2",
+    "PLK4",
+    "POU3F2",
+    "PRDM1",
+    "PRTG",
+    "PTPN1",
+    "PTPN12",
+    "PTPN13",
+    "PTPN9",
+    "RHOXF2",
+    "RREB1",
+    "RUNX1T1",
+    "S1PR2",
+    "SAMD1",
+    "SET",
+    "SGK1",
+    "SLC38A2",
+    "SLC4A1",
+    "SLC6A9",
+    "SNAI1",
+    "SPI1",
+    "STIL",
+    "TBX2",
+    "TBX3",
+    "TGFBR2",
+    "TMSB4X",
+    "TP73",
+    "TSC22D1",
+    "UBASH3A",
+    "UBASH3B",
+    "ZBTB1",
+    "ZBTB10",
+    "ZBTB25",
+    "ZC3HAV1",
+    "ZNF318"
+  ],
+  "sensitive_terms": [
+    "K562",
+    "CRISPRa",
+    "Perturb-seq",
+    "Norman"
+  ],
+  "constraints": [
+    "Select exactly ten distinct candidate combinations.",
+    "No component gene may appear in more than two selected combinations.",
+    "Candidate outcomes and utilities are evaluator-private until scoring.",
+    "Use only frozen public training evidence for fitting and model selection.",
+    "Every demigod must return an independently complete batch, not a partial list."
+  ],
+  "question": "Which ten candidate pairs should be run next to maximize normalized non-additive interaction strength plus coverage of distinct strong response programs?",
+  "inputs": {
+    "study": {
+      "assay": "single-cell Perturb-seq",
+      "perturbation": "two-gene CRISPR activation",
+      "cell_context": "K562",
+      "source_accession": "GSE133344"
+    },
+    "split_protocol": {
+      "salt": "reagents-norman-diverse-batch-v1",
+      "selection_uses_expression": false,
+      "memorization_exclusions": [
+        "CBL+CNN1",
+        "CEBPB+FOSB",
+        "DUSP9+ETS2",
+        "DUSP9+MAPK1",
+        "PTPN12+ZBTB25"
+      ],
+      "training_pair_count": 63,
+      "candidate_pair_count": 63,
+      "feature_selection": "training-only top pseudobulk variance"
+    },
+    "candidate_catalog": [
+      {
+        "candidate_id": "C001",
+        "genes": [
+          "BAK1",
+          "KLF1"
+        ],
+        "component_ids": [
+          "G005",
+          "G056"
+        ]
+      },
+      {
+        "candidate_id": "C002",
+        "genes": [
+          "BPGM",
+          "ZBTB1"
+        ],
+        "component_ids": [
+          "G008",
+          "G101"
+        ]
+      },
+      {
+        "candidate_id": "C003",
+        "genes": [
+          "C19orf26",
+          "TGFBR2"
+        ],
+        "component_ids": [
+          "G009",
+          "G095"
+        ]
+      },
+      {
+        "candidate_id": "C004",
+        "genes": [
+          "C3orf72",
+          "FOXL2"
+        ],
+        "component_ids": [
+          "G010",
+          "G038"
+        ]
+      },
+      {
+        "candidate_id": "C005",
+        "genes": [
+          "CBFA2T3",
+          "PRDM1"
+        ],
+        "component_ids": [
+          "G011",
+          "G074"
+        ]
+      },
+      {
+        "candidate_id": "C006",
+        "genes": [
+          "CBL",
+          "PTPN12"
+        ],
+        "component_ids": [
+          "G012",
+          "G077"
+        ]
+      },
+      {
+        "candidate_id": "C007",
+        "genes": [
+          "CBL",
+          "TGFBR2"
+        ],
+        "component_ids": [
+          "G012",
+          "G095"
+        ]
+      },
+      {
+        "candidate_id": "C008",
+        "genes": [
+          "CDKN1A",
+          "CDKN1B"
+        ],
+        "component_ids": [
+          "G013",
+          "G014"
+        ]
+      },
+      {
+        "candidate_id": "C009",
+        "genes": [
+          "CEBPA",
+          "JUN"
+        ],
+        "component_ids": [
+          "G016",
+          "G052"
+        ]
+      },
+      {
+        "candidate_id": "C010",
+        "genes": [
+          "CEBPA",
+          "KLF1"
+        ],
+        "component_ids": [
+          "G016",
+          "G056"
+        ]
+      },
+      {
+        "candidate_id": "C011",
+        "genes": [
+          "CEBPB",
+          "CEBPE"
+        ],
+        "component_ids": [
+          "G017",
+          "G018"
+        ]
+      },
+      {
+        "candidate_id": "C012",
+        "genes": [
+          "CEBPB",
+          "LYL1"
+        ],
+        "component_ids": [
+          "G017",
+          "G059"
+        ]
+      },
+      {
+        "candidate_id": "C013",
+        "genes": [
+          "CEBPB",
+          "OSR2"
+        ],
+        "component_ids": [
+          "G017",
+          "G071"
+        ]
+      },
+      {
+        "candidate_id": "C014",
+        "genes": [
+          "CEBPB",
+          "PTPN12"
+        ],
+        "component_ids": [
+          "G017",
+          "G077"
+        ]
+      },
+      {
+        "candidate_id": "C015",
+        "genes": [
+          "CEBPE",
+          "FOSB"
+        ],
+        "component_ids": [
+          "G018",
+          "G034"
+        ]
+      },
+      {
+        "candidate_id": "C016",
+        "genes": [
+          "CEBPE",
+          "PTPN12"
+        ],
+        "component_ids": [
+          "G018",
+          "G077"
+        ]
+      },
+      {
+        "candidate_id": "C017",
+        "genes": [
+          "CEBPE",
+          "RUNX1T1"
+        ],
+        "component_ids": [
+          "G018",
+          "G082"
+        ]
+      },
+      {
+        "candidate_id": "C018",
+        "genes": [
+          "CEBPE",
+          "SET"
+        ],
+        "component_ids": [
+          "G018",
+          "G085"
+        ]
+      },
+      {
+        "candidate_id": "C019",
+        "genes": [
+          "CEBPE",
+          "SPI1"
+        ],
+        "component_ids": [
+          "G018",
+          "G091"
+        ]
+      },
+      {
+        "candidate_id": "C020",
+        "genes": [
+          "CLDN6",
+          "KLF1"
+        ],
+        "component_ids": [
+          "G022",
+          "G056"
+        ]
+      },
+      {
+        "candidate_id": "C021",
+        "genes": [
+          "CNN1",
+          "MAPK1"
+        ],
+        "component_ids": [
+          "G023",
+          "G066"
+        ]
+      },
+      {
+        "candidate_id": "C022",
+        "genes": [
+          "CNN1",
+          "UBASH3A"
+        ],
+        "component_ids": [
+          "G023",
+          "G099"
+        ]
+      },
+      {
+        "candidate_id": "C023",
+        "genes": [
+          "CNN1",
+          "UBASH3B"
+        ],
+        "component_ids": [
+          "G023",
+          "G100"
+        ]
+      },
+      {
+        "candidate_id": "C024",
+        "genes": [
+          "DLX2",
+          "SNAI1"
+        ],
+        "component_ids": [
+          "G028",
+          "G090"
+        ]
+      },
+      {
+        "candidate_id": "C025",
+        "genes": [
+          "DUSP9",
+          "KLF1"
+        ],
+        "component_ids": [
+          "G029",
+          "G056"
+        ]
+      },
+      {
+        "candidate_id": "C026",
+        "genes": [
+          "DUSP9",
+          "PRTG"
+        ],
+        "component_ids": [
+          "G029",
+          "G075"
+        ]
+      },
+      {
+        "candidate_id": "C027",
+        "genes": [
+          "DUSP9",
+          "SNAI1"
+        ],
+        "component_ids": [
+          "G029",
+          "G090"
+        ]
+      },
+      {
+        "candidate_id": "C028",
+        "genes": [
+          "ELMSAN1",
+          "LHX1"
+        ],
+        "component_ids": [
+          "G031",
+          "G058"
+        ]
+      },
+      {
+        "candidate_id": "C029",
+        "genes": [
+          "ELMSAN1",
+          "MAP2K6"
+        ],
+        "component_ids": [
+          "G031",
+          "G062"
+        ]
+      },
+      {
+        "candidate_id": "C030",
+        "genes": [
+          "ELMSAN1",
+          "ZBTB10"
+        ],
+        "component_ids": [
+          "G031",
+          "G102"
+        ]
+      },
+      {
+        "candidate_id": "C031",
+        "genes": [
+          "ETS2",
+          "IKZF3"
+        ],
+        "component_ids": [
+          "G032",
+          "G049"
+        ]
+      },
+      {
+        "candidate_id": "C032",
+        "genes": [
+          "ETS2",
+          "TGFBR2"
+        ],
+        "component_ids": [
+          "G032",
+          "G095"
+        ]
+      },
+      {
+        "candidate_id": "C033",
+        "genes": [
+          "FOSB",
+          "OSR2"
+        ],
+        "component_ids": [
+          "G034",
+          "G071"
+        ]
+      },
+      {
+        "candidate_id": "C034",
+        "genes": [
+          "FOSB",
+          "PTPN12"
+        ],
+        "component_ids": [
+          "G034",
+          "G077"
+        ]
+      },
+      {
+        "candidate_id": "C035",
+        "genes": [
+          "FOSB",
+          "UBASH3B"
+        ],
+        "component_ids": [
+          "G034",
+          "G100"
+        ]
+      },
+      {
+        "candidate_id": "C036",
+        "genes": [
+          "FOXA1",
+          "HOXB9"
+        ],
+        "component_ids": [
+          "G035",
+          "G045"
+        ]
+      },
+      {
+        "candidate_id": "C037",
+        "genes": [
+          "FOXA3",
+          "FOXF1"
+        ],
+        "component_ids": [
+          "G036",
+          "G037"
+        ]
+      },
+      {
+        "candidate_id": "C038",
+        "genes": [
+          "FOXA3",
+          "FOXL2"
+        ],
+        "component_ids": [
+          "G036",
+          "G038"
+        ]
+      },
+      {
+        "candidate_id": "C039",
+        "genes": [
+          "HOXC13",
+          "ZC3HAV1"
+        ],
+        "component_ids": [
+          "G046",
+          "G104"
+        ]
+      },
+      {
+        "candidate_id": "C040",
+        "genes": [
+          "IER5L",
+          "LYL1"
+        ],
+        "component_ids": [
+          "G047",
+          "G059"
+        ]
+      },
+      {
+        "candidate_id": "C041",
+        "genes": [
+          "IGDCC3",
+          "TGFBR2"
+        ],
+        "component_ids": [
+          "G048",
+          "G095"
+        ]
+      },
+      {
+        "candidate_id": "C042",
+        "genes": [
+          "IKZF3",
+          "MAP2K6"
+        ],
+        "component_ids": [
+          "G049",
+          "G062"
+        ]
+      },
+      {
+        "candidate_id": "C043",
+        "genes": [
+          "IKZF3",
+          "MAPK1"
+        ],
+        "component_ids": [
+          "G049",
+          "G066"
+        ]
+      },
+      {
+        "candidate_id": "C044",
+        "genes": [
+          "KIF18B",
+          "KIF2C"
+        ],
+        "component_ids": [
+          "G054",
+          "G055"
+        ]
+      },
+      {
+        "candidate_id": "C045",
+        "genes": [
+          "KLF1",
+          "SET"
+        ],
+        "component_ids": [
+          "G056",
+          "G085"
+        ]
+      },
+      {
+        "candidate_id": "C046",
+        "genes": [
+          "KLF1",
+          "TGFBR2"
+        ],
+        "component_ids": [
+          "G056",
+          "G095"
+        ]
+      },
+      {
+        "candidate_id": "C047",
+        "genes": [
+          "MAP2K3",
+          "SLC38A2"
+        ],
+        "component_ids": [
+          "G061",
+          "G087"
+        ]
+      },
+      {
+        "candidate_id": "C048",
+        "genes": [
+          "MAP2K6",
+          "SPI1"
+        ],
+        "component_ids": [
+          "G062",
+          "G091"
+        ]
+      },
+      {
+        "candidate_id": "C049",
+        "genes": [
+          "OSR2",
+          "PTPN12"
+        ],
+        "component_ids": [
+          "G071",
+          "G077"
+        ]
+      },
+      {
+        "candidate_id": "C050",
+        "genes": [
+          "OSR2",
+          "UBASH3B"
+        ],
+        "component_ids": [
+          "G071",
+          "G100"
+        ]
+      },
+      {
+        "candidate_id": "C051",
+        "genes": [
+          "PLK4",
+          "STIL"
+        ],
+        "component_ids": [
+          "G072",
+          "G092"
+        ]
+      },
+      {
+        "candidate_id": "C052",
+        "genes": [
+          "PRTG",
+          "TGFBR2"
+        ],
+        "component_ids": [
+          "G075",
+          "G095"
+        ]
+      },
+      {
+        "candidate_id": "C053",
+        "genes": [
+          "PTPN12",
+          "PTPN9"
+        ],
+        "component_ids": [
+          "G077",
+          "G079"
+        ]
+      },
+      {
+        "candidate_id": "C054",
+        "genes": [
+          "PTPN12",
+          "SNAI1"
+        ],
+        "component_ids": [
+          "G077",
+          "G090"
+        ]
+      },
+      {
+        "candidate_id": "C055",
+        "genes": [
+          "PTPN12",
+          "UBASH3A"
+        ],
+        "component_ids": [
+          "G077",
+          "G099"
+        ]
+      },
+      {
+        "candidate_id": "C056",
+        "genes": [
+          "PTPN12",
+          "UBASH3B"
+        ],
+        "component_ids": [
+          "G077",
+          "G100"
+        ]
+      },
+      {
+        "candidate_id": "C057",
+        "genes": [
+          "PTPN12",
+          "ZBTB10"
+        ],
+        "component_ids": [
+          "G077",
+          "G102"
+        ]
+      },
+      {
+        "candidate_id": "C058",
+        "genes": [
+          "RHOXF2",
+          "ZBTB25"
+        ],
+        "component_ids": [
+          "G080",
+          "G103"
+        ]
+      },
+      {
+        "candidate_id": "C059",
+        "genes": [
+          "SAMD1",
+          "ZBTB1"
+        ],
+        "component_ids": [
+          "G084",
+          "G101"
+        ]
+      },
+      {
+        "candidate_id": "C060",
+        "genes": [
+          "SNAI1",
+          "UBASH3B"
+        ],
+        "component_ids": [
+          "G090",
+          "G100"
+        ]
+      },
+      {
+        "candidate_id": "C061",
+        "genes": [
+          "SNAI1",
+          "ZBTB10"
+        ],
+        "component_ids": [
+          "G090",
+          "G102"
+        ]
+      },
+      {
+        "candidate_id": "C062",
+        "genes": [
+          "TBX2",
+          "TBX3"
+        ],
+        "component_ids": [
+          "G093",
+          "G094"
+        ]
+      },
+      {
+        "candidate_id": "C063",
+        "genes": [
+          "UBASH3A",
+          "UBASH3B"
+        ],
+        "component_ids": [
+          "G099",
+          "G100"
+        ]
+      }
+    ],
+    "scoring_rule": {
+      "batch_size": 10,
+      "gene_cap": 2,
+      "program_count": 6,
+      "coverage_bonus": 1.5,
+      "utility": "sum clipped normalized interaction strengths + coverage_bonus * number of distinct strong programs",
+      "primary_score": "10 * submitted_utility / exact_oracle_utility"
+    },
+    "broker_interfaces": [
+      "portfolio.manifest",
+      "portfolio.single_effects",
+      "portfolio.training_pairs",
+      "portfolio.algebra_lab",
+      "portfolio.geometry_lab",
+      "portfolio.graph_lab",
+      "portfolio.optimization_lab"
+    ],
+    "reasoning_contract": {
+      "artifact_required_keys": [
+        "candidate_solution",
+        "constraint_results",
+        "certificate",
+        "conclusion",
+        "hypotheses",
+        "experiments",
+        "model_comparison",
+        "validation"
+      ],
+      "minimum_broker_calls": 4,
+      "minimum_model_configurations": 3,
+      "required_tool_prefix": "portfolio.",
+      "required_compute_suffix": "_lab",
+      "runtime_budget": {
+        "max_demigod_turns": 28,
+        "max_tokens_per_model_turn": 8192,
+        "demigod_wall_time_s": 2400,
+        "max_broker_calls": 48
+      },
+      "requirements": [
+        "Every worker must solve the full ten-item portfolio.",
+        "Use frozen training folds for model selection and report validation.",
+        "Respect the two-use cap for every component symbol.",
+        "Return exactly ten distinct C identifiers in candidate_solution.selection.",
+        "Include a robustness ablation and a machine-checkable selection certificate."
+      ]
+    }
+  },
+  "required_outputs": [
+    "exactly ten candidate identifiers",
+    "constraint certificate for uniqueness and component-use caps",
+    "training-fold model comparison",
+    "robustness ablation and rationale for strength-diversity tradeoff"
+  ],
+  "answer_schema": {
+    "type": "object",
+    "required": [
+      "selected_candidate_ids",
+      "method_summary"
+    ],
+    "properties": {
+      "selected_candidate_ids": {
+        "type": "array",
+        "minItems": 10,
+        "maxItems": 10,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^C[0-9]{3}$"
+        }
+      },
+      "method_summary": {
+        "type": "string"
+      }
+    }
+  }
+}

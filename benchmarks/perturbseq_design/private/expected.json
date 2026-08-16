@@ -1,0 +1,714 @@
+{
+  "version": 1,
+  "source_sha256": "b679c157fea550ef5be4dad91da9dff1f5d8287313ad3f3537f6cf14d4bcd434",
+  "scale": 1.1232137429503246,
+  "strong_threshold": 1.2650748629979753,
+  "candidates": {
+    "C001": {
+      "condition": "BAK1+KLF1",
+      "components": [
+        "G005",
+        "G056"
+      ],
+      "strength": 0.331251543298149,
+      "program": 5,
+      "strong": false,
+      "cell_count": 392
+    },
+    "C002": {
+      "condition": "BPGM+ZBTB1",
+      "components": [
+        "G008",
+        "G101"
+      ],
+      "strength": 1.1305387080172333,
+      "program": 4,
+      "strong": false,
+      "cell_count": 358
+    },
+    "C003": {
+      "condition": "C19orf26+TGFBR2",
+      "components": [
+        "G009",
+        "G095"
+      ],
+      "strength": 0.8261841900115637,
+      "program": 5,
+      "strong": false,
+      "cell_count": 323
+    },
+    "C004": {
+      "condition": "C3orf72+FOXL2",
+      "components": [
+        "G010",
+        "G038"
+      ],
+      "strength": 1.5703038658714967,
+      "program": 2,
+      "strong": true,
+      "cell_count": 59
+    },
+    "C005": {
+      "condition": "CBFA2T3+PRDM1",
+      "components": [
+        "G011",
+        "G074"
+      ],
+      "strength": 1.441812364997494,
+      "program": 5,
+      "strong": true,
+      "cell_count": 105
+    },
+    "C006": {
+      "condition": "CBL+PTPN12",
+      "components": [
+        "G012",
+        "G077"
+      ],
+      "strength": 0.838181673921986,
+      "program": 3,
+      "strong": false,
+      "cell_count": 333
+    },
+    "C007": {
+      "condition": "CBL+TGFBR2",
+      "components": [
+        "G012",
+        "G095"
+      ],
+      "strength": 0.8591984292585045,
+      "program": 3,
+      "strong": false,
+      "cell_count": 187
+    },
+    "C008": {
+      "condition": "CDKN1A+CDKN1B",
+      "components": [
+        "G013",
+        "G014"
+      ],
+      "strength": 1.074927380011394,
+      "program": 4,
+      "strong": false,
+      "cell_count": 134
+    },
+    "C009": {
+      "condition": "CEBPA+JUN",
+      "components": [
+        "G016",
+        "G052"
+      ],
+      "strength": 1.6225395878265996,
+      "program": 4,
+      "strong": true,
+      "cell_count": 54
+    },
+    "C010": {
+      "condition": "CEBPA+KLF1",
+      "components": [
+        "G016",
+        "G056"
+      ],
+      "strength": 1.9040052590424386,
+      "program": 4,
+      "strong": true,
+      "cell_count": 311
+    },
+    "C011": {
+      "condition": "CEBPB+CEBPE",
+      "components": [
+        "G017",
+        "G018"
+      ],
+      "strength": 2.0,
+      "program": 0,
+      "strong": true,
+      "cell_count": 114
+    },
+    "C012": {
+      "condition": "CEBPB+LYL1",
+      "components": [
+        "G017",
+        "G059"
+      ],
+      "strength": 1.4672044691208102,
+      "program": 2,
+      "strong": true,
+      "cell_count": 191
+    },
+    "C013": {
+      "condition": "CEBPB+OSR2",
+      "components": [
+        "G017",
+        "G071"
+      ],
+      "strength": 1.1392423461886971,
+      "program": 2,
+      "strong": false,
+      "cell_count": 211
+    },
+    "C014": {
+      "condition": "CEBPB+PTPN12",
+      "components": [
+        "G017",
+        "G077"
+      ],
+      "strength": 1.5956757053405286,
+      "program": 2,
+      "strong": true,
+      "cell_count": 331
+    },
+    "C015": {
+      "condition": "CEBPE+FOSB",
+      "components": [
+        "G018",
+        "G034"
+      ],
+      "strength": 1.197595690482422,
+      "program": 5,
+      "strong": false,
+      "cell_count": 151
+    },
+    "C016": {
+      "condition": "CEBPE+PTPN12",
+      "components": [
+        "G018",
+        "G077"
+      ],
+      "strength": 1.968690705823533,
+      "program": 0,
+      "strong": true,
+      "cell_count": 414
+    },
+    "C017": {
+      "condition": "CEBPE+RUNX1T1",
+      "components": [
+        "G018",
+        "G082"
+      ],
+      "strength": 1.6917358929667439,
+      "program": 2,
+      "strong": true,
+      "cell_count": 1215
+    },
+    "C018": {
+      "condition": "CEBPE+SET",
+      "components": [
+        "G018",
+        "G085"
+      ],
+      "strength": 2.0,
+      "program": 0,
+      "strong": true,
+      "cell_count": 657
+    },
+    "C019": {
+      "condition": "CEBPE+SPI1",
+      "components": [
+        "G018",
+        "G091"
+      ],
+      "strength": 1.5011466167323462,
+      "program": 4,
+      "strong": true,
+      "cell_count": 179
+    },
+    "C020": {
+      "condition": "CLDN6+KLF1",
+      "components": [
+        "G022",
+        "G056"
+      ],
+      "strength": 1.1508618994912927,
+      "program": 4,
+      "strong": false,
+      "cell_count": 236
+    },
+    "C021": {
+      "condition": "CNN1+MAPK1",
+      "components": [
+        "G023",
+        "G066"
+      ],
+      "strength": 1.3511927013460103,
+      "program": 4,
+      "strong": true,
+      "cell_count": 398
+    },
+    "C022": {
+      "condition": "CNN1+UBASH3A",
+      "components": [
+        "G023",
+        "G099"
+      ],
+      "strength": 2.0,
+      "program": 3,
+      "strong": true,
+      "cell_count": 177
+    },
+    "C023": {
+      "condition": "CNN1+UBASH3B",
+      "components": [
+        "G023",
+        "G100"
+      ],
+      "strength": 1.5278923591415312,
+      "program": 3,
+      "strong": true,
+      "cell_count": 401
+    },
+    "C024": {
+      "condition": "DLX2+SNAI1",
+      "components": [
+        "G028",
+        "G090"
+      ],
+      "strength": 1.0997629157101223,
+      "program": 5,
+      "strong": false,
+      "cell_count": 129
+    },
+    "C025": {
+      "condition": "DUSP9+KLF1",
+      "components": [
+        "G029",
+        "G056"
+      ],
+      "strength": 0.9529804219707616,
+      "program": 5,
+      "strong": false,
+      "cell_count": 366
+    },
+    "C026": {
+      "condition": "DUSP9+PRTG",
+      "components": [
+        "G029",
+        "G075"
+      ],
+      "strength": 1.4060172142823875,
+      "program": 4,
+      "strong": true,
+      "cell_count": 297
+    },
+    "C027": {
+      "condition": "DUSP9+SNAI1",
+      "components": [
+        "G029",
+        "G090"
+      ],
+      "strength": 2.0,
+      "program": 4,
+      "strong": true,
+      "cell_count": 182
+    },
+    "C028": {
+      "condition": "ELMSAN1+LHX1",
+      "components": [
+        "G031",
+        "G058"
+      ],
+      "strength": 0.5093255616371749,
+      "program": 5,
+      "strong": false,
+      "cell_count": 645
+    },
+    "C029": {
+      "condition": "ELMSAN1+MAP2K6",
+      "components": [
+        "G031",
+        "G062"
+      ],
+      "strength": 0.42717342766783856,
+      "program": 5,
+      "strong": false,
+      "cell_count": 448
+    },
+    "C030": {
+      "condition": "ELMSAN1+ZBTB10",
+      "components": [
+        "G031",
+        "G102"
+      ],
+      "strength": 0.7579365573661994,
+      "program": 5,
+      "strong": false,
+      "cell_count": 182
+    },
+    "C031": {
+      "condition": "ETS2+IKZF3",
+      "components": [
+        "G032",
+        "G049"
+      ],
+      "strength": 1.1344668945421432,
+      "program": 2,
+      "strong": false,
+      "cell_count": 444
+    },
+    "C032": {
+      "condition": "ETS2+TGFBR2",
+      "components": [
+        "G032",
+        "G095"
+      ],
+      "strength": 0.4817327888564028,
+      "program": 5,
+      "strong": false,
+      "cell_count": 318
+    },
+    "C033": {
+      "condition": "FOSB+OSR2",
+      "components": [
+        "G034",
+        "G071"
+      ],
+      "strength": 0.8846254051571025,
+      "program": 5,
+      "strong": false,
+      "cell_count": 382
+    },
+    "C034": {
+      "condition": "FOSB+PTPN12",
+      "components": [
+        "G034",
+        "G077"
+      ],
+      "strength": 1.0723206471804505,
+      "program": 2,
+      "strong": false,
+      "cell_count": 345
+    },
+    "C035": {
+      "condition": "FOSB+UBASH3B",
+      "components": [
+        "G034",
+        "G100"
+      ],
+      "strength": 0.6632285518369447,
+      "program": 5,
+      "strong": false,
+      "cell_count": 425
+    },
+    "C036": {
+      "condition": "FOXA1+HOXB9",
+      "components": [
+        "G035",
+        "G045"
+      ],
+      "strength": 0.858762607373844,
+      "program": 5,
+      "strong": false,
+      "cell_count": 293
+    },
+    "C037": {
+      "condition": "FOXA3+FOXF1",
+      "components": [
+        "G036",
+        "G037"
+      ],
+      "strength": 0.6168094868148833,
+      "program": 5,
+      "strong": false,
+      "cell_count": 175
+    },
+    "C038": {
+      "condition": "FOXA3+FOXL2",
+      "components": [
+        "G036",
+        "G038"
+      ],
+      "strength": 0.9715988674404289,
+      "program": 5,
+      "strong": false,
+      "cell_count": 130
+    },
+    "C039": {
+      "condition": "HOXC13+ZC3HAV1",
+      "components": [
+        "G046",
+        "G104"
+      ],
+      "strength": 0.8457469633969145,
+      "program": 2,
+      "strong": false,
+      "cell_count": 617
+    },
+    "C040": {
+      "condition": "IER5L+LYL1",
+      "components": [
+        "G047",
+        "G059"
+      ],
+      "strength": 0.7791132657972722,
+      "program": 4,
+      "strong": false,
+      "cell_count": 623
+    },
+    "C041": {
+      "condition": "IGDCC3+TGFBR2",
+      "components": [
+        "G048",
+        "G095"
+      ],
+      "strength": 0.4665693299223773,
+      "program": 5,
+      "strong": false,
+      "cell_count": 301
+    },
+    "C042": {
+      "condition": "IKZF3+MAP2K6",
+      "components": [
+        "G049",
+        "G062"
+      ],
+      "strength": 0.5773714357310381,
+      "program": 5,
+      "strong": false,
+      "cell_count": 300
+    },
+    "C043": {
+      "condition": "IKZF3+MAPK1",
+      "components": [
+        "G049",
+        "G066"
+      ],
+      "strength": 1.465251352322715,
+      "program": 2,
+      "strong": true,
+      "cell_count": 301
+    },
+    "C044": {
+      "condition": "KIF18B+KIF2C",
+      "components": [
+        "G054",
+        "G055"
+      ],
+      "strength": 0.5409459453700386,
+      "program": 5,
+      "strong": false,
+      "cell_count": 95
+    },
+    "C045": {
+      "condition": "KLF1+SET",
+      "components": [
+        "G056",
+        "G085"
+      ],
+      "strength": 1.1621228310393852,
+      "program": 5,
+      "strong": false,
+      "cell_count": 666
+    },
+    "C046": {
+      "condition": "KLF1+TGFBR2",
+      "components": [
+        "G056",
+        "G095"
+      ],
+      "strength": 0.40743851486562505,
+      "program": 5,
+      "strong": false,
+      "cell_count": 337
+    },
+    "C047": {
+      "condition": "MAP2K3+SLC38A2",
+      "components": [
+        "G061",
+        "G087"
+      ],
+      "strength": 0.4383710596563087,
+      "program": 5,
+      "strong": false,
+      "cell_count": 338
+    },
+    "C048": {
+      "condition": "MAP2K6+SPI1",
+      "components": [
+        "G062",
+        "G091"
+      ],
+      "strength": 1.4898878840315428,
+      "program": 2,
+      "strong": true,
+      "cell_count": 302
+    },
+    "C049": {
+      "condition": "OSR2+PTPN12",
+      "components": [
+        "G071",
+        "G077"
+      ],
+      "strength": 0.9879327964259863,
+      "program": 2,
+      "strong": false,
+      "cell_count": 338
+    },
+    "C050": {
+      "condition": "OSR2+UBASH3B",
+      "components": [
+        "G071",
+        "G100"
+      ],
+      "strength": 0.8726105726816596,
+      "program": 2,
+      "strong": false,
+      "cell_count": 795
+    },
+    "C051": {
+      "condition": "PLK4+STIL",
+      "components": [
+        "G072",
+        "G092"
+      ],
+      "strength": 0.7766953720390303,
+      "program": 5,
+      "strong": false,
+      "cell_count": 81
+    },
+    "C052": {
+      "condition": "PRTG+TGFBR2",
+      "components": [
+        "G075",
+        "G095"
+      ],
+      "strength": 0.5951899111826475,
+      "program": 4,
+      "strong": false,
+      "cell_count": 264
+    },
+    "C053": {
+      "condition": "PTPN12+PTPN9",
+      "components": [
+        "G077",
+        "G079"
+      ],
+      "strength": 0.7821122309231439,
+      "program": 3,
+      "strong": false,
+      "cell_count": 364
+    },
+    "C054": {
+      "condition": "PTPN12+SNAI1",
+      "components": [
+        "G077",
+        "G090"
+      ],
+      "strength": 0.8062097487819473,
+      "program": 4,
+      "strong": false,
+      "cell_count": 283
+    },
+    "C055": {
+      "condition": "PTPN12+UBASH3A",
+      "components": [
+        "G077",
+        "G099"
+      ],
+      "strength": 1.9320195873371089,
+      "program": 3,
+      "strong": true,
+      "cell_count": 311
+    },
+    "C056": {
+      "condition": "PTPN12+UBASH3B",
+      "components": [
+        "G077",
+        "G100"
+      ],
+      "strength": 1.0725824955623955,
+      "program": 3,
+      "strong": false,
+      "cell_count": 297
+    },
+    "C057": {
+      "condition": "PTPN12+ZBTB10",
+      "components": [
+        "G077",
+        "G102"
+      ],
+      "strength": 0.8733711213089228,
+      "program": 4,
+      "strong": false,
+      "cell_count": 265
+    },
+    "C058": {
+      "condition": "RHOXF2+ZBTB25",
+      "components": [
+        "G080",
+        "G103"
+      ],
+      "strength": 0.7265069237598697,
+      "program": 5,
+      "strong": false,
+      "cell_count": 262
+    },
+    "C059": {
+      "condition": "SAMD1+ZBTB1",
+      "components": [
+        "G084",
+        "G101"
+      ],
+      "strength": 0.826987125623879,
+      "program": 4,
+      "strong": false,
+      "cell_count": 190
+    },
+    "C060": {
+      "condition": "SNAI1+UBASH3B",
+      "components": [
+        "G090",
+        "G100"
+      ],
+      "strength": 0.4749577427749364,
+      "program": 5,
+      "strong": false,
+      "cell_count": 299
+    },
+    "C061": {
+      "condition": "SNAI1+ZBTB10",
+      "components": [
+        "G090",
+        "G102"
+      ],
+      "strength": 1.0729300509832191,
+      "program": 5,
+      "strong": false,
+      "cell_count": 100
+    },
+    "C062": {
+      "condition": "TBX2+TBX3",
+      "components": [
+        "G093",
+        "G094"
+      ],
+      "strength": 0.9114440264795103,
+      "program": 5,
+      "strong": false,
+      "cell_count": 1164
+    },
+    "C063": {
+      "condition": "UBASH3A+UBASH3B",
+      "components": [
+        "G099",
+        "G100"
+      ],
+      "strength": 0.5799095989961921,
+      "program": 5,
+      "strong": false,
+      "cell_count": 554
+    }
+  },
+  "oracle_selection": [
+    "C004",
+    "C005",
+    "C009",
+    "C010",
+    "C011",
+    "C014",
+    "C018",
+    "C022",
+    "C027",
+    "C055"
+  ],
+  "oracle_utility": 25.566356370415665
+}
