@@ -47,6 +47,11 @@ engineering = [
 [project.scripts]
 reagents = "reagents.__main__:main"
 spawn-demigod = "demigod.spawn:main"
+# The DEMI_GOD-facing broker CLI. Installed here for local development and for
+# `uv run toolbox`; inside a sandbox image it arrives as a two-line shim on
+# PATH instead, because images get the package via add_local_python_source and
+# never run pip. See demigod.images.TOOLBOX_BIN.
+toolbox = "demigod.toolbox.cli:main"
 
 # Dev-only, via PEP 735 so `uv sync --no-dev` cleanly excludes it from any image
 # bake -- a test dependency must never land in a DEMI_GOD's environment where it
@@ -65,9 +70,11 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-# BOTH packages. Listing only one silently ships a wheel missing the other.
+# ALL THREE packages. Listing only some silently ships a wheel missing the rest.
+# `broker` is the third sandbox type: it imports both halves, and neither half
+# imports it. It is never added to a DEMI_GOD image -- see src/broker/__init__.py.
 [tool.hatch.build.targets.wheel]
-packages = ["src/reagents", "src/demigod"]
+packages = ["src/reagents", "src/demigod", "src/broker"]
 
 [tool.ruff]
 line-length = 88

@@ -21,23 +21,51 @@ therefore checked on the output, not on the process. Closing that gap means
 moving the agent loop outside the sandbox, which is a live design question and
 deliberately not settled here.
 
-Tool calls do not reach `BoundToolPack`. A sandboxed demigod is a different
-process on a different machine and cannot call GOD's in-process callables; the
-lease is still minted and still gates whether the spawn is allowed, but the
-tools themselves arrive only once the TOOLBOX_BROKER lands. See `adapter.py`.
+TOOLS, AND HOW THEY GET THERE
+-----------------------------
+A sandboxed demigod cannot call GOD's in-process callables, so `BoundToolPack`
+is not invoked here and never will be. Instead the pack's LEASE is published to
+the TOOLBOX_BROKER (`toolbox=` below), and the demigod is handed a URL and that
+lease id. The same lease that authorizes the spawn authorizes the calls -- one
+authority, not two.
+
+Pass no `toolbox` and the behaviour is exactly what it was: the lease still
+gates whether the spawn happens, and the agent is told its tools are
+unreachable. That is a legitimate configuration for a demigod that reasons from
+`shared/` alone, and it is the default because minting a live credential should
+be an explicit act.
 """
 
 from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from typing import Any, Protocol
 
 from demigod.result import DemiGodResult
 from demigod.spawn import spawn_demigod
+from demigod.toolbox.protocol import ToolboxGrant
 from reagents.contracts import ContextEnvelope
 from reagents.demigod.adapter import envelope_to_spec, slugify_domain_name
 from reagents.demigod.runtime import IsolationGuard
 from reagents.tools.registry import BoundToolPack
+
+
+class ToolboxProvider(Protocol):
+    """What this runtime needs from the broker. Structural, so `reagents` does
+    not import `broker` -- the dependency runs the other way (`broker` imports
+    `reagents`), and adding a back-edge would make the two packages one.
+
+    Satisfied by `broker.session.ToolboxSession`.
+    """
+
+    def grant(self, pack: BoundToolPack, *, label: str = ...) -> ToolboxGrant: ...
+
+    def collect_trace(
+        self, lease_id: str, *, include_refused: bool = ...
+    ) -> list[dict[str, Any]]: ...
+
+    def revoke(self, lease_id: str) -> None: ...
 
 
 LEAKED_CONFIDENCE_CEILING = 0.5
@@ -58,14 +86,22 @@ class SandboxDemigodRuntime:
         *,
         run_id: str,
         tool_map: dict[str, str] | None = None,
+        toolbox: ToolboxProvider | None = None,
         shared_files: list[str] | None = None,
         runner_kind: str = "inside",
         cpu: float = 1.0,
         memory_mb: int = 2048,
         max_turns: int | None = None,
+        restrict_egress: bool = False,
     ) -> None:
         self.run_id = run_id
         self.tool_map = tool_map or {}
+        # None means "no brokered tools this run" -- see the module docstring.
+        # `broker.session.modal_session()` is the production one.
+        self.toolbox = toolbox
+        # Pins sandbox egress to the agent API plus the broker. Off by default:
+        # see envelope_to_spec.
+        self.restrict_egress = restrict_egress
         # Paths under the run's shared volume, already seeded by the caller.
         self.shared_files = shared_files or []
         self.runner_kind = runner_kind
@@ -94,16 +130,33 @@ class SandboxDemigodRuntime:
                 isolation_violations=violations,
             )
 
+        # Publish the lease BEFORE the sandbox exists. A demigod is handed its
+        # credential at spawn time and has no channel to be given one later.
+        grant: ToolboxGrant | None = None
+        if self.toolbox is not None:
+            try:
+                grant = await asyncio.to_thread(
+                    self.toolbox.grant, tools, label=name
+                )
+            except Exception as exc:
+                # Not fatal. A demigod with no tools and an honest `blockers`
+                # entry is worth more than no demigod at all -- and the agent is
+                # told, by envelope_to_spec, that its tools are unreachable.
+                print(f"[toolbox] could not publish a lease for {name}: {exc}")
+
         try:
             spec = envelope_to_spec(
                 envelope,
                 tool_map=self.tool_map,
+                toolbox=grant,
                 files=self.shared_files,
                 max_turns=self.max_turns,
                 cpu=self.cpu,
                 memory_mb=self.memory_mb,
+                restrict_egress=self.restrict_egress,
             )
         except Exception as exc:
+            self._revoke(grant)
             return fail(f"could not build a spec from the envelope: {exc}")
 
         # spawn_demigod is synchronous and blocks for the whole agent run.
@@ -118,7 +171,14 @@ class SandboxDemigodRuntime:
                 runner_kind=self.runner_kind,
             )
         except Exception as exc:
+            await self._finish_lease(grant, None)
             return fail(f"sandbox spawn failed: {exc}")
+
+        # The trace is read back from the BROKER, not from the manifest. The
+        # agent authors its own claim; it does not get to author the record of
+        # what it called. A demigod that called a tool, disliked the answer, and
+        # omitted it cannot hide here.
+        await self._finish_lease(grant, result)
 
         # The seal is checked on what came back. Everything the agent wrote is
         # in the manifest, so this is the same check the in-process runtime
@@ -156,6 +216,38 @@ class SandboxDemigodRuntime:
                 result.blockers = [*result.blockers, *schema_errors]
 
         return result
+
+    # --- lease lifecycle ----------------------------------------------------
+
+    async def _finish_lease(
+        self, grant: ToolboxGrant | None, result: DemiGodResult | None
+    ) -> None:
+        """Stamp the broker's trace onto the result, then end the lease.
+
+        Revocation is unconditional and happens even when collection fails: a
+        lease that outlives its demigod is a credential lying around, and the
+        sandbox it was issued to is already gone.
+        """
+        if grant is None or self.toolbox is None:
+            return
+        try:
+            trace = await asyncio.to_thread(
+                self.toolbox.collect_trace, grant.lease_id
+            )
+            if result is not None:
+                result.tool_trace = trace
+        except Exception as exc:
+            print(f"[toolbox] could not collect the trace for {grant.lease_id}: {exc}")
+        finally:
+            self._revoke(grant)
+
+    def _revoke(self, grant: ToolboxGrant | None) -> None:
+        if grant is None or self.toolbox is None:
+            return
+        try:
+            self.toolbox.revoke(grant.lease_id)
+        except Exception as exc:  # noqa: BLE001 - never fail a run on cleanup
+            print(f"[toolbox] revoke failed for {grant.lease_id}: {exc}")
 
 
 def seed_shared_files(run_id: str, local_paths: list[str | Path]) -> list[str]:

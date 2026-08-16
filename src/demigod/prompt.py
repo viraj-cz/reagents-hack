@@ -58,7 +58,7 @@ selected for, and it will be recombined as if it were authoritative.
 # Your tools
 
 {tools_section}
-
+{toolbox_section}
 You have Read, Write, Edit, Glob, Grep and Bash. Anything not listed above is
 not installed, and installing things is not your job -- if you need a tool you
 do not have, that is a `blocker`, not a detour.
@@ -147,11 +147,21 @@ def build_system_prompt(spec: DemiGodSpec) -> str:
         tools_section = (
             "These are installed and verified in your environment.\n\n" + docs
         )
+    elif spec.toolbox is not None:
+        # A brokered lease is a real toolset. Saying "no tools" here and then
+        # describing `toolbox` two lines later reads as a contradiction, and an
+        # agent that believes the first sentence never runs the command.
+        tools_section = (
+            "Nothing extra is installed in your environment, but you hold a "
+            "toolbox lease -- see below."
+        )
     else:
         tools_section = (
             "No domain tools. You have the standard file and shell tools only; "
             "reason from what is in `shared/`."
         )
+
+    toolbox_section = build_toolbox_section(spec)
 
     misc_section = ""
     if spec.miscellaneous:
@@ -170,12 +180,78 @@ def build_system_prompt(spec: DemiGodSpec) -> str:
         out=OUT_MOUNT,
         files_section=files_section,
         tools_section=tools_section,
+        toolbox_section=toolbox_section,
         result_filename=RESULT_FILENAME,
         # The domain's artifact_schema replaces the generic `payload` slot, so
         # the agent is shown the exact structure it must produce rather than a
         # bare "object". Envelope fields are excluded either way.
         schema=json.dumps(result_json_schema(spec.artifact_schema or None), indent=2),
         misc_section=misc_section,
+    )
+
+
+_TOOLBOX_TEMPLATE = """
+## Brokered tools -- the `toolbox` command
+
+These run somewhere else, on a broker, and you reach them over the network with
+one command. They are NOT Python imports; there is no library to import.
+
+```
+toolbox list                            # what you may call, and how many calls remain
+toolbox describe {example}              # the input schema for one tool
+toolbox call {example} -i args.json     # run it; the result prints as JSON
+toolbox call {example} -i - <<'EOF'     # or pass arguments on stdin
+{{"some_argument": 1}}
+EOF
+```
+
+Start with `toolbox list`. Read `toolbox describe <tool>` before the first call
+to a tool -- the input must match its schema exactly or the broker rejects it,
+and a rejected call tells you what was wrong.
+
+Granted to you: {ids}
+
+Rules that will otherwise cost you the run:
+
+- **Your calls are metered.** `toolbox list` shows how many remain. When they
+  are gone the broker refuses, and there is no way to ask for more. Spend them
+  on the calls that decide your claim, not on exploring.
+- **A refusal is not a retry.** `[lease_exhausted]`, `[unbound_tool]` and
+  `[write_denied]` are permanent. Only `[invalid_input]` is worth another
+  attempt, with corrected input.
+- **Save what you get.** `toolbox call ... -o result.json` writes the output
+  into your output directory, where it becomes evidence. A number that appears
+  only in your transcript did not survive.
+- **Never invent a result.** If a tool you need refuses, record it in
+  `blockers`. A fabricated tool output is the single worst thing you can
+  produce: it is indistinguishable from a real one to whatever reads you next.
+"""
+
+
+def build_toolbox_section(spec: DemiGodSpec) -> str:
+    """The brokered-tool half of the tools section. Empty when no lease exists.
+
+    Deliberately a CLI paragraph rather than N tool schemas. Schemas are
+    permanent context -- four brokered tools would put four JSON Schemas in
+    every turn of this agent's window -- and `toolbox describe` fetches one on
+    demand, at the moment it is about to be used.
+    """
+    grant = spec.toolbox
+    if grant is None:
+        return ""
+    ids = grant.tool_ids
+    if not ids:
+        # A lease with no tools is a configuration mistake worth surfacing to
+        # the agent rather than a silent empty section it reasons around.
+        return (
+            "\n## Brokered tools\n\nA toolbox lease was issued to you but it "
+            "grants no tools. Run `toolbox list` to confirm, then record it in "
+            "`blockers`.\n"
+        )
+    example = ids[0]
+    return _TOOLBOX_TEMPLATE.format(
+        example=example,
+        ids=", ".join(f"`{i}`" for i in ids),
     )
 
 

@@ -18,16 +18,23 @@ and the result keeps BOTH: `demigod_name` (infrastructure) and `domain_name`
 representation is rendered as JSON under its notation guide rather than
 flattened away, so the agent still sees symbols rather than a paraphrase.
 
-**Tools -- and this one is not solved here.** `reagents` tool ids are dotted and
-resolve to in-process callables behind a capability lease
-(`formal.z3_solve`); `demigod` tool keys are flat and resolve to pip packages
-baked into a Modal image (`pandas`). A demigod in a sandbox is a different
-process on a different machine and cannot call GOD's Python functions, so the
-two sets do not and cannot line up by renaming. The TOOLBOX_BROKER is what
-actually closes this gap. Until it lands, `tool_map` translates the few ids that
-have a demigod-registry equivalent and everything else is reported to the agent
-as unavailable -- loudly, in `miscellaneous`, so it records a blocker instead of
-hallucinating a tool it does not have.
+**Tools -- and there are now TWO answers, because there were always two kinds of
+tool.** `reagents` tool ids are dotted and resolve to in-process callables behind
+a capability lease (`formal.z3_solve`); `demigod` tool keys are flat and resolve
+to pip packages baked into a Modal image (`pandas`). These do not line up by
+renaming and never will, because they are different things: one is a function
+someone else owns, the other is a library on your own disk.
+
+- A pip package is an IMAGE concern. `tool_map` still handles it: name the
+  demigod-registry key and it gets baked in. That path is unchanged.
+- A callable is a BROKER concern. `toolbox` handles it: GOD publishes the
+  capability lease to the TOOLBOX_BROKER and hands the demigod a URL and a lease
+  id, and the demigod calls the real function over HTTP with `toolbox call`.
+  The ids do not change: `formal.z3_solve` is `formal.z3_solve` on both sides.
+
+Anything in neither -- no image key, no broker lease -- is still reported to the
+agent as unavailable, loudly, in `miscellaneous`. A silently-dropped tool
+produces an agent that invents results it had no way to compute.
 """
 
 from __future__ import annotations
@@ -36,7 +43,9 @@ import json
 import re
 from typing import Any
 
+from demigod.egress import allowlist
 from demigod.spec import DemiGodSpec, Problem
+from demigod.toolbox.protocol import ToolboxGrant
 from reagents.contracts import ContextEnvelope
 
 _NON_SLUG = re.compile(r"[^a-z0-9]+")
@@ -95,20 +104,38 @@ def envelope_to_spec(
     envelope: ContextEnvelope,
     *,
     tool_map: dict[str, str] | None = None,
+    toolbox: ToolboxGrant | None = None,
     files: list[str] | None = None,
     max_turns: int | None = None,
     cpu: float = 1.0,
     memory_mb: int = 2048,
+    restrict_egress: bool = False,
 ) -> DemiGodSpec:
     """Sealed envelope -> a spawnable DemiGodSpec.
 
     `files` are paths under the run's shared volume. GOD chooses them; the
     caller is responsible for having seeded them (see RunLayout.seed_shared),
     because shared/ is read-only at every mount and cannot be filled from inside.
+
+    `toolbox` is a lease already published to the broker (see
+    `broker.session.ToolboxSession.grant`). Publishing it is the caller's job,
+    not this function's: minting authority and translating vocabulary are
+    different responsibilities, and an adapter that could mint would be a second
+    path around GOD's operator-approval checks.
+
+    `restrict_egress` pins the sandbox's outbound network to the agent API plus
+    the broker. Off by default -- turning a prompt instruction into a firewall
+    rule is a change in behaviour, and it should be one someone opted into.
     """
     tool_map = tool_map or {}
+    brokered = set(toolbox.tool_ids) if toolbox else set()
+
     mapped = [tool_map[t] for t in envelope.domain.tool_ids if t in tool_map]
-    unmapped = [t for t in envelope.domain.tool_ids if t not in tool_map]
+    unmapped = [
+        t
+        for t in envelope.domain.tool_ids
+        if t not in tool_map and t not in brokered
+    ]
 
     misc: dict[str, Any] = {
         "axes": [a.value for a in envelope.domain.axes],
@@ -131,6 +158,10 @@ def envelope_to_spec(
         domain_name=envelope.domain.name,
         domain=render_domain(envelope),
         tools=mapped,
+        toolbox=toolbox,
+        egress_domains=(
+            allowlist(toolbox.base if toolbox else None) if restrict_egress else None
+        ),
         problem=Problem(
             context=render_context(envelope),
             goal=envelope.problem.task,

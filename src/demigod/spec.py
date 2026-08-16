@@ -11,6 +11,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from demigod.toolbox.protocol import ToolboxGrant
+
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]{1,30}[a-z0-9]$")
 
 
@@ -72,6 +74,29 @@ class DemiGodSpec(BaseModel):
         description=(
             "Tool KEYS from the closed registry (demigod.registry). Free text is "
             "rejected at validation time, not at runtime in the sandbox."
+        ),
+    )
+    toolbox: ToolboxGrant | None = Field(
+        None,
+        description=(
+            "Capability lease on the TOOLBOX_BROKER: a URL and a lease id, and "
+            "nothing else. Orthogonal to `tools` -- that field names pip "
+            "packages baked into this agent's image, while this one names "
+            "callables that run on someone else's machine. A demigod can hold "
+            "both, either, or neither.\n\n"
+            "This is the ONLY credential a DEMI_GOD is given besides its "
+            "Anthropic key. In particular it is never given a Modal token: "
+            "Modal tokens are workspace-wide, so one would let it spawn "
+            "sandboxes and read every sibling's output volume."
+        ),
+    )
+    egress_domains: list[str] | None = Field(
+        None,
+        description=(
+            "Domains this sandbox may reach, passed to Modal as "
+            "`outbound_domain_allowlist`. None means unrestricted, which is "
+            "Modal's default and this repo's prior behaviour. Build one with "
+            "`demigod.egress.allowlist(broker_url)`."
         ),
     )
     problem: Problem
