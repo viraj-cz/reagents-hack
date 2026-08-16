@@ -32,6 +32,7 @@ cannot contaminate the spec it writes.
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from reagents.contracts import NativeProblem
 from reagents.isolation import find_leaks, native_terms
@@ -75,12 +76,30 @@ def anonymize_problem(problem: NativeProblem) -> tuple[NativeProblem, dict[str, 
             text = re.sub(pattern, symbol_of[term], text, flags=re.IGNORECASE)
         return text
 
+    def scrub_value(value: Any) -> Any:
+        """Scrub native labels in every planner-visible structured field."""
+        if isinstance(value, str):
+            return scrub(value)
+        if isinstance(value, list):
+            return [scrub_value(item) for item in value]
+        if isinstance(value, tuple):
+            return tuple(scrub_value(item) for item in value)
+        if isinstance(value, dict):
+            return {scrub(str(key)): scrub_value(item) for key, item in value.items()}
+        return value
+
     anonymized = NativeProblem(
         id=scrub(problem.id),
         statement=scrub(problem.statement),
-        entities=[symbol_of[t] for t in sorted(terms)],
+        entities=[symbol_of[t.strip()] for t in problem.entities if t.strip() in terms],
+        sensitive_terms=[
+            symbol_of[t.strip()] for t in problem.sensitive_terms if t.strip() in terms
+        ],
         constraints=[scrub(c) for c in problem.constraints],
         question=scrub(problem.question),
+        inputs=scrub_value(problem.inputs),
+        required_outputs=[scrub(item) for item in problem.required_outputs],
+        answer_schema=scrub_value(problem.answer_schema),
     )
 
     # The guarantee, asserted rather than assumed. `native_terms` of the
@@ -94,6 +113,10 @@ def anonymize_problem(problem: NativeProblem) -> tuple[NativeProblem, dict[str, 
                 *anonymized.constraints,
                 anonymized.question,
                 *anonymized.entities,
+                *anonymized.sensitive_terms,
+                str(anonymized.inputs),
+                *anonymized.required_outputs,
+                str(anonymized.answer_schema),
             ]
         ),
         terms,

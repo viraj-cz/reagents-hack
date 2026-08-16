@@ -90,6 +90,62 @@ def test_structural_critic_rejects_paraphrased_languages():
     assert any("language overlap" in reason for reason in verdict.reasons)
 
 
+def test_reasoning_contract_requires_compute_and_auditable_experiments(
+    monkeypatch,
+):
+    monkeypatch.setenv("REAGENTS_ENABLE_NORMAN_V2_BENCHMARK", "1")
+    registry = default_registry()
+    contract = {
+        "artifact_required_keys": [
+            "candidate_solution",
+            "constraint_results",
+            "certificate",
+            "conclusion",
+            "hypotheses",
+            "experiments",
+            "model_comparison",
+            "validation",
+        ],
+        "minimum_broker_calls": 4,
+        "minimum_model_configurations": 2,
+        "required_tool_prefix": "screen2.",
+        "required_compute_suffix": "_lab",
+    }
+    weak = _spec(
+        "weak_geometry",
+        Axis.GEOMETRY,
+        "metric geometry of opaque vectors",
+        ["screen2.training_manifest", "distance"],
+    )
+    verdict = structural_critic([weak], registry, reasoning_contract=contract)
+    assert not verdict.ok
+    assert any("x-min-tool-calls" in reason for reason in verdict.reasons)
+    assert any("screen2.*_lab" in reason for reason in verdict.reasons)
+
+    properties = dict(weak.artifact_schema["properties"])
+    properties.update(
+        {
+            "hypotheses": {"type": "array"},
+            "experiments": {"type": "array", "minItems": 1},
+            "model_comparison": {"type": "array", "minItems": 2},
+            "validation": {"type": "object"},
+        }
+    )
+    strong = weak.model_copy(
+        update={
+            "tool_ids": ["screen2.geometry_lab", "distance"],
+            "artifact_schema": {
+                **weak.artifact_schema,
+                "required": contract["artifact_required_keys"],
+                "properties": properties,
+                "x-min-tool-calls": 4,
+            },
+        }
+    )
+    verdict = structural_critic([strong], registry, reasoning_contract=contract)
+    assert verdict.ok, verdict.reasons
+
+
 @pytest.mark.asyncio
 async def test_planner_returns_orthogonal_toy_set():
     planner = Planner(ScriptedLLM.for_toy_pathway(), default_registry())

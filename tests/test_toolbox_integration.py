@@ -311,6 +311,38 @@ def test_the_broker_authors_the_tool_trace(monkeypatch, pack_registry):
     json.dumps(result.model_dump(mode="json"))
 
 
+def test_runtime_rejects_artifact_below_schema_tool_call_minimum(
+    monkeypatch, pack_registry
+):
+    session = local_session()
+    envelope = make_envelope()
+    envelope.artifact_schema = {**SCHEMA, "x-min-tool-calls": 4}
+
+    def spawn_with_three_calls(spec, *, run_id, runner_kind):
+        for index in range(3):
+            session.store.record(
+                TraceEntry(
+                    tool="graph.build",
+                    input={"index": index},
+                    result={"ok": True},
+                ),
+                lease_id=spec.toolbox.lease_id,
+            )
+        return DemiGodResult(
+            claim="c", confidence=0.8, method="m", payload={"answer": 1}
+        )
+
+    monkeypatch.setattr(
+        "reagents.demigod.sandbox_runtime.spawn_demigod", spawn_with_three_calls
+    )
+    runtime = SandboxDemigodRuntime(run_id="r1", toolbox=session)
+    result = asyncio.run(
+        runtime.run(envelope, bind(pack_registry, ["formal.z3_solve", "graph.build"]))
+    )
+    assert result.status == "failed"
+    assert "at least 4 brokered tool calls; observed 3" in (result.error or "")
+
+
 def test_the_lease_is_revoked_even_when_the_spawn_explodes(monkeypatch, pack_registry):
     """A lease that outlives its demigod is a credential lying around."""
     session = local_session()

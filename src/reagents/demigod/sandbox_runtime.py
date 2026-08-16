@@ -220,6 +220,17 @@ class SandboxDemigodRuntime:
         # omitted it cannot hide here.
         await self._finish_lease(grant, result)
 
+        minimum_tool_calls = int(envelope.artifact_schema.get("x-min-tool-calls") or 0)
+        if result.status == "ok" and len(result.tool_trace) < minimum_tool_calls:
+            reason = (
+                "artifact requires at least "
+                f"{minimum_tool_calls} brokered tool calls; observed "
+                f"{len(result.tool_trace)}"
+            )
+            result.status = "failed"
+            result.error = reason
+            result.blockers = [*result.blockers, reason]
+
         # The seal is checked on what came back. Everything the agent wrote is
         # in the manifest, so this is the same check the in-process runtime
         # applies to its draft -- just later.

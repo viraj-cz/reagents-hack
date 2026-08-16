@@ -94,3 +94,23 @@ def test_surviving_term_raises_rather_than_returning_quietly():
             anonymize_problem(problem)
     finally:
         mod.re.sub = original
+
+
+def test_structured_planning_contract_survives_without_native_labels():
+    problem = NativeProblem(
+        id="native-screen",
+        statement="K562 contains target A.",
+        entities=["target A"],
+        sensitive_terms=["K562"],
+        question="Predict target A.",
+        inputs={
+            "reasoning_contract": {"minimum_broker_calls": 4},
+            "study": {"cell": "K562"},
+        },
+        required_outputs=["prediction for target A"],
+        answer_schema={"description": "target A in K562"},
+    )
+    anon, _ = anonymize_problem(problem)
+    assert anon.inputs["reasoning_contract"] == {"minimum_broker_calls": 4}
+    visible = str(anon.model_dump())
+    assert find_leaks(visible, native_terms(problem)) == []

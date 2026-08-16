@@ -61,6 +61,15 @@ The transform_prompt must explicitly preserve every input, constraint, objective
 required output while changing only the representation language. Reject any language
 that makes only one aspect of the problem easier but cannot express a full solution.
 
+When a reasoning contract is supplied, it is mandatory rather than advisory:
+- require every artifact key it lists in artifact_schema.required
+- copy minimum_broker_calls to artifact_schema.x-min-tool-calls
+- make experiments an array and model_comparison an array, with the requested minimum
+  number of configurations reflected by minItems
+- choose at least one tool matching required_tool_prefix and
+  required_compute_suffix for every domain
+- express its remaining requirements as checkable artifact fields
+
 Cover distinct axes. Do not invent executable tools."""
 
 CRITIC_SYSTEM = """You are God's orthogonality critic.
@@ -138,6 +147,7 @@ def structural_critic(
     jaccard_threshold: float = JACCARD_THRESHOLD,
     language_threshold: float = LANGUAGE_OVERLAP_THRESHOLD,
     terms: set[str] | None = None,
+    reasoning_contract: dict[str, Any] | None = None,
 ) -> CriticVerdict:
     reasons: list[str] = []
     colliding: set[str] = set()
@@ -186,12 +196,60 @@ def structural_critic(
         else:
             primary[spec.primary_axis] = spec.name
 
+    contract = reasoning_contract or {}
+    required_by_contract = set(contract.get("artifact_required_keys") or [])
+    minimum_calls = int(contract.get("minimum_broker_calls") or 0)
+    minimum_models = int(contract.get("minimum_model_configurations") or 0)
+    required_prefix = str(contract.get("required_tool_prefix") or "")
+    required_suffix = str(contract.get("required_compute_suffix") or "")
+
     for spec in specs:
         required = set(spec.artifact_schema.get("required") or [])
-        missing_artifacts = sorted(COMPLETE_ARTIFACT_KEYS - required)
+        missing_artifacts = sorted(
+            (COMPLETE_ARTIFACT_KEYS | required_by_contract) - required
+        )
         if missing_artifacts:
             reasons.append(
                 f"{spec.name}: artifact schema is partial; missing {missing_artifacts}"
+            )
+            colliding.add(spec.name)
+        if (
+            minimum_calls
+            and spec.artifact_schema.get("x-min-tool-calls") != minimum_calls
+        ):
+            reasons.append(
+                f"{spec.name}: artifact schema must set x-min-tool-calls="
+                f"{minimum_calls}"
+            )
+            colliding.add(spec.name)
+        properties = spec.artifact_schema.get("properties") or {}
+        for field, minimum in (
+            ("experiments", 1 if "experiments" in required_by_contract else 0),
+            ("model_comparison", minimum_models),
+        ):
+            if not minimum:
+                continue
+            field_schema = properties.get(field) or {}
+            if (
+                field_schema.get("type") != "array"
+                or int(field_schema.get("minItems") or 0) < minimum
+            ):
+                reasons.append(
+                    f"{spec.name}: {field} must be an array with minItems>={minimum}"
+                )
+                colliding.add(spec.name)
+        if (
+            required_prefix
+            and required_suffix
+            and not any(
+                tool_id.startswith(required_prefix)
+                and tool_id.endswith(required_suffix)
+                for tool_id in spec.tool_ids
+            )
+        ):
+            reasons.append(
+                f"{spec.name}: must select a compute tool matching "
+                f"{required_prefix}*{required_suffix}"
             )
             colliding.add(spec.name)
         try:
@@ -280,6 +338,9 @@ class Planner:
             f"entities: {problem.entities}\n"
             f"constraints: {problem.constraints}\n"
             f"question: {problem.question}\n\n"
+            f"required_outputs: {problem.required_outputs}\n"
+            f"reasoning_contract: "
+            f"{problem.inputs.get('reasoning_contract', {})}\n\n"
             f"Allowed axes: {[a.value for a in Axis]}\n"
             f"Allowed tool catalog: {catalog}\n"
             f"Do not use primary axes: {[a.value for a in forbidden_axes]}\n"
@@ -357,13 +418,19 @@ class Planner:
         # -- is done blind.
         terms = native_terms(problem)
         planning_problem, self.last_symbol_map = anonymize_problem(problem)
+        reasoning_contract = planning_problem.inputs.get("reasoning_contract", {})
         specs = await self.invent(planning_problem, n)
         # Best seen so far, so exhausting the rounds returns something rather
         # than nothing. Scored by how many objections the critic raised.
         best: list[DomainSpec] = specs
         best_reasons: list[str] = ["not yet judged"]
         for round_index in range(max_rounds):
-            structural = structural_critic(specs, self.registry, terms=terms)
+            structural = structural_critic(
+                specs,
+                self.registry,
+                terms=terms,
+                reasoning_contract=reasoning_contract,
+            )
             verdict = structural
             if structural.ok:
                 verdict = await self.llm_critic(specs)

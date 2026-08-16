@@ -146,6 +146,13 @@ class DemigodRuntime:
         except Exception as exc:
             return fail(str(exc))
 
+        minimum_tool_calls = int(envelope.artifact_schema.get("x-min-tool-calls") or 0)
+        if len(trace) < minimum_tool_calls:
+            return fail(
+                "artifact requires at least "
+                f"{minimum_tool_calls} brokered tool calls; observed {len(trace)}"
+            )
+
         schema_errors = validate_payload(result.payload, envelope.artifact_schema)
         if schema_errors:
             return fail(f"artifact failed schema: {schema_errors}")
