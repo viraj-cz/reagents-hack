@@ -99,6 +99,12 @@ genuinely good result as much as leaving it at 0.9 overstates a bad one.
 """
 
 
+# How often to read a running demigod's lease trace. Small enough that tool use
+# appears while it is happening, large enough that three demigods polling for
+# five minutes is a rounding error next to the agent loop they are watching.
+LEASE_POLL_S = 4.0
+
+
 class SandboxDemigodRuntime:
     """Spawns one `modal.Sandbox` per demigod. Satisfies the runtime interface."""
 
@@ -161,6 +167,9 @@ class SandboxDemigodRuntime:
         self.model = model or agent_model
         self.require_toolbox = require_toolbox
         self.tracer = tracer or NullTracer()
+        # Brokered calls already shown per lane, so the live poll and the
+        # end-of-run replay do not report the same call twice.
+        self._emitted: dict[str, int] = {}
 
     def set_tracer(self, tracer: TraceSink) -> None:
         """Use God's sink so sandbox and in-process runtimes stream alike."""
@@ -235,6 +244,12 @@ class SandboxDemigodRuntime:
         # every demigod still correct, total wall clock N times longer, and
         # nothing in the logs saying why.
         self.tracer.emit(lane, "MODEL", "reasoning in an isolated sandbox")
+        # The one live window into a sandboxed demigod. Everything above happens
+        # in milliseconds and everything below happens minutes later, so without
+        # this a watcher sees "reasoning in an isolated sandbox" and then nothing
+        # at all for the length of an agent loop -- which is indistinguishable
+        # from a hang, and was reported as one.
+        follower = asyncio.create_task(self._follow_lease(lane, grant))
         try:
             result = await asyncio.to_thread(
                 spawn_demigod,
@@ -243,8 +258,11 @@ class SandboxDemigodRuntime:
                 runner_kind=self.runner_kind,
             )
         except Exception as exc:
+            follower.cancel()
             await self._finish_lease(grant, None)
             return fail(f"sandbox spawn failed: {exc}")
+        finally:
+            follower.cancel()
 
         # The trace is read back from the BROKER, not from the manifest. The
         # agent authors its own claim; it does not get to author the record of
@@ -350,6 +368,69 @@ class SandboxDemigodRuntime:
                 f"no reachable broker; this demigod gets no brokered tools ({exc})",
             )
 
+    async def _follow_lease(
+        self,
+        lane: str,
+        grant: ToolboxGrant | None,
+        *,
+        interval_s: float = LEASE_POLL_S,
+    ) -> None:
+        """Emit brokered calls as the broker records them, not at the end.
+
+        The broker writes each call to the lease's trace when it happens, and
+        that trace is readable at any time -- the runtime simply never read it
+        until the demigod was finished. Polling it costs one small read per
+        demigod per interval and turns several minutes of dead air into the
+        agent's actual tool use.
+
+        Observability must not be able to fail the run it observes: every error
+        here is swallowed, and the authoritative replay still happens at the end
+        from the same source, so a broken poll costs latency and nothing else.
+        """
+
+        if grant is None or self.toolbox is None:
+            return
+        while True:
+            await asyncio.sleep(interval_s)
+            try:
+                trace = await asyncio.to_thread(
+                    self.toolbox.collect_trace, grant.lease_id
+                )
+            except Exception:
+                continue
+            fresh = list(trace or [])[self._emitted.get(lane, 0) :]
+            if fresh:
+                self._emit_tool_entries(lane, fresh)
+
+    def _emit_tool_entries(self, lane: str, entries: list) -> None:
+        """Emit one batch, remembering how many of this lane's calls are shown.
+
+        The count is what stops the end-of-run replay repeating everything the
+        live poll already showed.
+        """
+
+        for entry in entries:
+            row = entry if isinstance(entry, dict) else {}
+            tool = str(row.get("tool") or "unknown")
+            self.tracer.emit(
+                lane,
+                "TOOL CALL",
+                tool,
+                data={"arguments": row.get("input") or {}},
+            )
+            if row.get("ok", True):
+                self.tracer.emit(
+                    lane, "TOOL RESULT", tool, data={"result": row.get("result")}
+                )
+            else:
+                error = row.get("error") or {}
+                detail = error.get("message") if isinstance(error, dict) else str(error)
+                # `metered=False` is the broker's marker for a call it refused
+                # rather than ran, which is a denial and not a tool that failed.
+                kind = "TOOL DENY" if row.get("metered") is False else "TOOL ERROR"
+                self.tracer.emit(lane, kind, f"{tool}: {detail or 'refused'}")
+        self._emitted[lane] = self._emitted.get(lane, 0) + len(entries)
+
     def _replay_tool_trace(self, lane: str, result: DemiGodResult) -> None:
         """Emit the brokered calls, once the broker has told us what they were.
 
@@ -366,26 +447,12 @@ class SandboxDemigodRuntime:
         visible rather than silent.
         """
 
-        for entry in result.tool_trace or []:
-            row = entry if isinstance(entry, dict) else {}
-            tool = str(row.get("tool") or "unknown")
-            self.tracer.emit(
-                lane,
-                "TOOL CALL",
-                tool,
-                data={"arguments": row.get("input") or {}},
-            )
-            if row.get("ok", True):
-                self.tracer.emit(
-                    lane, "TOOL RESULT", tool, data={"result": row.get("result")}
-                )
-                continue
-            error = row.get("error") or {}
-            detail = error.get("message") if isinstance(error, dict) else str(error)
-            # `metered=False` is the broker's marker for a call it refused
-            # rather than ran, which is a denial and not a tool that failed.
-            kind = "TOOL DENY" if row.get("metered") is False else "TOOL ERROR"
-            self.tracer.emit(lane, kind, f"{tool}: {detail or 'refused'}")
+        # Only the tail: `_follow_lease` may already have shown most of these
+        # live, and the audited trace is the same list from the same source.
+        # Emitting it whole would double every call a watcher already saw.
+        self._emit_tool_entries(
+            lane, list(result.tool_trace or [])[self._emitted.get(lane, 0) :]
+        )
 
     # --- lease lifecycle ----------------------------------------------------
 
