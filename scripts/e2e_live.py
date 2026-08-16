@@ -2,6 +2,7 @@
 
     uv run python scripts/e2e_live.py                 # 2 domains, 6 turns each
     uv run python scripts/e2e_live.py --domains 3 --turns 10
+    uv run python scripts/e2e_live.py --broker        # + brokered tools
 
 The only path that exercises the whole system at once. Everything below it has
 been proven separately -- images, mounts, the filesystem API, the agent loop,
@@ -32,9 +33,11 @@ import time
 import uuid
 from pathlib import Path
 
+from reagents.contracts import RiskTier
 from reagents.demigod.sandbox_runtime import SandboxDemigodRuntime
 from reagents.god.orchestrator import God
 from reagents.llm.client import make_llm
+from reagents.tools.registry import default_registry
 from reagents.toy import simple_problem, toy_problem
 from reagents.tracing import TerminalTracer
 
@@ -105,7 +108,36 @@ def instrument(god: God) -> None:
     god.runtime.run = run
 
 
-async def run_once(domains: int, turns: int, run_id: str, problem_name: str) -> int:
+def make_toolbox(enabled: bool):
+    """The TOOLBOX_BROKER provider for `SandboxDemigodRuntime`, or None.
+
+    OPT-IN, and it stays opt-in. Passing a session mints a live credential per
+    demigod and points it at a deployed broker; that should be something a
+    caller asked for, not something a default did. Without it the run is exactly
+    what it was -- and what it was is the reason this flag exists: a demigod with
+    no brokered tools solves numerically by writing its own Python through Bash,
+    which works, costs turns, and proves nothing about the broker.
+
+    Imported here rather than at module scope so a plain run never constructs a
+    `modal.App` for the broker or touches its grant store.
+    """
+    if not enabled:
+        return None
+    from broker.session import modal_session
+
+    session = modal_session()
+    stage(f"TOOLBOX: brokering tools via {session.url}")
+    return session
+
+
+async def run_once(
+    domains: int,
+    turns: int,
+    run_id: str,
+    problem_name: str,
+    broker: bool,
+    approve_high_risk: bool = False,
+) -> int:
     problem = simple_problem() if problem_name == "simple" else toy_problem()
     stage(f"START run_id={run_id} domains={domains} turns={turns}")
     stage(f"PROBLEM: {problem.id} -- {problem.question}")
@@ -114,12 +146,33 @@ async def run_once(domains: int, turns: int, run_id: str, problem_name: str) -> 
     # lane-labelled, so a parallel fan-out is readable in a single terminal --
     # no tmux, no per-sandbox tail. The orchestrator and SandboxDemigodRuntime
     # already emit into it; God.__init__ forwards the sink to the runtime.
+    # Operator approval is a HUMAN decision the orchestrator refuses to make
+    # for itself, so a script that never offers it can never reach a code-
+    # running tool: `reasoning.python` is RiskTier.HIGH, and a run without this
+    # flag fails that domain with "high-risk tools require operator approval"
+    # before the sandbox is even created. Observed live -- it is why the first
+    # brokered run reached zero container tools.
+    high_risk = set()
+    if approve_high_risk:
+        high_risk = {
+            spec.id
+            for spec in default_registry().specs()
+            if spec.risk_tier == RiskTier.HIGH
+        }
+        stage(
+            f"OPERATOR: approving {len(high_risk)} high-risk tools: {sorted(high_risk)}"
+        )
     god = God(
         make_llm(),
         domain_count=domains,
+        approved_high_risk_tools=high_risk,
         # The seam. Swap for the default in-process runtime and the same God
         # loop runs without any infrastructure at all.
-        runtime=SandboxDemigodRuntime(run_id=run_id, max_turns=turns),
+        runtime=SandboxDemigodRuntime(
+            run_id=run_id,
+            max_turns=turns,
+            toolbox=make_toolbox(broker),
+        ),
         tracer=TerminalTracer(),
     )
     # The `stage()` markers stay for coarse timing; the tracer carries the
@@ -146,10 +199,52 @@ async def run_once(domains: int, turns: int, run_id: str, problem_name: str) -> 
         print(f"  payload    : {json.dumps(artifact.payload)[:400]}")
         print(f"  files      : {artifact.files}")
         print(f"  unknowns   : {artifact.unknowns[:3]}")
+        _print_tool_trace(artifact)
+
+    # THE evidence that `--broker` did anything. Without this the run prints an
+    # answer and says nothing about where it came from, and "the broker was in
+    # play" becomes an assumption rather than an observation -- which is how a
+    # previous run got reported as brokered when `toolbox` was None.
+    #
+    # Read from the BROKER's record, not the agent's manifest: the demigod
+    # authors its claim, it does not author the log of what it called.
+    total_calls = sum(len(a.tool_trace) for a in trace.artifacts)
+    print(
+        f"\nbrokered tool calls: {total_calls} across "
+        f"{len(trace.artifacts)} artifact(s)"
+    )
+    if broker and total_calls == 0:
+        print(
+            "  WARNING: --broker was set but no tool was called. The lease was "
+            "published and never used -- the run proves the spawn path, not the "
+            "broker. Check `toolbox list` output in the demigod transcript."
+        )
 
     # Artifacts survive on the volume regardless of what the integrator said.
     print(f"\nartifacts on volume: uv run modal volume ls demigod-run-{run_id}-out")
     return 0 if trace.artifacts else 1
+
+
+def _print_tool_trace(artifact) -> None:
+    """One line per brokered call: what was asked, and what came back.
+
+    Truncated hard. A trace entry can carry a whole tool result (an embedding is
+    480 floats), and dumping that buries the one fact worth reading -- that the
+    call happened, against which tool, and whether it succeeded.
+    """
+    if not artifact.tool_trace:
+        print("  tool calls : none")
+        return
+    print(f"  tool calls : {len(artifact.tool_trace)}")
+    for entry in artifact.tool_trace:
+        tool = entry.get("tool", "?")
+        args = json.dumps(entry.get("input", {}))[:80]
+        result = entry.get("result", {})
+        if isinstance(result, dict) and "error" in result:
+            status = f"ERROR {str(result['error'])[:60]}"
+        else:
+            status = f"ok {json.dumps(result, default=str)[:60]}"
+        print(f"      - {tool}({args}) -> {status}")
 
 
 def load_env_file() -> None:
@@ -182,7 +277,26 @@ def main() -> int:
         help="simple = 5-entity valve pipeline (default, for testing the "
         "pipeline); pathway = the 9-entity glycolysis problem",
     )
+    parser.add_argument(
+        "--approve-high-risk",
+        action="store_true",
+        help=(
+            "Grant operator approval for RiskTier.HIGH tools (reasoning.python, "
+            "engineering.python, biology.python -- they execute arbitrary code). "
+            "Without this a demigod granted one fails before spawning, which is "
+            "the gate working as designed. Set it deliberately."
+        ),
+    )
     parser.add_argument("--run-id", default=None)
+    parser.add_argument(
+        "--broker",
+        action="store_true",
+        help="publish each demigod's lease to the deployed TOOLBOX_BROKER and "
+        "hand it the URL, so it can call brokered tools instead of writing its "
+        "own Python. Requires `uv run modal deploy -m broker.service` (or "
+        "TOOLBOX_BROKER_URL pointing at a `modal serve` URL). Off by default: "
+        "minting a live credential should be an explicit act.",
+    )
     args = parser.parse_args()
 
     load_env_file()
@@ -216,8 +330,29 @@ def main() -> int:
         )
         return 2
 
+    # The broker's own catalog is env-gated, and so is God's. A demigod can only
+    # be granted a tool its GOD can see, so `--broker` without this flag would
+    # publish a lease naming builtins alone and look like the broker was empty.
+    if args.broker and not os.environ.get("REAGENTS_ENABLE_CONTAINERS"):
+        print(
+            "note: enabling REAGENTS_ENABLE_CONTAINERS=1 for this process so "
+            "the planner can see the brokered container tools. The broker's own "
+            "images set it themselves.",
+            file=sys.stderr,
+        )
+        os.environ["REAGENTS_ENABLE_CONTAINERS"] = "1"
+
     run_id = args.run_id or f"e2e{uuid.uuid4().hex[:6]}"
-    return asyncio.run(run_once(args.domains, args.turns, run_id, args.problem))
+    return asyncio.run(
+        run_once(
+            args.domains,
+            args.turns,
+            run_id,
+            args.problem,
+            args.broker,
+            args.approve_high_risk,
+        )
+    )
 
 
 if __name__ == "__main__":

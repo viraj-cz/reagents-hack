@@ -13,6 +13,8 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir \
     "pymc>=5.20,<6" "statsmodels>=0.14,<1" "scikit-learn>=1.6,<2" \
     "openmm>=8.2,<9" "cantera>=3.1,<4"
 
-COPY tooling/runtime/tool_runtime.py /opt/reagents/tool_runtime.py
+# See tooling/reasoning/Dockerfile: the file moved into src/reagents/tools/ so
+# the Modal executors can import it, and stays import-free so this still works.
+COPY src/reagents/tools/tool_runtime.py /opt/reagents/tool_runtime.py
 WORKDIR /work
 

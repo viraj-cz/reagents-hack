@@ -7,17 +7,16 @@ ToolSpec, ContextEnvelope, or a demigod prompt.
 from __future__ import annotations
 
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, AsyncIterator
+from typing import Any
 
 from reagents.contracts import RiskTier, ToolAccess, ToolProvider
 from reagents.tools.registry import Tool, ToolExecutionError, ToolRegistry
 
-
 class MCPConfigurationError(RuntimeError):
     pass
-
 
 @dataclass(frozen=True)
 class MCPServerConfig:
@@ -54,12 +53,14 @@ class MCPServerConfig:
             return None
         return {item.strip() for item in raw.split(",") if item.strip()}
 
-
 SPONSOR_MCP_SERVERS = (
     MCPServerConfig(
         namespace="paperclip",
         url="https://paperclip.gxl.ai/mcp",
-        description="Scientific literature, trials, regulatory documents, and biological databases.",
+        description=(
+            "Scientific literature, trials, regulatory documents, and "
+            "biological databases."
+        ),
         auth_header="X-API-Key",
         auth_env="PAPERCLIP_API_KEY",
         allowed_tools_env="PAPERCLIP_MCP_ALLOWED_TOOLS",
@@ -68,18 +69,7 @@ SPONSOR_MCP_SERVERS = (
         access=ToolAccess.WRITE,
         risk_tier=RiskTier.MODERATE,
     ),
-    MCPServerConfig(
-        namespace="biomni",
-        url="https://mcp.phylo.bio/mcp",
-        description="Biomni integrated biology environment and managed biological workflows.",
-        auth_header="Authorization",
-        auth_env="BIOMNI_MCP_AUTHORIZATION",
-        allowed_tools_env="BIOMNI_MCP_ALLOWED_TOOLS",
-        access=ToolAccess.WRITE,
-        risk_tier=RiskTier.MODERATE,
-    ),
-)
-
+    )
 
 def configure_sponsor_mcp(registry: ToolRegistry) -> None:
     """Register namespace loaders without making any network calls."""
@@ -88,7 +78,6 @@ def configure_sponsor_mcp(registry: ToolRegistry) -> None:
             config.namespace,
             lambda config=config: discover_mcp_tools(config),
         )
-
 
 class MCPToolExecutor:
     def __init__(self, config: MCPServerConfig, remote_name: str) -> None:
@@ -108,8 +97,9 @@ class MCPToolExecutor:
             structured = getattr(result, "structured_content", None)
         if structured is not None:
             return structured
-        return {"content": [_model_dump(block) for block in getattr(result, "content", [])]}
-
+        return {
+            "content": [_model_dump(block) for block in getattr(result, "content", [])]
+        }
 
 async def discover_mcp_tools(config: MCPServerConfig) -> list[Tool]:
     """Connect only when selected, discover schemas, then create leased adapters."""
@@ -126,10 +116,13 @@ async def discover_mcp_tools(config: MCPServerConfig) -> list[Tool]:
                     Tool(
                         id=f"{config.namespace}.{remote.name}",
                         namespace=config.namespace,
-                        description=remote.description or (
-                            f"{remote.name} provided by the {config.namespace} MCP server."
+                        description=agent_facing_description(
+                            remote.description,
+                            namespace=config.namespace,
+                            name=remote.name,
                         ),
-                        parameters_schema=remote.inputSchema or {
+                        parameters_schema=remote.inputSchema
+                        or {
                             "type": "object",
                             "properties": {},
                         },
@@ -155,6 +148,58 @@ async def discover_mcp_tools(config: MCPServerConfig) -> list[Tool]:
         )
     return discovered
 
+_HOST_ONLY_MARKERS: tuple[str, ...] = (
+    # Bootstrap the server wants an interactive client to run first. VERIFIED
+    # UNNECESSARY: a cold `search -s pmc "..."` against Paperclip returns real
+    # results with no bootstrap, so this only burns a turn from a small budget.
+    "before doing any",
+    "run `paperclip skill`",
+    "paperclip skill",
+    "routines route",
+    # ACTIVELY WRONG for a sealed DEMI_GOD. Paperclip's description says routed
+    # orchestrators "are loaded remotely into context" -- inviting content from
+    # outside the agent's domain, which is exactly what assert_sealed and the
+    # artifact leak check exist to prevent.
+    "loaded remotely into context",
+    "local SKILL.md",
+    "trigger registry",
+)
+"""Phrases addressed to an interactive host, not to a sealed demigod.
+
+A remote MCP description is written for a general-purpose assistant with a
+human at the keyboard. A DEMI_GOD is neither: it has a fixed turn budget, no
+user to consult, and a hard rule against pulling in material outside its
+domain. Dropping these lines is a deliberate transform, not censorship -- and
+it is a TRANSFORM rather than a hardcoded replacement string so the useful half
+still tracks whatever the server actually publishes.
+"""
+
+def agent_facing_description(
+    remote_description: str | None, *, namespace: str, name: str
+) -> str:
+    """Trim a remote MCP description to what a sealed DEMI_GOD can act on.
+
+    Keeps what the tool IS and how to call it; drops host-directed bootstrap
+    instructions and anything inviting out-of-domain context. Deliberately does
+    NOT try to reproduce the full command reference: a wrong argument produces
+    an excellent self-documenting error (Paperclip's lists all 15 sources with
+    examples), so the agent can correct itself in one turn. Teaching by error
+    beats a description that goes stale.
+    """
+    if not remote_description:
+        return f"{name} provided by the {namespace} MCP server."
+
+    kept: list[str] = []
+    for para in remote_description.split("\n\n"):
+        lowered = para.lower()
+        if any(marker in lowered for marker in _HOST_ONLY_MARKERS):
+            continue
+        kept.append(para.strip())
+
+    trimmed = "\n\n".join(p for p in kept if p).strip()
+    if not trimmed:
+        return f"{name} provided by the {namespace} MCP server."
+    return trimmed
 
 @asynccontextmanager
 async def _mcp_session(config: MCPServerConfig) -> AsyncIterator[Any]:
@@ -168,20 +213,21 @@ async def _mcp_session(config: MCPServerConfig) -> AsyncIterator[Any]:
         ) from exc
 
     timeout = httpx.Timeout(30.0, read=300.0)
-    async with httpx.AsyncClient(
-        headers=config.headers(),
-        timeout=timeout,
-        follow_redirects=True,
-    ) as client:
-        async with streamable_http_client(config.url, http_client=client) as (
+    async with (
+        httpx.AsyncClient(
+            headers=config.headers(),
+            timeout=timeout,
+            follow_redirects=True,
+        ) as client,
+        streamable_http_client(config.url, http_client=client) as (
             read_stream,
             write_stream,
             _,
-        ):
-            async with ClientSession(read_stream, write_stream) as session:
-                await session.initialize()
-                yield session
-
+        ),
+        ClientSession(read_stream, write_stream) as session,
+    ):
+        await session.initialize()
+        yield session
 
 def _model_dump(value: Any) -> Any:
     if hasattr(value, "model_dump"):
@@ -189,7 +235,6 @@ def _model_dump(value: Any) -> Any:
     if isinstance(value, (str, int, float, bool, type(None), list, dict)):
         return value
     return str(value)
-
 
 def _remote_access(remote: Any, default: ToolAccess) -> ToolAccess:
     annotations = getattr(remote, "annotations", None)

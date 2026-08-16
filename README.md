@@ -120,7 +120,10 @@ being audited.
 Deploy it, then point GOD at it:
 
 ```bash
-uv run modal deploy src/broker/service.py
+# -m, not a file path: deploying `src/broker/service.py` builds fine, exits 0,
+# and then crash-loops every replica with "No module named 'service'".
+uv run modal deploy -m broker.service
+curl -s https://<your-workspace>--toolbox-broker-router.modal.run/v1/health
 uv run python scripts/preflight_toolbox.py    # cheap live check, no tokens
 ```
 
@@ -137,6 +140,36 @@ runtime = SandboxDemigodRuntime(
 
 During development, `uv run modal serve src/broker/service.py` and pass its URL
 as `TOOLBOX_BROKER_URL` instead of deploying.
+
+Or drive a whole live run through it:
+
+```bash
+uv run python scripts/e2e_live.py --broker    # off by default: a live credential
+```
+
+**Executor tiers, and how a CONTAINER tool actually runs.** The router dispatches
+anything that is not a LOCAL callable to one Modal Function per tier
+(`ExecutorClass` in `broker/service.py`), each with its own image. A tier's image
+carries the scientific stack its tools import, and sets
+`REAGENTS_TOOL_RUNTIME=inprocess` — so `ContainerExecutor` imports
+`reagents.tools.tool_runtime` and calls the operation directly instead of
+shelling out to a Docker daemon that does not exist inside a Modal container.
+The same module is what `tooling/*/Dockerfile` copies in, so a laptop with Docker
+runs the identical code behind `--network none --read-only`.
+
+| tier | serves | carries |
+| --- | --- | --- |
+| `reasoning` | `reasoning.*`, `formal.z3_solve` | NumPy, SciPy, SymPy, NetworkX, Pint, CVXPY, Z3, python-control |
+| `biology` | `biology.*`, `chemistry.*` | Biopython, RDKit, COBRApy, pandas, scikit-learn, statsmodels |
+| `engineering` | `engineering.*` | Cantera, NumPy, SciPy, SymPy, Pint |
+| `lean` | `formal.lean_check` only | Lean 4 + mathlib (a large image; its own tier so Z3 never waits behind it) |
+| `design` | `design.proto_*` | Proto, from a pinned git ref. Off unless `REAGENTS_BROKER_PROTO=1` |
+| `sponsor` | `paperclip.*`, .*` | httpx, mcp |
+
+```bash
+uv run python scripts/preflight_executor.py                 # build + probe one tier
+uv run python scripts/preflight_executor.py --tier biology
+```
 
 ## Quickstart
 

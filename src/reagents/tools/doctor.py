@@ -8,6 +8,7 @@ import shutil
 import sys
 from typing import Any
 
+from reagents.tools.container import runtime_mode
 from reagents.tools.mcp import SPONSOR_MCP_SERVERS, configure_sponsor_mcp
 from reagents.tools.registry import default_registry
 
@@ -67,5 +68,11 @@ async def doctor_report(*, connect: bool = False) -> dict[str, Any]:
         },
         "commands": commands,
         "packages": packages,
+        # Which path a CONTAINER-provider tool would take from HERE. On a laptop
+        # this says "container", and the `docker`/`podman` line above is then the
+        # one that matters; inside a broker executor it says "inprocess" and the
+        # `packages` line is. Reporting both without saying which is in force
+        # sends people to debug the wrong half.
+        "tool_runtime": runtime_mode(),
         "mcp_servers": servers,
     }

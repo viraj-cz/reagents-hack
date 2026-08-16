@@ -34,9 +34,14 @@ async def test_god_does_not_implicitly_grant_write_tools():
 async def test_spawn_requires_exact_high_risk_approval():
     problem = toy_problem()
     registry = default_registry()
+    # A test-only id, NOT the real `reasoning.python`. `default_registry()`
+    # already contains that tool whenever REAGENTS_ENABLE_CONTAINERS=1 -- which
+    # is now the intended production state, since broker.service sets it in
+    # BROKER_ENV -- and `register()` rejects a duplicate id. Asserting on
+    # approval policy does not require colliding with a real tool.
     registry.register(
         Tool(
-            id="reasoning.python",
+            id="reasoning.high_risk_probe",
             namespace="reasoning",
             description="Run isolated Python.",
             parameters_schema={"type": "object"},
@@ -47,7 +52,7 @@ async def test_spawn_requires_exact_high_risk_approval():
     llm = ScriptedLLM.for_toy_pathway()
     god = God(llm, registry=registry)
     spec = toy_domains()[0].model_copy(
-        update={"tool_ids": ["reasoning.python", "simplify"]}
+        update={"tool_ids": ["reasoning.high_risk_probe", "simplify"]}
     )
     domain_problem, _ = await Transformer(llm).forward(problem, spec)
     envelope = god.build_envelope(spec, domain_problem)

@@ -93,6 +93,7 @@ class SandboxDemigodRuntime:
         cpu: float = 1.0,
         memory_mb: int = 2048,
         max_turns: int | None = None,
+        model: str | None = None,
         tracer: TraceSink | None = None,
         # Restored: dropped from this signature by the PR #4 merge resolution
         # (81b2198) while `self.restrict_egress = restrict_egress` below was
@@ -119,6 +120,9 @@ class SandboxDemigodRuntime:
         # call, and sandbox compute is cents next to that. Set it low when
         # exercising the pipeline rather than trying to solve something.
         self.max_turns = max_turns
+        # None keeps DemiGodSpec's pinned default. Set it to run every demigod
+        # this run on one model, so results are comparable across domains.
+        self.model = model
         self.tracer = tracer or NullTracer()
 
     def set_tracer(self, tracer: TraceSink) -> None:
@@ -179,6 +183,7 @@ class SandboxDemigodRuntime:
                 toolbox=grant,
                 files=self.shared_files,
                 max_turns=self.max_turns,
+                model=self.model,
                 cpu=self.cpu,
                 memory_mb=self.memory_mb,
                 restrict_egress=self.restrict_egress,

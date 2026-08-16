@@ -21,5 +21,8 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir \
     "networkx>=3.3,<4" "pint>=0.24,<1" "cvxpy>=1.6,<2" \
     "control>=0.10,<1"
 
-COPY tooling/runtime/tool_runtime.py /opt/reagents/tool_runtime.py
+# The operations module now lives inside the `reagents` package so the Modal
+# broker executors can IMPORT it (see broker/service.py). It deliberately has no
+# `reagents` imports, so copying the single file here still works standalone.
+COPY src/reagents/tools/tool_runtime.py /opt/reagents/tool_runtime.py
 WORKDIR /opt/mathlib
