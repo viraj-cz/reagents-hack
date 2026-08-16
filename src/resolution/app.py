@@ -22,6 +22,7 @@ POST /api/runs/{id}/cancel          stop a run in flight
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import importlib.util
 import json
 import mimetypes
@@ -294,12 +295,45 @@ class ResolutionApp:
                     disconnected.set()
                     return
 
+        _EXHAUSTED = object()
+
+        async def next_event() -> Any:
+            """One event, or the sentinel. Never raises StopAsyncIteration.
+
+            A Task carrying StopAsyncIteration is awkward to inspect, and the
+            caller only needs "is there more".
+            """
+
+            try:
+                return await anext(events)
+            except StopAsyncIteration:
+                return _EXHAUSTED
+
         watcher = asyncio.create_task(watch_disconnect())
+        # THE PENDING READ SURVIVES THE HEARTBEAT, and that is the whole point.
+        # This was `asyncio.wait_for(anext(events), HEARTBEAT_S)`, which CANCELS
+        # the read it is waiting on. The cancellation lands inside `subscribe()`
+        # at `await queue.get()`, terminates the generator, and runs its
+        # `finally` -- unsubscribing this reader. The next `anext()` then raised
+        # StopAsyncIteration, so the loop broke and sent `event: end`, and the
+        # client (which treats `end` as "the run is over") closed for good.
+        #
+        # The effect: any silence longer than HEARTBEAT_S permanently killed the
+        # stream while looking healthy -- a keep-alive had just gone out. A live
+        # run went quiet for 21s between its last token and `run_end`, so the
+        # tab never received the event carrying the final answer and only showed
+        # it after a reload replayed the log. `asyncio.wait` instead of
+        # `wait_for` leaves the unfinished read pending across as many
+        # heartbeats as the silence needs.
+        pending: asyncio.Task[Any] | None = None
         try:
             while not disconnected.is_set():
-                try:
-                    event = await asyncio.wait_for(anext(events), HEARTBEAT_S)
-                except TimeoutError:
+                if pending is None:
+                    pending = asyncio.ensure_future(next_event())
+                finished, _ = await asyncio.wait(
+                    {pending}, timeout=HEARTBEAT_S
+                )
+                if not finished:
                     # A comment frame: valid SSE, ignored by EventSource, and
                     # enough to keep every intermediary from closing the socket.
                     await send(
@@ -310,7 +344,9 @@ class ResolutionApp:
                         }
                     )
                     continue
-                except StopAsyncIteration:
+                event = pending.result()
+                pending = None
+                if event is _EXHAUSTED:
                     break
                 await send(
                     {
@@ -328,6 +364,12 @@ class ResolutionApp:
             )
         finally:
             watcher.cancel()
+            # Only now is cancelling the read correct: the client is gone, so
+            # tearing the generator down is the intent rather than the accident.
+            if pending is not None:
+                pending.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await pending
             await events.aclose()
 
     # -- static -------------------------------------------------------------

@@ -105,6 +105,72 @@ async def test_health_and_presets() -> None:
     assert [p["id"] for p in scripted] == ["pfk-bottleneck"]
 
 
+async def test_a_silence_longer_than_the_heartbeat_does_not_end_the_stream(
+    monkeypatch,
+) -> None:
+    """A quiet GOD phase must not cost the tab the rest of the run.
+
+    `wait_for(anext(events), ...)` cancels the read it times out on, which
+    lands inside `subscribe()` at `await queue.get()`, kills the generator and
+    unsubscribes the reader -- so the loop then saw StopAsyncIteration and sent
+    `event: end`. A live run went quiet for 21s between its last token and
+    `run_end`, and the tab never got the event carrying the final answer; it
+    appeared only after a reload replayed the log. The keep-alive frame had
+    gone out, so the stream looked healthy the whole time.
+    """
+
+    import resolution.runs as runs_module
+    from reagents.toy import toy_problem
+
+    monkeypatch.setattr("resolution.app.HEARTBEAT_S", 0.15)
+    app = ResolutionApp()
+    run = runs_module.Run(
+        "run-quiet", toy_problem(), mode="live", domain_count=1
+    )
+    app.store.runs["run-quiet"] = run
+    app.store.order.append("run-quiet")
+
+    frames: list[bytes] = []
+    closed = asyncio.Event()
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/runs/run-quiet/stream",
+        "headers": [],
+    }
+
+    async def receive() -> dict:
+        await closed.wait()
+        return {"type": "http.disconnect"}
+
+    async def send(message: dict) -> None:
+        if message["type"] == "http.response.body":
+            frames.append(message.get("body", b""))
+            if not message.get("more_body"):
+                closed.set()
+
+    streaming = asyncio.create_task(app(scope, receive, send))
+    await asyncio.sleep(0.05)
+    run.emit("GOD", "plan", "before the silence")
+    await asyncio.sleep(0.6)  # several heartbeat periods with nothing to say
+    run.emit("GOD", "integrate", "after the silence")
+    run.emit("GOD", "run_end", "done", data={"solution": {"answer": "42"}})
+    run.snapshot.status = "done"
+    run.close()
+    await asyncio.wait_for(streaming, 3)
+
+    body = b"".join(frames).decode()
+    kinds = [
+        json.loads(line[len("data: ") :])["kind"]
+        for block in body.split("\n\n")
+        for line in block.splitlines()
+        if line.startswith("data: ")
+    ]
+    # The heartbeat did fire -- this is the case that used to break.
+    assert body.count(": keep-alive") >= 2
+    assert kinds == ["plan", "integrate", "run_end", "stream_end"]
+
+
 async def test_a_scripted_run_streams_and_finishes() -> None:
     app = ResolutionApp()
     status, body = await call(
