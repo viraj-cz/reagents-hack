@@ -70,6 +70,14 @@ def load_problem(problem_name: str) -> tuple[NativeProblem, list[Path]]:
         # Raw cells and held-out truth never enter a shared volume. The compact
         # training-only candidates live behind the Broker's exact leases.
         return load_perturbseq(), []
+    if problem_name == "perturbseq2":
+        from benchmarks.perturbseq_norman.v2_benchmark import (
+            load_problem as load_perturbseq_v2,
+        )
+
+        # Public raw training primitives are mounted only inside the dedicated
+        # Broker executor. No held-out response enters God or a demigod.
+        return load_perturbseq_v2(), []
     question = ADAPTIVE_DIR / "public" / "question.json"
     observations = ADAPTIVE_DIR / "public" / "observations.csv"
     return NativeProblem.model_validate_json(question.read_text()), [observations]
@@ -170,6 +178,8 @@ async def run_once(
     started_at = time.time()
     if problem_name == "perturbseq":
         os.environ["REAGENTS_ENABLE_NORMAN_BENCHMARK"] = "1"
+    elif problem_name == "perturbseq2":
+        os.environ["REAGENTS_ENABLE_NORMAN_V2_BENCHMARK"] = "1"
     problem, input_paths = load_problem(problem_name)
     stage(f"START run_id={run_id} domains={domains} turns={turns}")
     stage(f"PROBLEM: {problem.id} -- {problem.question}")
@@ -190,6 +200,12 @@ async def run_once(
         from benchmarks.perturbseq_norman import NormanPerturbSeqVerifier
 
         verifier = NormanPerturbSeqVerifier()
+    elif problem_name == "perturbseq2":
+        from benchmarks.perturbseq_norman.v2_benchmark import (
+            NormanPerturbSeqV2Verifier,
+        )
+
+        verifier = NormanPerturbSeqV2Verifier()
 
     registry = None
     if problem_name == "perturbseq":
@@ -432,13 +448,22 @@ def main() -> int:
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument(
         "--problem",
-        choices=("simple", "pathway", "adaptive", "flareguard", "perturbseq"),
+        choices=(
+            "simple",
+            "pathway",
+            "adaptive",
+            "flareguard",
+            "perturbseq",
+            "perturbseq2",
+        ),
         default="simple",
         help="simple = 5-entity valve pipeline (default, for testing the "
         "pipeline); pathway = the 9-entity glycolysis problem; adaptive = "
         "the held-out synthetic-circuit workflow benchmark; flareguard = "
         "the complete-objective living-diagnostic design benchmark; "
-        "perturbseq = real held-out Norman two-gene response prediction",
+        "perturbseq = v1 candidate-selection Norman benchmark; perturbseq2 = "
+        "real held-out Norman responses from raw training primitives and "
+        "demigod-authored models",
     )
     parser.add_argument(
         "--approve-high-risk",
