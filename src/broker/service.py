@@ -64,8 +64,26 @@ PYDANTIC_PIN = "pydantic==2.13.4"
 identically on both ends of the protocol."""
 
 
-def broker_image(extras: tuple[str, ...] = ()) -> modal.Image:
-    """The router image, or an executor image with a tool class's extras.
+BROKER_ENV: dict[str, str] = {
+    # The broker IS the place container-provider tools are meant to run, so its
+    # catalog must contain them. Without this the router answers `unknown_tool`
+    # for every one of the nine, and the executor Functions cannot even look one
+    # up -- `default_registry()` gates them behind exactly this flag.
+    "REAGENTS_ENABLE_CONTAINERS": "1",
+    # And they must run IN PROCESS here. A Modal container has no Docker daemon;
+    # `docker run` is the laptop path. See reagents.tools.container.
+    "REAGENTS_TOOL_RUNTIME": "inprocess",
+}
+
+
+def broker_image(
+    extras: tuple[str, ...] = (),
+    *,
+    apt: tuple[str, ...] = (),
+    setup_commands: tuple[str, ...] = (),
+    env: dict[str, str] | None = None,
+) -> modal.Image:
+    """The router image, or an executor image with a tool class's dependencies.
 
     `reagents` AND `demigod` are both shipped: the broker is the one place that
     legitimately holds both halves. Note that this is the ONLY image where that
@@ -74,12 +92,22 @@ def broker_image(extras: tuple[str, ...] = ()) -> modal.Image:
 
     `ignore=[]` for the same reason `demigod.images` uses it: the default
     `NON_PYTHON_FILES` would silently drop the agent-facing markdown docs.
+
+    LAYER ORDER IS THE COST MODEL, not a style choice. Modal content-hashes each
+    layer, so everything expensive is placed BELOW the source layer: apt, then
+    the multi-minute `setup_commands` (Lean's mathlib cache), then pip, and only
+    then `add_local_python_source`. Editing a docstring in `reagents` therefore
+    rebuilds one cheap layer instead of re-downloading mathlib.
     """
-    image = modal.Image.debian_slim(python_version=PYTHON_VERSION).pip_install(
-        PYDANTIC_PIN
-    )
+    image = modal.Image.debian_slim(python_version=PYTHON_VERSION)
+    if apt:
+        image = image.apt_install(*apt)
+    if setup_commands:
+        image = image.run_commands(*setup_commands)
+    image = image.pip_install(PYDANTIC_PIN)
     if extras:
         image = image.pip_install(*extras)
+    image = image.env({**BROKER_ENV, **(env or {})})
     return image.add_local_python_source("reagents", "demigod", "broker", ignore=[])
 
 
@@ -87,15 +115,39 @@ def broker_image(extras: tuple[str, ...] = ()) -> modal.Image:
 class ExecutorClass:
     """One tier: a set of tools that share an image, and optionally a GPU.
 
-    Keyed by REGISTRY NAMESPACE rather than by tool id. Namespaces already group
-    tools by the dependency stack they need (`reasoning` wants SciPy/SymPy/Z3,
-    `biology` wants RDKit/Biopython), which is exactly the axis an image splits
-    on. Adding a tool to an existing namespace therefore needs no change here.
+    Keyed primarily by REGISTRY NAMESPACE. Namespaces already group tools by the
+    dependency stack they need (`reasoning` wants SciPy/SymPy/Z3, `biology`
+    wants RDKit/Biopython), which is exactly the axis an image splits on. Adding
+    a tool to an existing namespace therefore needs no change here.
+
+    `tool_ids` is the exception, and it exists because `formal` is not one
+    stack. `formal.z3_solve` needs a 40MB pip package and answers in
+    milliseconds; `formal.lean_check` needs Lean 4 plus a compiled mathlib.
+    Putting both in one image would make every Z3 call re-pull multiple
+    gigabytes after a scaledown for a dependency it never touches. So a tier may
+    claim individual tool ids, and those claims win over namespace membership.
     """
 
     name: str
-    namespaces: frozenset[str]
+    namespaces: frozenset[str] = frozenset()
+    tool_ids: frozenset[str] = frozenset()
+    """Tools this tier owns outright, whatever namespace they are in."""
+
     extras: tuple[str, ...] = ()
+    apt: tuple[str, ...] = ()
+    setup_commands: tuple[str, ...] = ()
+    env: tuple[tuple[str, str], ...] = ()
+    """Extra image env, as pairs so the class stays hashable/frozen."""
+
+    enable_env: str | None = None
+    """Name of an env var that must be truthy for this tier to be created.
+
+    `None` means always on. A gated tier is still resolvable by `class_for`, so
+    calling one of its tools produces "this tier exists and is switched off"
+    rather than "no executor serves this namespace" -- the difference between a
+    configuration answer and a mystery.
+    """
+
     gpu: str | None = None
     timeout_s: int = 900
     max_containers: int = 4
@@ -106,21 +158,131 @@ class ExecutorClass:
     memory_mb: int = 4096
     cpu: float = 2.0
 
+    def enabled(self) -> bool:
+        if self.enable_env is None:
+            return True
+        return os.environ.get(self.enable_env, "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+
+    def serves(self, tool_id: str, namespace: str) -> bool:
+        return tool_id in self.tool_ids or namespace in self.namespaces
+
     def image(self) -> modal.Image:
-        return broker_image(self.extras)
+        return broker_image(
+            self.extras,
+            apt=self.apt,
+            setup_commands=self.setup_commands,
+            env=dict(self.env),
+        )
 
 
 REASONING = ExecutorClass(
     name="reasoning",
-    namespaces=frozenset({"formal", "reasoning", "design"}),
-    # Mirrors the `reasoning` optional-dependency group in pyproject.toml.
-    extras=("numpy>=2,<3", "scipy>=1.14,<2", "sympy>=1.13,<2", "networkx>=3.3,<4"),
+    namespaces=frozenset({"formal", "reasoning"}),
+    # Mirrors the `reasoning` optional-dependency group in pyproject.toml, and
+    # it has to: `reasoning.python` advertises exactly this list to the agent,
+    # and `formal.z3_solve` shells out to the `z3` binary that the `z3-solver`
+    # wheel installs onto PATH (verified against the wheel, not assumed).
+    extras=(
+        "numpy>=2,<3",
+        "scipy>=1.14,<2",
+        "sympy>=1.13,<2",
+        "networkx>=3.3,<4",
+        "pint>=0.24,<1",
+        "cvxpy>=1.6,<2",
+        "z3-solver>=4.15.4,<4.15.5",
+        "control>=0.10,<1",
+    ),
+)
+
+LEAN_TOOLCHAIN = "v4.30.0"
+"""Pinned to `tooling/reasoning/Dockerfile`, so the local image and this tier
+compile against the same Lean and the same mathlib."""
+
+LEAN = ExecutorClass(
+    name="lean",
+    # No namespace: this tier owns ONE tool. `formal.z3_solve` stays on the
+    # light reasoning image and never waits behind mathlib.
+    tool_ids=frozenset({"formal.lean_check"}),
+    apt=("ca-certificates", "curl", "git", "zstd"),
+    setup_commands=(
+        "curl -fsSL "
+        "https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh "
+        f"| sh -s -- -y --default-toolchain {LEAN_TOOLCHAIN}",
+        # elan installs shims under /root/.elan/bin. Symlinks rather than a PATH
+        # override: `Image.env` sets a literal string, so writing
+        # "/root/.elan/bin:$PATH" there would put the characters `$PATH` on the
+        # path and lose /usr/local/bin -- which is where python lives.
+        "ln -sf /root/.elan/bin/elan /usr/local/bin/elan",
+        "ln -sf /root/.elan/bin/lake /usr/local/bin/lake",
+        "ln -sf /root/.elan/bin/lean /usr/local/bin/lean",
+        f"git clone --depth 1 --branch {LEAN_TOOLCHAIN} "
+        "https://github.com/leanprover-community/mathlib4.git /opt/mathlib",
+        # The one expensive step: downloads prebuilt .olean artifacts instead of
+        # compiling mathlib. `tool_runtime.lean_check` looks for exactly this
+        # directory and runs `lake env lean` inside it.
+        "cd /opt/mathlib && lake exe cache get",
+    ),
+    memory_mb=8192,
+    cpu=4.0,
+    # Two, not four: each replica holds a multi-gigabyte image, and a fan-out of
+    # demigods all proving theorems at once is not the load this system has.
+    max_containers=2,
 )
 
 BIOLOGY = ExecutorClass(
     name="biology",
     namespaces=frozenset({"biology", "chemistry"}),
-    extras=("biopython>=1.84,<2",),
+    # `chemistry.rdkit_descriptors` imports rdkit; without it this tier served a
+    # namespace it could not execute. The rest is what `biology.python`
+    # advertises. Scanpy/PyMC/OpenMM are deliberately absent -- see the tool
+    # description in reagents.tools.container for why.
+    extras=(
+        "numpy>=2,<3",
+        "scipy>=1.14,<2",
+        "pandas>=2,<3",
+        "biopython>=1.84,<2",
+        "rdkit>=2025.3,<2027",
+        "cobra>=0.29,<1",
+        "statsmodels>=0.14,<1",
+        "scikit-learn>=1.6,<2",
+    ),
+    memory_mb=8192,
+)
+
+ENGINEERING = ExecutorClass(
+    name="engineering",
+    # `engineering.python` was registered and reachable and had NO tier at all:
+    # every call died in `_dispatch_remote` with "no executor class serves
+    # namespace 'engineering'".
+    namespaces=frozenset({"engineering"}),
+    extras=(
+        "numpy>=2,<3",
+        "scipy>=1.14,<2",
+        "sympy>=1.13,<2",
+        "pint>=0.24,<1",
+        "cantera>=3.1,<4",
+    ),
+    memory_mb=8192,
+)
+
+PROTO_REF = "edf64afbcf84cc7c5e4e1404418c8ef1f16c34ce"
+"""Pinned to `tooling/proto/Dockerfile`."""
+
+DESIGN = ExecutorClass(
+    name="design",
+    namespaces=frozenset({"design"}),
+    # Sponsor code, installed from a git ref and compiled from source. Gated
+    # OFF: an image that fails to build fails `modal deploy` for the whole App,
+    # and taking Z3 and RDKit down with a sponsor dependency nobody has verified
+    # is a bad trade. Set REAGENTS_BROKER_PROTO=1 to opt in.
+    enable_env="REAGENTS_BROKER_PROTO",
+    apt=("ca-certificates", "cmake", "curl", "g++", "gcc", "git", "make"),
+    extras=(f"git+https://github.com/evo-design/proto-language.git@{PROTO_REF}",),
+    env=(("PROTO_HOME", "/proto"),),
     memory_mb=8192,
 )
 
@@ -135,19 +297,50 @@ SPONSOR = ExecutorClass(
     cpu=1.0,
 )
 
-EXECUTOR_CLASSES: tuple[ExecutorClass, ...] = (REASONING, BIOLOGY, SPONSOR)
-"""The catalog. To add a GPU tier, add an `ExecutorClass(..., gpu="A100")` --
-the GPU is attached to that Function alone, so it is never held while the router
-is idle or while a demigod is thinking.
+ALL_EXECUTOR_CLASSES: tuple[ExecutorClass, ...] = (
+    REASONING,
+    LEAN,
+    BIOLOGY,
+    ENGINEERING,
+    DESIGN,
+    SPONSOR,
+)
+"""Every tier this broker knows how to build, enabled or not.
 
-Nothing here is built until a tool in one of these namespaces is actually
-called: Modal builds an image lazily and content-hashes it, so an unused class
-costs nothing.
+Resolution order matters: `tool_ids` claims are checked across ALL of these
+before any namespace match, so LEAN taking `formal.lean_check` does not depend
+on where it sits in this tuple.
+"""
+
+EXECUTOR_CLASSES: tuple[ExecutorClass, ...] = tuple(
+    klass for klass in ALL_EXECUTOR_CLASSES if klass.enabled()
+)
+"""The tiers this process will actually create Functions for. To add a GPU tier,
+add an `ExecutorClass(..., gpu="A100")` -- the GPU is attached to that Function
+alone, so it is never held while the router is idle or while a demigod is
+thinking.
+
+COST NOTE. `modal deploy` builds every image in this tuple, so a deploy pays for
+LEAN's mathlib cache once. It is once: the heavy layers sit below
+`add_local_python_source`, so editing this repo does not invalidate them.
 """
 
 
-def class_for(namespace: str) -> ExecutorClass | None:
-    for klass in EXECUTOR_CLASSES:
+def namespace_of(tool_id: str) -> str:
+    return tool_id.split(".", 1)[0] if "." in tool_id else "generic"
+
+
+def class_for(tool_id: str) -> ExecutorClass | None:
+    """Which tier owns a tool. Per-TOOL, because `formal` spans two images.
+
+    Searches every class, including gated-off ones, so the caller can tell
+    "no such tier" from "that tier is switched off".
+    """
+    for klass in ALL_EXECUTOR_CLASSES:
+        if tool_id in klass.tool_ids:
+            return klass
+    namespace = namespace_of(tool_id)
+    for klass in ALL_EXECUTOR_CLASSES:
         if namespace in klass.namespaces:
             return klass
     return None
@@ -193,19 +386,33 @@ app = modal.App(APP_NAME)
 _EXECUTORS: dict[str, modal.Function] = {}
 
 
+def execute_tool(tool_id: str, arguments: dict[str, Any]) -> Any:
+    """Run one tool to completion, in whatever image this process is.
+
+    THE executor body, module-level rather than a closure so that a live check
+    (`scripts/preflight_executor.py`) can run the exact code a deployed tier
+    runs, against one tier's image, without bringing up the whole App and
+    building every other tier to do it.
+
+    Deliberately NOT lease-aware. The lease was already enforced by the router
+    before dispatch, and giving the executor an opinion about authorization
+    would mean two places that can disagree about it.
+
+    For a CONTAINER-provider tool, `call_async` reaches `ContainerExecutor`,
+    which reads `REAGENTS_TOOL_RUNTIME=inprocess` off this image and calls
+    `tool_runtime` directly instead of shelling out to a Docker daemon that does
+    not exist here. That env var is set by `broker_image`; nothing in this
+    function knows or needs to know which path was taken.
+    """
+    import asyncio
+
+    tool = build_registry().get(tool_id)
+    return asyncio.run(tool.call_async(**arguments))
+
+
 def _make_executor(klass: ExecutorClass) -> modal.Function:
     def execute(tool_id: str, arguments: dict[str, Any]) -> Any:
-        """Run one tool to completion in this class's image.
-
-        Deliberately NOT lease-aware. The lease was already enforced by the
-        router before dispatch, and giving the executor an opinion about
-        authorization would mean two places that can disagree about it. This
-        function is only reachable from inside the broker's own App.
-        """
-        import asyncio
-
-        tool = build_registry().get(tool_id)
-        return asyncio.run(tool.call_async(**arguments))
+        return execute_tool(tool_id, arguments)
 
     execute.__name__ = f"execute_{klass.name}"
     return app.function(
@@ -234,12 +441,20 @@ async def _dispatch_remote(tool_id: str, arguments: dict[str, Any]) -> Any:
     the router is ASGI: a blocking call here would stall every other demigod
     sharing the replica for the duration of someone else's solve.
     """
-    namespace = tool_id.split(".", 1)[0] if "." in tool_id else "generic"
-    klass = class_for(namespace)
-    if klass is None or klass.name not in _EXECUTORS:
+    klass = class_for(tool_id)
+    if klass is None:
         raise RuntimeError(
-            f"no executor class serves namespace {namespace!r} (tool {tool_id!r}). "
-            f"Add it to a class in broker.service.EXECUTOR_CLASSES."
+            f"no executor class serves namespace {namespace_of(tool_id)!r} "
+            f"(tool {tool_id!r}). Add it to a class in "
+            f"broker.service.ALL_EXECUTOR_CLASSES."
+        )
+    if klass.name not in _EXECUTORS:
+        # Reachable only for a gated tier: the class exists, this deployment
+        # chose not to build it. Say which switch, not "unknown tool".
+        raise RuntimeError(
+            f"tool {tool_id!r} belongs to executor class {klass.name!r}, which "
+            f"is disabled in this deployment. Set "
+            f"{klass.enable_env}=1 and redeploy broker.service to enable it."
         )
     return await _EXECUTORS[klass.name].remote.aio(tool_id, arguments)
 
@@ -287,7 +502,9 @@ def endpoint_url() -> str:
 
 
 __all__ = [
+    "ALL_EXECUTOR_CLASSES",
     "APP_NAME",
+    "BROKER_ENV",
     "EXECUTOR_CLASSES",
     "ExecutorClass",
     "app",
@@ -296,5 +513,7 @@ __all__ = [
     "build_router",
     "class_for",
     "endpoint_url",
+    "execute_tool",
+    "namespace_of",
     "router",
 ]
