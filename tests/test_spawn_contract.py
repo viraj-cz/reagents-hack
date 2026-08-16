@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 from pydantic import BaseModel, ValidationError
@@ -354,3 +355,81 @@ def test_sandbox_runtime_constructs_with_defaults():
     assert runtime.run_id == "r1"
     assert runtime.restrict_egress is False
     assert runtime.toolbox is None
+
+
+# --- refusal handling --------------------------------------------------------
+
+
+def test_a_refusal_is_retried_then_reported_as_a_refusal():
+    """A classifier refusal TRUNCATES the response, so if it isn't handled it
+    surfaces as incomplete JSON and sends you hunting for a parse bug. Seen live
+    on a water-tank flow problem, cut off mid-way through abstract state-update
+    equations -- a false positive, which is why one retry is worth it."""
+    import asyncio
+
+    from reagents.llm import anthropic_client as ac
+    from reagents.llm.client import LLMError
+
+    class Details:
+        category = "cyber"
+        explanation = "declined"
+
+    class Refused:
+        stop_reason = "refusal"
+        stop_details = Details()
+        content: ClassVar[list] = []
+
+    calls = {"n": 0}
+
+    class FakeMessages:
+        async def create(self, **kw):
+            calls["n"] += 1
+            return Refused()
+
+    llm = ac.AnthropicLLM.__new__(ac.AnthropicLLM)
+    llm.model = "m"
+    llm._client = type("C", (), {"messages": FakeMessages()})()
+
+    class Draft(BaseModel):
+        a: int = 1
+
+    with pytest.raises(LLMError) as e:
+        asyncio.run(llm.complete(system="s", user="u", response_model=Draft))
+
+    assert calls["n"] == ac.REFUSAL_RETRIES + 1, "should retry before giving up"
+    assert "refused" in str(e.value)
+    assert "cyber" in str(e.value), "the category is the actionable part"
+
+
+def test_a_refusal_that_clears_on_retry_succeeds():
+    import asyncio
+
+    from reagents.llm import anthropic_client as ac
+
+    class Block:
+        text = '{"a": 7}'
+
+    class Refused:
+        stop_reason = "refusal"
+        stop_details = None
+        content: ClassVar[list] = []
+
+    class Ok:
+        stop_reason = "end_turn"
+        content: ClassVar[list] = [Block()]
+
+    seq = [Refused(), Ok()]
+
+    class FakeMessages:
+        async def create(self, **kw):
+            return seq.pop(0)
+
+    llm = ac.AnthropicLLM.__new__(ac.AnthropicLLM)
+    llm.model = "m"
+    llm._client = type("C", (), {"messages": FakeMessages()})()
+
+    class Draft(BaseModel):
+        a: int
+
+    got = asyncio.run(llm.complete(system="s", user="u", response_model=Draft))
+    assert got.a == 7
