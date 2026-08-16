@@ -26,6 +26,7 @@ from reagents.god.transformer import LeakError, Transformer
 from reagents.isolation import assert_sealed, find_spec_leaks, native_terms
 from reagents.llm.client import LLMClient
 from reagents.tools.registry import ToolRegistry, default_registry
+from reagents.tracing import GOD_LANE, NullTracer, TraceSink, demigod_lane, summarize
 
 ABSTRACT_FORBIDDEN = [
     "Use only symbols defined in the representation.",
@@ -42,10 +43,12 @@ class God:
         approved_write_tools: set[str] | None = None,
         approved_high_risk_tools: set[str] | None = None,
         runtime: DemigodRuntimeProtocol | None = None,
+        tracer: TraceSink | None = None,
     ) -> None:
         self.llm = llm
         self.registry = registry or default_registry()
         self.domain_count = domain_count
+        self.tracer = tracer or NullTracer()
         # Write authority is an operator decision, never something the planner or
         # demigod can grant itself. IDs must match the discovered catalog exactly.
         self.approved_write_tools = frozenset(approved_write_tools or set())
@@ -60,7 +63,12 @@ class God:
         # scripted demo); SandboxDemigodRuntime gives each one its own Modal
         # sandbox. Both satisfy DemigodRuntimeProtocol and return DemiGodResult,
         # so nothing else in this file knows which is in use.
-        self.runtime: DemigodRuntimeProtocol = runtime or DemigodRuntime(llm)
+        self.runtime: DemigodRuntimeProtocol = runtime or DemigodRuntime(
+            llm, tracer=self.tracer
+        )
+        set_tracer = getattr(self.runtime, "set_tracer", None)
+        if callable(set_tracer):
+            set_tracer(self.tracer)
         self.last_trace = OrchestrationTrace()
 
     def build_envelope(self, spec: DomainSpec, problem: DomainProblem) -> ContextEnvelope:
@@ -76,9 +84,39 @@ class God:
         )
 
     async def solve(self, problem: NativeProblem) -> NativeSolution:
+        self.tracer.emit(
+            GOD_LANE,
+            "START",
+            f"problem={problem.id}; {summarize(problem.question)}",
+        )
+        deferred = self.registry.deferred_namespaces()
+        catalog_note = f"{len(self.registry.ids())} local capabilities available"
+        if deferred:
+            catalog_note += f"; {len(deferred)} remote catalogs will be checked"
+        else:
+            catalog_note += "; no remote catalogs configured"
+        self.tracer.emit(GOD_LANE, "CATALOG", catalog_note)
         terms = native_terms(problem)
         guard = IsolationGuard(terms)
+        self.tracer.emit(
+            GOD_LANE,
+            "PLAN",
+            f"Looking for {self.domain_count} representations that simplify different parts of the problem",
+        )
         specs = await self.planner.plan(problem, n=self.domain_count)
+        self.tracer.emit(
+            GOD_LANE,
+            "PLAN",
+            f"selected {len(specs)} domains",
+            data=[
+                {
+                    "name": spec.name,
+                    "axis": spec.primary_axis.value,
+                    "tools": spec.tool_ids,
+                }
+                for spec in specs
+            ],
+        )
 
         envelopes: list[ContextEnvelope] = []
         inverse_maps = []
@@ -103,10 +141,27 @@ class God:
                         flat,
                     )
                 )
+                self.tracer.emit(
+                    GOD_LANE,
+                    "REJECT",
+                    f"{spec.name} domain specification leaked native terms",
+                    data=flat,
+                )
                 continue
+            self.tracer.emit(
+                GOD_LANE,
+                "TRANSFORM",
+                f"projecting native problem into {spec.name} ({spec.primary_axis.value})",
+            )
             try:
                 domain_problem, inverse = await self.transformer.forward(problem, spec)
             except LeakError as exc:
+                self.tracer.emit(
+                    GOD_LANE,
+                    "REJECT",
+                    f"{spec.name} could not be sealed",
+                    data=exc.leaks,
+                )
                 leaks.extend(exc.leaks)
                 failures.append(
                     _sealing_failure(
@@ -119,6 +174,12 @@ class God:
             envelope = self.build_envelope(spec, domain_problem)
             found = assert_sealed(envelope, terms)
             if found:
+                self.tracer.emit(
+                    GOD_LANE,
+                    "REJECT",
+                    f"{spec.name} envelope leaked native terms",
+                    data=found,
+                )
                 leaks.extend(found)
                 failures.append(
                     _sealing_failure(spec.name, "envelope leaked native terms", found)
@@ -126,11 +187,27 @@ class God:
                 continue
             envelopes.append(envelope)
             inverse_maps.append(inverse)
+            self.tracer.emit(
+                GOD_LANE,
+                "SEALED",
+                f"{spec.name} ready",
+                data={
+                    "axis": spec.primary_axis.value,
+                    "language": spec.language,
+                    "representation_keys": sorted(domain_problem.representation),
+                    "tools": spec.tool_ids,
+                },
+            )
 
         # as_completed, not gather: demigods run in parallel and are collected
         # in whatever order they finish, so a slow domain does not hold up the
         # ones already done. gather would block on the slowest before GOD could
         # look at anything.
+        self.tracer.emit(
+            GOD_LANE,
+            "SPAWN",
+            f"{len(envelopes)} independent analyses are working in parallel",
+        )
         artifacts: list[DemiGodResult] = []
         pending = [_spawn(self, env, guard) for env in envelopes]
         for finished in asyncio.as_completed(pending):
@@ -139,10 +216,32 @@ class God:
             # type. See demigod.result for why the union was collapsed.
             if result.status == "ok":
                 artifacts.append(result)
+                conclusion = result.payload.get("conclusion") or result.payload.get("claim")
+                self.tracer.emit(
+                    GOD_LANE,
+                    "COLLECT",
+                    f"accepted artifact from {result.domain_name}",
+                    data={
+                        "domain_name": result.domain_name,
+                        "confidence": result.confidence,
+                        "conclusion": conclusion,
+                        "tool_calls": len(result.tool_trace),
+                    },
+                )
             else:
                 failures.append(result)
+                self.tracer.emit(
+                    GOD_LANE,
+                    "FAILURE",
+                    f"{result.domain_name}: {result.error or 'unspecified failure'}",
+                )
 
         if artifacts:
+            self.tracer.emit(
+                GOD_LANE,
+                "INTEGRATE",
+                f"Translating {len(artifacts)} domain artifacts back into the original biology problem",
+            )
             solution = await self.integrator.integrate(
                 problem,
                 artifacts,
@@ -165,6 +264,17 @@ class God:
             failures=failures,
             leaks=leaks,
             solution=solution,
+        )
+        self.tracer.emit(
+            GOD_LANE,
+            "DONE",
+            "integrated answer ready",
+            data={
+                "confidence": solution.confidence,
+                "artifacts": len(artifacts),
+                "failures": len(failures),
+                "leaks": len(leaks),
+            },
         )
         return solution
 
@@ -191,11 +301,18 @@ def _sealing_failure(
 async def _spawn(
     god: God, envelope: ContextEnvelope, guard: IsolationGuard
 ) -> DemiGodResult:
+    lane = demigod_lane(envelope.domain.name)
     write_tools = {
         spec.id for spec in envelope.tools if spec.access == ToolAccess.WRITE
     }
     unapproved = write_tools - god.approved_write_tools
     if unapproved:
+        god.tracer.emit(
+            lane,
+            "FAIL",
+            "write tools lack operator approval",
+            data=sorted(unapproved),
+        )
         return _sealing_failure(
             envelope.domain.name,
             f"write tools require operator approval: {sorted(unapproved)}",
@@ -205,6 +322,12 @@ async def _spawn(
     }
     unapproved_high_risk = high_risk_tools - god.approved_high_risk_tools
     if unapproved_high_risk:
+        god.tracer.emit(
+            lane,
+            "FAIL",
+            "high-risk tools lack operator approval",
+            data=sorted(unapproved_high_risk),
+        )
         return _sealing_failure(
             envelope.domain.name,
             "high-risk tools require operator approval: "
@@ -215,5 +338,6 @@ async def _spawn(
         subject_id=envelope.domain.name,
         budget=envelope.budget,
         allow_write=bool(write_tools),
+        tracer=god.tracer,
     )
     return await god.runtime.run(envelope, pack, guard=guard)

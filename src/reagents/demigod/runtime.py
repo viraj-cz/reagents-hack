@@ -13,6 +13,7 @@ from reagents.isolation import envelope_visible_text, find_leaks
 from reagents.llm.client import LLMClient
 from reagents.schema import validate_payload
 from reagents.tools.registry import BoundToolPack, UnboundToolError
+from reagents.tracing import NullTracer, TraceSink, demigod_lane, summarize
 
 DEMIGOD_SYSTEM = """You are a demigod. You reason only in the representation language
 in your envelope. You may call only the listed tools. You must return one artifact
@@ -60,8 +61,12 @@ class IsolationGuard:
 
 
 class DemigodRuntime:
-    def __init__(self, llm: LLMClient) -> None:
+    def __init__(self, llm: LLMClient, tracer: TraceSink | None = None) -> None:
         self.llm = llm
+        self.tracer = tracer or NullTracer()
+
+    def set_tracer(self, tracer: TraceSink) -> None:
+        self.tracer = tracer
 
     async def run(
         self,
@@ -70,8 +75,22 @@ class DemigodRuntime:
         guard: IsolationGuard | None = None,
     ) -> DemiGodResult:
         name = envelope.domain.name
+        lane = demigod_lane(name)
+        self.tracer.emit(lane, "START", "isolated reasoning stream opened")
+        self.tracer.emit(
+            lane,
+            "SCOPE",
+            f"axis={envelope.domain.primary_axis.value}; "
+            f"language={envelope.domain.language}",
+            data={
+                "tools": [spec.id for spec in envelope.tools],
+                "max_steps": envelope.budget.max_steps,
+                "max_tool_calls": envelope.budget.max_tool_calls,
+            },
+        )
 
         def fail(reason: str, violations: list[str] | None = None) -> DemiGodResult:
+            self.tracer.emit(lane, "FAIL", summarize(reason), data=violations)
             return DemiGodResult.failure(
                 status="failed",
                 error=reason,
@@ -94,6 +113,7 @@ class DemigodRuntime:
             )
 
         user = _envelope_user(envelope)
+        self.tracer.emit(lane, "MODEL", "reasoning/tool loop started")
         try:
             draft, trace = await self.llm.run_tool_loop(
                 system=DEMIGOD_SYSTEM,
@@ -119,7 +139,7 @@ class DemigodRuntime:
         if guard:
             artifact_leaks = guard.check(f"{draft.justification}\n{draft.payload}")
 
-        return DemiGodResult(
+        result = DemiGodResult(
             claim=draft.justification,
             # This runtime has no calibrated self-assessment to offer: the draft
             # carries no confidence field. 1.0 would be a lie and 0.0 reads as
@@ -143,6 +163,19 @@ class DemigodRuntime:
             domain_name=name,
             status="ok",
         )
+        conclusion = draft.payload.get("conclusion") or draft.payload.get("claim")
+        self.tracer.emit(lane, "REASON", summarize(draft.justification))
+        if conclusion:
+            confidence = result.confidence
+            message = summarize(conclusion)
+            message = f"confidence={confidence}; {message}"
+            self.tracer.emit(lane, "ARTIFACT", message)
+        self.tracer.emit(
+            lane,
+            "DONE",
+            f"artifact validated; tool_calls={len(trace)}",
+        )
+        return result
 
 
 def _envelope_user(envelope: ContextEnvelope) -> str:

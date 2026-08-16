@@ -22,6 +22,7 @@ from reagents.contracts import (
     ToolProvider,
     ToolSpec,
 )
+from reagents.tracing import NullTracer, TraceSink, demigod_lane
 
 
 class UnknownToolError(KeyError):
@@ -114,6 +115,7 @@ class ToolBroker:
     lease: CapabilityLease
     calls: int = 0
     started_at: float = field(default_factory=time.monotonic)
+    tracer: TraceSink = field(default_factory=NullTracer)
 
     def _authorize(self, tool_id: str) -> Tool:
         if tool_id not in self.tools or tool_id not in self.lease.tool_ids:
@@ -134,10 +136,36 @@ class ToolBroker:
         return tool
 
     def call(self, tool_id: str, **kwargs: Any) -> Any:
-        return self._authorize(tool_id).call_sync(**kwargs)
+        lane = demigod_lane(self.lease.subject_id)
+        try:
+            tool = self._authorize(tool_id)
+        except Exception as exc:
+            self.tracer.emit(lane, "TOOL DENY", f"{tool_id}: {exc}")
+            raise
+        self.tracer.emit(lane, "TOOL CALL", tool_id, data={"arguments": kwargs})
+        try:
+            result = tool.call_sync(**kwargs)
+        except Exception as exc:
+            self.tracer.emit(lane, "TOOL ERROR", f"{tool_id}: {exc}")
+            raise
+        self.tracer.emit(lane, "TOOL RESULT", tool_id, data={"result": result})
+        return result
 
     async def acall(self, tool_id: str, **kwargs: Any) -> Any:
-        return await self._authorize(tool_id).call_async(**kwargs)
+        lane = demigod_lane(self.lease.subject_id)
+        try:
+            tool = self._authorize(tool_id)
+        except Exception as exc:
+            self.tracer.emit(lane, "TOOL DENY", f"{tool_id}: {exc}")
+            raise
+        self.tracer.emit(lane, "TOOL CALL", tool_id, data={"arguments": kwargs})
+        try:
+            result = await tool.call_async(**kwargs)
+        except Exception as exc:
+            self.tracer.emit(lane, "TOOL ERROR", f"{tool_id}: {exc}")
+            raise
+        self.tracer.emit(lane, "TOOL RESULT", tool_id, data={"result": result})
+        return result
 
 
 @dataclass
@@ -266,6 +294,7 @@ class ToolRegistry:
         subject_id: str = "unscoped",
         budget: Budget | None = None,
         allow_write: bool = False,
+        tracer: TraceSink | None = None,
     ) -> BoundToolPack:
         if not tool_ids:
             raise ValueError("cannot bind an empty tool pack")
@@ -284,7 +313,11 @@ class ToolRegistry:
             )
         return BoundToolPack(
             _tools=tools,
-            _broker=ToolBroker(tools=tools, lease=effective_lease),
+            _broker=ToolBroker(
+                tools=tools,
+                lease=effective_lease,
+                tracer=tracer or NullTracer(),
+            ),
         )
 
 

@@ -143,3 +143,52 @@ Don't freehand it — run `.claude/skills/add-tool-to-registry/SKILL.md`. It
 walks: check it isn't already registered → write the pinned entry → decide
 whether it fits an existing image → write the agent-facing usage doc → add and
 **run** the smoke test.
+
+### God and subagent progress stream
+
+Use `--trace` for concise, user-facing updates while the analysis runs:
+
+```bash
+uv run reagents --trace
+```
+
+The terminal separates God's orchestration from each subagent's scoped work. It shows
+the selected representations, allowed capabilities and budgets, bounded tool activity,
+artifact-level reasoning summaries, and the translation back to the original problem.
+It does not dump subprocess logs, raw tool payloads, or private model chain-of-thought.
+
+```text
+◆ God is analyzing the problem
+  Checking capabilities — 14 local capabilities available
+
+◇ Choosing useful representations
+  Selected 3 complementary approaches:
+    • stoichiometric_flow — conservation; tools: simplify, dimensional_check
+    • catalytic_dag — topology; tools: build_graph, cut
+    • rate_orbit — dynamics; tools: simulate, sample
+
+◇ Running scoped analyses
+  ┌─ Subagent catalytic_dag started
+  │ catalytic_dag · Scope — axis=topology; language=directed acyclic graph
+  │ catalytic_dag · Allowed tools — build_graph, cut
+  │ catalytic_dag · → Using build_graph (inputs: edges, nodes)
+  │ catalytic_dag · ← build_graph returned fields: edges, nodes
+  │ catalytic_dag · Reasoning summary — The graph is a single chain; removing v3 disconnects v4.
+  │ catalytic_dag · Finding — Inflating e1 cannot increase flow into v4 while e3 remains the cut.
+  └─ Subagent catalytic_dag complete — artifact validated; tool_calls=2
+  ✓ God accepted catalytic_dag's artifact
+
+◇ Synthesizing the findings
+  Translating 3 domain artifacts back into the original biology problem
+
+◆ Analysis complete
+  The integrated answer is ready at 86% confidence
+```
+
+Messages are length-bounded and redact recognized credential fields. Tool calls show
+argument names, and results show their shape rather than dumping their contents.
+Programmatic callers can pass a `TerminalTracer` or another `TraceSink` to
+`God(..., tracer=...)`; `TerminalTracer(show_subagents=False)` restores a God-only
+view.
+
+Live LLM execution additionally requires the `llm` extra and `ANTHROPIC_API_KEY`.
