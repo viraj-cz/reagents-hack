@@ -228,7 +228,8 @@ def launch_god(
     if verbose:
         print(
             f"[god] launching run={run_id} problem={request.problem.id!r} "
-            f"domains={request.domain_count} turns={request.max_turns}"
+            f"domains={request.domain_count or 'GOD decides'} "
+            f"turns={request.max_turns}"
         )
 
     sandbox: modal.Sandbox | None = None

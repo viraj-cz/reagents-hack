@@ -398,3 +398,107 @@ async def test_planner_retries_one_malformed_invention():
     specs = await Planner(llm, default_registry()).plan(toy_problem(), n=3)
     assert len(specs) == 3
     assert llm.invent_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_planner_may_invent_no_domains_at_all():
+    """An empty plan is a decision, not a failure.
+
+    The count used to be an input the planner had to hit. Now it judges it, and
+    "none" is a legal judgement -- the caller answers the problem itself. The
+    critic must not run: there is nothing to call orthogonal, and every round
+    would re-ask a question already answered."""
+
+    class CountingLLM:
+        def __init__(self):
+            self.phases: list[str] = []
+
+        async def complete(self, *, phase, **_):
+            self.phases.append(phase)
+            return InventedDomains(
+                domains=[],
+                rationale="one arithmetic step; a foreign language buys nothing",
+            )
+
+    llm = CountingLLM()
+    planner = Planner(llm, default_registry())
+    specs = await planner.plan(toy_problem())
+
+    assert specs == []
+    assert llm.phases == ["invent"], "the critic was asked to judge an empty set"
+    assert "arithmetic" in planner.last_rationale
+    assert planner.last_plan_compromises == []
+
+
+@pytest.mark.asyncio
+async def test_planner_leaves_the_count_open_when_none_is_pinned():
+    """No number reaches the model unless an operator pinned one."""
+    seen: dict[str, str] = {}
+
+    class PromptCapturingLLM:
+        async def complete(self, *, phase, user, **_):
+            seen[phase] = user
+            if phase == "invent":
+                return InventedDomains(domains=toy_domains())
+            return CriticVerdict(ok=True)
+
+    await Planner(PromptCapturingLLM(), default_registry()).plan(toy_problem())
+    assert "Decide how many domains" in seen["invent"]
+    assert "exactly" not in seen["invent"].splitlines()[0]
+
+
+@pytest.mark.asyncio
+async def test_planner_pins_the_count_when_an_operator_asks_for_one():
+    seen: dict[str, str] = {}
+
+    class PromptCapturingLLM:
+        async def complete(self, *, phase, user, **_):
+            seen[phase] = user
+            if phase == "invent":
+                return InventedDomains(domains=toy_domains())
+            return CriticVerdict(ok=True)
+
+    specs = await Planner(PromptCapturingLLM(), default_registry()).plan(
+        toy_problem(), n=2
+    )
+    assert "Invent exactly 2 domains" in seen["invent"]
+    assert len(specs) == 2, "a pinned count must also cap what comes back"
+
+
+@pytest.mark.asyncio
+async def test_single_domain_plan_skips_the_orthogonality_critic():
+    """One domain has no pair to be orthogonal to.
+
+    Asking anyway spends a call and invites an objection about a set of one.
+    Structural checks still run -- they are per-spec, not pairwise."""
+
+    class CountingLLM:
+        def __init__(self):
+            self.phases: list[str] = []
+
+        async def complete(self, *, phase, **_):
+            self.phases.append(phase)
+            if phase == "invent":
+                return InventedDomains(domains=toy_domains()[:1])
+            return CriticVerdict(ok=False, reasons=["should never be asked"])
+
+    llm = CountingLLM()
+    specs = await Planner(llm, default_registry()).plan(toy_problem())
+    assert len(specs) == 1
+    assert llm.phases == ["invent"]
+
+
+@pytest.mark.asyncio
+async def test_pinned_count_refuses_an_empty_plan():
+    """Pinning n asks for n domains, not for an opinion about whether to bother.
+
+    Routing an empty response to the direct answer here would let a run that
+    was told to spawn 3 demigods spawn none and still report success."""
+    from reagents.god.planner import PlanError
+
+    class EmptyLLM:
+        async def complete(self, *, phase, **_):
+            return InventedDomains(domains=[])
+
+    with pytest.raises(PlanError, match="pinned to 3"):
+        await Planner(EmptyLLM(), default_registry()).plan(toy_problem(), n=3)

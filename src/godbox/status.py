@@ -37,7 +37,9 @@ THE CONTRACT. Keys, and when each is written:
                                             never boots is still terminable
     started_at        launcher              once (unix seconds)
     problem_id        launcher              once
-    domain_count      launcher              once (requested, not achieved)
+    domain_count      launcher              once (pinned by the operator, or
+                                            null when GOD chose it; `domains`
+                                            below is what was actually planned)
     phase             launcher, then GOD    every transition; see `Phase`
     updated_at        launcher, then GOD    every write
     heartbeat         GOD (ticker thread)   every HEARTBEAT_INTERVAL_S

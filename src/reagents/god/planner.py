@@ -16,19 +16,38 @@ from reagents.tracing import GOD_LANE, NullTracer, TraceSink
 
 JACCARD_THRESHOLD = 0.3
 LANGUAGE_OVERLAP_THRESHOLD = 0.5
-DEFAULT_DOMAIN_COUNT = 3
 MAX_PLAN_ROUNDS = 4
 COMPLETE_ARTIFACT_KEYS = frozenset(
     {"candidate_solution", "constraint_results", "certificate", "conclusion"}
 )
 
-INVENT_SYSTEM = """You are God. You do not solve the problem.
-You invent representation domains so isolated demigods can reason in a foreign language.
+INVENT_SYSTEM = """You are God. You invent representation domains so isolated
+demigods can reason in a foreign language.
 
 This is NOT work decomposition. Every domain is an alternative coordinate system for
 the COMPLETE native problem. Every demigod must be able to return an independently
 complete candidate solution; God will compare alternative proofs rather than assemble
 partial answers.
+
+HOW MANY DOMAINS IS YOUR CALL, AND NOBODY WILL TELL YOU A NUMBER. Judge it from
+the problem in front of you:
+
+- NONE. Return an empty list when a careful reasoner just answers this: arithmetic,
+  a lookup, a definition, one short derivation whose steps you can already see. Each
+  domain costs a model invention, a projection, and an isolated sandbox, and buys a
+  second opinion nobody needs here. When you return no domains, God answers the
+  problem directly, so returning none is a decision to answer it yourself, not a
+  refusal to work.
+- ONE. Return a single domain when there is real work to do but one coordinate
+  system is obviously the right one, and a rival language would only paraphrase it.
+- SEVERAL. Return several when the problem is hard enough, or underdetermined
+  enough, that independent complete answers argued in unrelated languages are worth
+  comparing -- one per representation that genuinely earns its place. Two domains
+  that differ only in vocabulary are one domain and one wasted sandbox.
+
+Invent a domain because a representation pays for itself, never to reach a count.
+Whatever you choose, put your reasoning in `rationale`; when you return no domains
+that field is the only account of the decision, so it is required there.
 
 Each domain MUST:
 - have a short identifier name (snake_case)
@@ -81,6 +100,8 @@ artifact is a complete candidate solution, never a partial contribution."""
 
 class InventedDomains(BaseModel):
     domains: list[DomainSpec]
+    rationale: str = ""
+    """Why this many domains. The only record of the call when there are none."""
 
 
 class CriticVerdict(BaseModel):
@@ -306,6 +327,12 @@ class Planner:
         Non-empty means `plan` ran out of rounds and returned its best set
         anyway. Readable by a caller that would rather fail than proceed."""
         self.tracer = tracer or NullTracer()
+        self.last_rationale: str = ""
+        """The planner's own account of the domain count it chose.
+
+        Carries the whole decision when `plan` returns an empty list: there are
+        no specs to read it off, and God quotes it when it answers directly."""
+
         self.last_symbol_map: dict[str, str] = {}
         """Symbol -> native entity for the most recent plan. GOD's alone.
 
@@ -316,7 +343,7 @@ class Planner:
     async def invent(
         self,
         problem: NativeProblem,
-        n: int,
+        n: int | None,
         *,
         avoid: list[DomainSpec] | None = None,
         forbidden_axes: list[Axis] | None = None,
@@ -331,8 +358,17 @@ class Planner:
             {"id": spec.id, "description": spec.description}
             for spec in self.registry.specs()
         ]
+        # `n is None` is the normal case: the count is the planner's judgement,
+        # not an input. An integer arrives from two places only -- an operator
+        # pinning the count for cost control, and the regeneration loop below
+        # asking for exactly as many replacements as the critic rejected.
+        instruction = (
+            "Decide how many domains this native problem warrants, and invent them.\n"
+            if n is None
+            else f"Invent exactly {n} domains for this native problem.\n"
+        )
         user = (
-            f"Invent exactly {n} domains for this native problem.\n\n"
+            f"{instruction}\n"
             f"id: {problem.id}\n"
             f"statement: {problem.statement}\n"
             f"entities: {problem.entities}\n"
@@ -358,7 +394,8 @@ class Planner:
                     response_model=InventedDomains,
                     phase="invent",
                 )
-                return invented.domains[:n]
+                self.last_rationale = invented.rationale
+                return invented.domains if n is None else invented.domains[:n]
             except LLMError as exc:
                 retryable = "did not match the schema" in str(
                     exc
@@ -371,9 +408,14 @@ class Planner:
                     "planner response was incomplete; requesting one corrected draft",
                     data=str(exc)[:300],
                 )
+                retry_count = (
+                    "as many complete domains as the problem warrants"
+                    if n is None
+                    else f"exactly {n} complete domains"
+                )
                 user += (
                     "\nYour previous response was invalid: "
-                    f"{str(exc)[:1200]}\nReturn exactly {n} complete domains. "
+                    f"{str(exc)[:1200]}\nReturn {retry_count}. "
                     "Every domain must include every field required by the schema, "
                     "especially axes, language, tool_ids, transform_prompt, and "
                     "artifact_schema.\n"
@@ -400,9 +442,17 @@ class Planner:
     async def plan(
         self,
         problem: NativeProblem,
-        n: int = DEFAULT_DOMAIN_COUNT,
+        n: int | None = None,
         max_rounds: int = MAX_PLAN_ROUNDS,
     ) -> list[DomainSpec]:
+        """Invent an orthogonal domain set, or none at all.
+
+        `n=None` -- the default -- means the count is the planner's to choose,
+        including choosing zero. An EMPTY RETURN IS A RESULT, not an error: it
+        says no representation earns its sandbox, and the caller answers the
+        problem itself. `PlanError` is still raised when rounds are exhausted
+        with nothing to show, which is the different thing it always was.
+        """
         # Namespace loaders are inert until planning. Provider failures are recorded
         # on the registry so local reasoning remains available during outages.
         await self.registry.load_deferred()
@@ -420,6 +470,26 @@ class Planner:
         planning_problem, self.last_symbol_map = anonymize_problem(problem)
         reasoning_contract = planning_problem.inputs.get("reasoning_contract", {})
         specs = await self.invent(planning_problem, n)
+        if not specs and n is not None:
+            # An operator who pinned the count did not ask for a judgement about
+            # whether the problem deserves domains; they asked for n of them. An
+            # empty response to "invent exactly n" is a malformed response, and
+            # quietly routing it to the direct answer would let a pinned run
+            # spawn nothing while reporting success.
+            raise PlanError(f"the planner was pinned to {n} domains and returned none")
+        if not specs:
+            # THE PLANNER DECLINED TO INVENT, and that is a terminal answer.
+            # Running the critic loop here would be nonsense -- there is nothing
+            # to judge orthogonal, and every round would re-ask a question that
+            # has already been answered "none of them are worth it".
+            self.last_plan_compromises = []
+            self.tracer.emit(
+                GOD_LANE,
+                "PLAN",
+                "no domain earns a demigod on this problem",
+                data=self.last_rationale,
+            )
+            return []
         # Best seen so far, so exhausting the rounds returns something rather
         # than nothing. Scored by how many objections the critic raised.
         best: list[DomainSpec] = specs
@@ -433,6 +503,14 @@ class Planner:
             )
             verdict = structural
             if structural.ok:
+                # A one-domain plan has no pair to be orthogonal to, so the
+                # orthogonality critic has nothing to judge -- asking it anyway
+                # spends a call and invites it to invent an objection about a
+                # set of one. Structural checks (leaks, tools, artifact schema)
+                # still ran above and are what matter for a lone domain.
+                if len(specs) == 1:
+                    self.last_plan_compromises = []
+                    return specs
                 verdict = await self.llm_critic(specs)
                 if verdict.ok:
                     self.last_plan_compromises = []

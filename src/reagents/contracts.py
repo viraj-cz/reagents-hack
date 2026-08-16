@@ -237,3 +237,10 @@ class OrchestrationTrace(BaseModel):
     failures: list[DemiGodResult] = Field(default_factory=list)
     leaks: list[str] = Field(default_factory=list)
     solution: NativeSolution | None = None
+    direct: bool = False
+    """God answered without inventing a domain or spawning anything.
+
+    Every other field is empty on such a run, which is indistinguishable by
+    shape from a run whose planning collapsed -- and the two must not be
+    confused, because one has an answer and the other does not. Callers that
+    treat "no artifacts" as failure (exit codes, run records) check this."""

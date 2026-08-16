@@ -151,7 +151,10 @@ async def _solve(task: str, work_dir: Path) -> dict:
     os.environ.pop("REAGENTS_ENABLE_MCP", None)
     os.environ.pop("REAGENTS_ENABLE_CONTAINERS", None)
 
-    domains = int(os.environ.get("REAGENTS_TXBENCH_DOMAINS", "2"))
+    # Unset means GOD decides how many demigods the task is worth, including
+    # none. Set it to pin the count when a run has to be cost-bounded.
+    pinned = os.environ.get("REAGENTS_TXBENCH_DOMAINS")
+    domains = int(pinned) if pinned else None
     turns = int(os.environ.get("REAGENTS_TXBENCH_TURNS", "10"))
     run_id = os.environ.get("REAGENTS_TXBENCH_RUN_ID") or f"tx{uuid.uuid4().hex[:8]}"
 
