@@ -1,0 +1,188 @@
+"""Pure-logic tests. No Modal account, no network, no API key.
+
+Everything here runs on the runner-independent core: spec validation, the
+closed registry, image resolution, and the output contract. If these pass, a
+spawn can only fail for reasons that need real infrastructure -- which is the
+line we want, because those are the failures worth spending a sandbox on.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
+
+from demigod.images import CATALOG, ImageResolutionError, resolve_image
+from demigod.layout import RunLayout
+from demigod.registry import RegistryError, all_keys, validate_tool_keys
+from demigod.result import DemiGodResult, ResultMissingError, result_json_schema
+from demigod.spec import DemiGodSpec, Problem
+
+
+def make_spec(**overrides) -> DemiGodSpec:
+    base = {
+        "name": "revenue-quant",
+        "domain": "quantitative analysis of tabular data",
+        "tools": ["pandas"],
+        "problem": Problem(
+            context="A CSV of monthly revenue.",
+            goal="Identify outlier months.",
+            success_criteria=["names each outlier", "states a threshold"],
+        ),
+    }
+    return DemiGodSpec(**{**base, **overrides})
+
+
+# --- the closed set ---------------------------------------------------------
+
+
+def test_unknown_tool_is_rejected_at_spec_time_not_in_the_sandbox():
+    with pytest.raises(ValidationError) as e:
+        make_spec(tools=["tensorflow"])
+    # The error must name the valid alternatives -- a GOD retrying blind is the
+    # whole failure mode this guards against.
+    assert "tensorflow" in str(e.value)
+    assert "pandas" in str(e.value)
+
+
+def test_duplicate_tools_rejected():
+    with pytest.raises(RegistryError):
+        validate_tool_keys(["pandas", "pandas"])
+
+
+def test_empty_toolset_is_legal():
+    assert validate_tool_keys([]) == []
+
+
+def test_all_registry_docs_exist():
+    """A declared doc_file that isn't on disk means a live agent with no idea
+    how to use its tools. Catch it here, not there."""
+    from demigod.registry import REGISTRY
+
+    for key in all_keys():
+        # Raises RegistryError if the declared doc file is missing.
+        assert isinstance(REGISTRY[key].usage_doc, str)
+
+
+# --- naming and path safety -------------------------------------------------
+
+
+@pytest.mark.parametrize("bad", ["Revenue", "r", "-lead", "has_underscore", "x" * 40])
+def test_bad_names_rejected(bad):
+    with pytest.raises(ValidationError):
+        make_spec(name=bad)
+
+
+@pytest.mark.parametrize("bad", ["/etc/passwd", "../secrets.csv", "a/../../b"])
+def test_files_cannot_escape_shared(bad):
+    with pytest.raises(ValidationError):
+        make_spec(files=[bad])
+
+
+# --- image resolution -------------------------------------------------------
+
+
+def test_resolves_to_smallest_covering_image():
+    assert resolve_image([]).name == "demigod-base"
+    assert "pandas" in resolve_image(["pandas"]).tool_keys
+
+
+def test_uncovered_toolset_hard_errors_rather_than_building():
+    """The locked decision: never build an image on the fly. A gap in the
+    catalog is a human's one-time fix, not a cost every caller pays."""
+    fake = "definitely-not-registered"
+    with pytest.raises((ImageResolutionError, RegistryError)):
+        resolve_image([fake])
+
+
+def test_every_catalog_image_only_claims_registered_tools():
+    for image in CATALOG:
+        validate_tool_keys(sorted(image.tool_keys))
+
+
+# --- volume layout ----------------------------------------------------------
+
+
+def test_each_demigod_gets_a_private_out_subpath():
+    a = RunLayout(run_id="r1", demigod_name="alpha")
+    b = RunLayout(run_id="r1", demigod_name="beta")
+    # Same run -> same volumes...
+    assert a.shared_volume_name == b.shared_volume_name
+    assert a.out_volume_name == b.out_volume_name
+    # ...but disjoint sub_paths, so neither can reach the other's output.
+    assert a.out_subpath != b.out_subpath
+    assert a.out_subpath == "alpha"
+
+
+def test_shared_and_out_are_distinct_volumes():
+    """Modal rejects mounting one Volume at two locations in one sandbox:
+    'The same Volume cannot be mounted in multiple locations for the same
+    function'. Verified live. This test locks in the two-volume fix."""
+    layout = RunLayout(run_id="r1", demigod_name="alpha")
+    assert layout.shared_volume_name != layout.out_volume_name
+
+
+# --- the output contract ----------------------------------------------------
+
+
+def test_result_round_trips(tmp_path):
+    r = DemiGodResult(
+        claim="March and November are outliers.",
+        confidence=0.82,
+        evidence=["outliers.csv"],
+        method="IQR fence over monthly totals.",
+        files=["outliers.csv", "plot.png"],
+    )
+    r.write(tmp_path)
+    back = DemiGodResult.read(tmp_path)
+    assert back.claim == r.claim
+    assert back.confidence == pytest.approx(0.82)
+
+
+def test_missing_manifest_is_a_named_error(tmp_path):
+    with pytest.raises(ResultMissingError):
+        DemiGodResult.read(tmp_path)
+
+
+def test_confidence_is_bounded():
+    with pytest.raises(ValidationError):
+        DemiGodResult(claim="x", confidence=1.5, method="y")
+
+
+def test_failure_manifest_surfaces_error_in_blockers():
+    """A consumer reading only the contract fields must still see the failure."""
+    r = DemiGodResult.failure(
+        name="alpha", domain="d", status="timeout", error="exceeded wall clock"
+    )
+    assert r.status == "timeout"
+    assert r.confidence == 0.0
+    assert "exceeded wall clock" in r.blockers
+
+
+def test_prompt_schema_hides_runner_owned_envelope():
+    """The agent must not think it can set its own status -- otherwise a model
+    can self-report ok on a run that crashed."""
+    props = result_json_schema()["properties"]
+    for envelope in ("name", "domain", "status", "error"):
+        assert envelope not in props
+    for authored in ("claim", "confidence", "evidence", "method"):
+        assert authored in props
+
+
+# --- end to end (no infrastructure) -----------------------------------------
+
+
+def test_example_spec_validates_and_resolves():
+    """The committed example must always be spawnable. It is what a new
+    collaborator runs first."""
+    example = Path(__file__).parent.parent / "examples" / "pandas-demigod.json"
+    spec = DemiGodSpec.model_validate_json(example.read_text(encoding="utf-8"))
+    image = resolve_image(spec.tools)
+    assert image.covers(set(spec.tools))
+
+
+def test_spec_is_json_serializable_for_transport_into_the_sandbox():
+    spec = make_spec()
+    assert DemiGodSpec.model_validate(json.loads(spec.model_dump_json())) == spec
