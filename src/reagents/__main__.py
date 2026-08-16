@@ -21,7 +21,21 @@ def main() -> None:
         action="store_true",
         help="Use Anthropic (requires ANTHROPIC_API_KEY) instead of the scripted toy client",
     )
+    subparsers = parser.add_subparsers(dest="command")
+    tools_parser = subparsers.add_parser("tools", help="Inspect capability setup")
+    tools_subparsers = tools_parser.add_subparsers(dest="tools_command", required=True)
+    tools_subparsers.add_parser("list", help="List locally registered capability cards")
+    doctor_parser = tools_subparsers.add_parser("doctor", help="Check runtimes, packages, and MCP credentials")
+    doctor_parser.add_argument(
+        "--connect",
+        action="store_true",
+        help="Connect to configured MCP servers and discover their tool schemas",
+    )
     args = parser.parse_args()
+
+    if args.command == "tools":
+        asyncio.run(_run_tools_command(args))
+        return
 
     if args.live:
         if not os.environ.get("ANTHROPIC_API_KEY"):
@@ -32,6 +46,22 @@ def main() -> None:
 
     solution = asyncio.run(_run(llm))
     print(json.dumps(solution.model_dump(), indent=2))
+
+
+async def _run_tools_command(args) -> None:
+    if args.tools_command == "list":
+        from reagents.tools.registry import default_registry
+
+        registry = default_registry()
+        payload = {
+            "tools": [spec.model_dump(mode="json") for spec in registry.specs()],
+            "deferred_namespaces": registry.deferred_namespaces(),
+        }
+    else:
+        from reagents.tools.doctor import doctor_report
+
+        payload = await doctor_report(connect=args.connect)
+    print(json.dumps(payload, indent=2))
 
 
 async def _run(llm) -> object:
