@@ -428,6 +428,14 @@ button {
   border: 1px solid var(--w-34);
 }
 
+/* `margin-left: auto` rather than a spacer element, because the row wraps: a
+   flex-grow spacer stays on line one with the label and leaves the control
+   flush LEFT on line two, which is the opposite of the intent. An auto margin
+   pushes it right on whichever line it lands on. */
+.execution-row .seg {
+  margin-left: auto;
+}
+
 .seg button {
   padding: 8px 14px;
   font-family: var(--mono);
@@ -440,6 +448,17 @@ button {
 
 .seg button:last-child {
   border-right: none;
+}
+
+/* The dynamic-domains option. A glyph rather than a word because it sits in a
+   row of single digits, and "AUTO" at this letter-spacing is wider than 2/3/4
+   put together. Sized up slightly: the seg's 10px is set for uppercase text and
+   renders this mark too faint to read as a control. */
+.seg button.icon {
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 0;
+  padding: 6px 12px;
 }
 
 .seg button[aria-pressed='true'] {

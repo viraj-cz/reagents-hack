@@ -6,7 +6,8 @@ export type StartRequest = {
   entities?: string[]
   constraints?: string[]
   mode: 'scripted' | 'live'
-  domains: number
+  /** null = let GOD choose, including choosing none. */
+  domains: number | null
   execution: 'inprocess' | 'sandbox' | 'godbox'
 }
 

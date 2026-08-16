@@ -62,7 +62,7 @@ class Run:
         problem: NativeProblem,
         *,
         mode: str,
-        domain_count: int,
+        domain_count: int | None,
         execution: str = EXECUTION_INPROCESS,
         max_turns: int = DEFAULT_MAX_TURNS,
     ) -> None:
@@ -365,7 +365,7 @@ class RunStore:
         problem: NativeProblem,
         *,
         mode: str,
-        domain_count: int,
+        domain_count: int | None,
         execution: str = EXECUTION_INPROCESS,
         max_turns: int = DEFAULT_MAX_TURNS,
     ) -> Run:

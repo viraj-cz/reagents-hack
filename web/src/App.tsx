@@ -66,7 +66,7 @@ export default function App() {
           <span className="chip">{state.mode === 'scripted' ? 'replay' : 'live'}</span>
           <span className={`chip${state.execution === 'inprocess' ? '' : ' solid'}`}>
             {state.execution === 'godbox'
-              ? 'god sandbox'
+              ? 'sandbox'
               : state.execution === 'sandbox'
                 ? 'demigod sandboxes'
                 : 'in-process'}

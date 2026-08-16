@@ -440,3 +440,42 @@ async def test_sandbox_execution_requires_the_lease() -> None:
         await run._build_runtime()
 
     assert captured["require_toolbox"] is True
+
+
+async def test_null_domains_means_god_chooses() -> None:
+    """The UI's dynamic option sends `null`, and it must reach GOD as None.
+
+    `int(body.get("domains") or 3)` used to turn every falsy value into a fixed
+    3, so the dynamic option would have silently run as a pinned three-domain
+    request -- indistinguishable, in the UI, from the button next to it.
+    """
+
+    app = ResolutionApp()
+    status, body = await call(
+        app, "POST", "/api/runs", {"preset": "pfk-bottleneck", "domains": None}
+    )
+    assert status == 201, body
+    run = app.store.runs[json.loads(body)["run_id"]]
+    assert run.domain_count is None
+
+    # Omitted entirely is the same decision as an explicit null.
+    status, body = await call(app, "POST", "/api/runs", {"preset": "pfk-bottleneck"})
+    assert status == 201, body
+    assert app.store.runs[json.loads(body)["run_id"]].domain_count is None
+
+
+async def test_an_explicit_domain_count_is_still_pinned() -> None:
+    """Dynamic is an option, not a takeover: 2/3/4 must still pin."""
+
+    app = ResolutionApp()
+    status, body = await call(
+        app, "POST", "/api/runs", {"preset": "pfk-bottleneck", "domains": 2}
+    )
+    assert status == 201, body
+    assert app.store.runs[json.loads(body)["run_id"]].domain_count == 2
+
+    # 0 is not "dynamic by another name" -- it is out of range and refused.
+    status, _ = await call(
+        app, "POST", "/api/runs", {"preset": "pfk-bottleneck", "domains": 0}
+    )
+    assert status == 400

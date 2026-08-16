@@ -18,10 +18,10 @@ export function Landing({ busy, error, onStart }: Props) {
   const [presetId, setPresetId] = useState<string | null>(null)
   const [prompt, setPrompt] = useState('')
   const [entities, setEntities] = useState('')
-  const [domains, setDomains] = useState(3)
-  const [execution, setExecution] = useState<'inprocess' | 'sandbox' | 'godbox'>(
-    'godbox',
-  )
+  // `null` is the dynamic option: GOD reads the problem and decides how many
+  // domains it is worth, down to none at all for something it can just answer.
+  const [domains, setDomains] = useState<number | null>(3)
+  const [execution, setExecution] = useState<'inprocess' | 'godbox'>('godbox')
   const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -129,26 +129,39 @@ export function Landing({ busy, error, onStart }: Props) {
                     {n}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  className="icon"
+                  aria-pressed={domains === null}
+                  aria-label="Let GOD choose the number of domains"
+                  disabled={replay}
+                  title={
+                    replay
+                      ? 'the recording fixes the domain count at 3'
+                      : 'let GOD decide — it spawns only what the problem needs, and nothing at all for one it can just answer'
+                  }
+                  onClick={() => setDomains(null)}
+                >
+                  ✦
+                </button>
               </div>
             </div>
           </div>
 
           {!replay && (
-            <div className="composer-row">
+            <div className="composer-row execution-row">
+              <span className="mono muted">
+                {execution === 'godbox'
+                  ? 'god in its own sandbox, spawning demigod sandboxes'
+                  : 'everything inside this server · no isolation'}
+              </span>
               <div className="seg" role="group" aria-label="Where the run executes">
                 <button
                   type="button"
                   aria-pressed={execution === 'godbox'}
                   onClick={() => setExecution('godbox')}
                 >
-                  God sandbox
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={execution === 'sandbox'}
-                  onClick={() => setExecution('sandbox')}
-                >
-                  Demigod sandboxes
+                  Sandbox
                 </button>
                 <button
                   type="button"
@@ -158,13 +171,6 @@ export function Landing({ busy, error, onStart }: Props) {
                   In-process
                 </button>
               </div>
-              <span className="mono muted">
-                {execution === 'godbox'
-                  ? 'god in its own sandbox, spawning demigod sandboxes'
-                  : execution === 'sandbox'
-                    ? 'god here · one sandbox per demigod · brokered tools'
-                    : 'everything inside this server · no isolation'}
-              </span>
             </div>
           )}
 
