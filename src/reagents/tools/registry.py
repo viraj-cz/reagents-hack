@@ -41,6 +41,7 @@ class ToolExecutionError(RuntimeError):
 
 
 AsyncExecutor = Callable[[dict[str, Any]], Awaitable[Any]]
+DeferredLoader = Callable[[], Awaitable[list["Tool"]]]
 
 
 @dataclass(frozen=True)
@@ -176,11 +177,55 @@ class BoundToolPack:
 class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, Tool] = {}
+        self._deferred_loaders: dict[str, DeferredLoader] = {}
+        self._loaded_namespaces: set[str] = set()
+        self.load_errors: dict[str, str] = {}
 
     def register(self, tool: Tool) -> None:
         if tool.id in self._tools:
             raise ValueError(f"duplicate tool id: {tool.id}")
         self._tools[tool.id] = tool
+
+    def register_deferred(self, namespace: str, loader: DeferredLoader) -> None:
+        if namespace in self._deferred_loaders:
+            raise ValueError(f"duplicate deferred namespace: {namespace}")
+        self._deferred_loaders[namespace] = loader
+
+    def deferred_namespaces(self) -> list[str]:
+        return sorted(self._deferred_loaders)
+
+    async def load_deferred(
+        self,
+        namespaces: list[str] | None = None,
+        *,
+        strict: bool = False,
+    ) -> list[str]:
+        """Discover configured remote tools once, immediately before planning."""
+        requested = namespaces or self.deferred_namespaces()
+        loaded: list[str] = []
+        for namespace in requested:
+            if namespace in self._loaded_namespaces:
+                continue
+            loader = self._deferred_loaders.get(namespace)
+            if loader is None:
+                message = f"unknown deferred namespace {namespace!r}"
+                if strict:
+                    raise UnknownToolError(message)
+                self.load_errors[namespace] = message
+                continue
+            try:
+                tools = await loader()
+                for tool in tools:
+                    self.register(tool)
+            except Exception as exc:  # noqa: BLE001 - preserve optional provider failure
+                self.load_errors[namespace] = str(exc)
+                if strict:
+                    raise
+                continue
+            self._loaded_namespaces.add(namespace)
+            self.load_errors.pop(namespace, None)
+            loaded.append(namespace)
+        return loaded
 
     def get(self, tool_id: str) -> Tool:
         try:
@@ -220,6 +265,7 @@ class ToolRegistry:
         lease: CapabilityLease | None = None,
         subject_id: str = "unscoped",
         budget: Budget | None = None,
+        allow_write: bool = False,
     ) -> BoundToolPack:
         if not tool_ids:
             raise ValueError("cannot bind an empty tool pack")
@@ -230,6 +276,7 @@ class ToolRegistry:
             tool_ids,
             subject_id=subject_id,
             budget=budget,
+            allow_write=allow_write,
         )
         if set(effective_lease.tool_ids) != set(tool_ids):
             raise ToolPolicyError(
@@ -249,9 +296,19 @@ def tool_jaccard(a: list[str], b: list[str]) -> float:
 
 
 def default_registry() -> ToolRegistry:
+    import os
+
     from reagents.tools import builtins as builtin_impls
 
     registry = ToolRegistry()
     for tool in builtin_impls.all_tools():
         registry.register(tool)
+    if os.environ.get("REAGENTS_ENABLE_CONTAINERS", "").lower() in {"1", "true", "yes"}:
+        from reagents.tools.container import configure_container_tools
+
+        configure_container_tools(registry)
+    if os.environ.get("REAGENTS_ENABLE_MCP", "").lower() in {"1", "true", "yes"}:
+        from reagents.tools.mcp import configure_sponsor_mcp
+
+        configure_sponsor_mcp(registry)
     return registry

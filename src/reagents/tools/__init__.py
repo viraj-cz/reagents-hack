@@ -1,6 +1,9 @@
 from reagents.tools.registry import (
     BoundToolPack,
     Tool,
+    ToolBroker,
+    ToolExecutionError,
+    ToolPolicyError,
     ToolRegistry,
     UnboundToolError,
     UnknownToolError,
@@ -11,6 +14,9 @@ from reagents.tools.registry import (
 __all__ = [
     "BoundToolPack",
     "Tool",
+    "ToolBroker",
+    "ToolExecutionError",
+    "ToolPolicyError",
     "ToolRegistry",
     "UnboundToolError",
     "UnknownToolError",
