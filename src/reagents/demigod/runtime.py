@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Protocol
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
-from demigod.result import DemiGodResult
+from demigod.result import DemiGodResult, result_json_schema
 from reagents.contracts import ContextEnvelope
 from reagents.demigod.adapter import slugify_domain_name
 from reagents.isolation import envelope_visible_text, find_leaks
@@ -21,12 +21,12 @@ matching the given schema.
 
 You do not know the original problem. You do not speak to other demigods.
 If a fact is not in the envelope, it does not exist.
-Write justification only in the domain language."""
+Write justification only in the domain language.
 
-
-class DemigodDraft(BaseModel):
-    payload: dict
-    justification: str
+Your final reply is one JSON object with exactly two keys: `payload`, holding
+an object matching the artifact schema, and `justification`, a string. The
+artifact schema describes what goes INSIDE `payload` -- do not return it as
+your whole reply, and do not echo the schema itself back."""
 
 
 class DemigodRuntimeProtocol(Protocol):
@@ -115,20 +115,35 @@ class DemigodRuntime:
         user = _envelope_user(envelope)
         self.tracer.emit(lane, "MODEL", "reasoning/tool loop started")
         try:
-            draft, trace = await self.llm.run_tool_loop(
+            result, trace = await self.llm.run_tool_loop(
                 system=DEMIGOD_SYSTEM,
                 user=user,
                 tools=tools,
-                response_model=DemigodDraft,
+                # THE contract, the same one the sandbox runtime uses. There
+                # used to be a second model here -- `DemigodDraft`, with just
+                # `payload` and `justification` -- and the drift was not
+                # hypothetical: it had no `confidence` field, so every
+                # in-process artifact was hardcoded to 0.5 and the integrator
+                # weighed a brilliant result exactly like a doubtful one. The
+                # scripted demigods even wrote `confidence` INSIDE the payload,
+                # where nothing read it.
+                #
+                # `result_json_schema` nests the domain's artifact shape inside
+                # `payload`, so the agent sees one schema instead of a generic
+                # `payload: object` plus an unrelated "Artifact schema" line it
+                # has to guess the relationship between. Guessing wrong is what
+                # produced `payload Field required` on a completed artifact.
+                response_model=DemiGodResult,
+                response_schema=result_json_schema(envelope.artifact_schema),
                 budget=envelope.budget,
                 phase=f"demigod:{name}",
             )
         except UnboundToolError as exc:
             return fail(str(exc))
-        except Exception as exc:  # noqa: BLE001 — tool/LLM failures become manifests
+        except Exception as exc:
             return fail(str(exc))
 
-        schema_errors = validate_payload(draft.payload, envelope.artifact_schema)
+        schema_errors = validate_payload(result.payload, envelope.artifact_schema)
         if schema_errors:
             return fail(f"artifact failed schema: {schema_errors}")
 
@@ -137,34 +152,25 @@ class DemigodRuntime:
         # by now the reasoning has already happened.
         artifact_leaks: list[str] = []
         if guard:
-            artifact_leaks = guard.check(f"{draft.justification}\n{draft.payload}")
+            artifact_leaks = guard.check(f"{result.justification}\n{result.payload}")
 
-        result = DemiGodResult(
-            claim=draft.justification,
-            # This runtime has no calibrated self-assessment to offer: the draft
-            # carries no confidence field. 1.0 would be a lie and 0.0 reads as
-            # failure, so a schema-valid, leak-free artifact sits in the middle.
-            # The sandbox runtime gets a real number from the agent.
-            confidence=0.5,
-            payload=draft.payload,
-            method="in-process demigod runtime (reagents.demigod.runtime)",
-            justification=draft.justification,
-            tool_trace=trace,
-            isolation_violations=artifact_leaks,
-            blockers=(
-                [
-                    f"used native terms {artifact_leaks}; some reasoning may "
-                    f"have left the domain"
-                ]
-                if artifact_leaks
-                else []
-            ),
-            demigod_name=slugify_domain_name(name),
-            domain_name=name,
-            status="ok",
-        )
-        conclusion = draft.payload.get("conclusion") or draft.payload.get("claim")
-        self.tracer.emit(lane, "REASON", summarize(draft.justification))
+        # Envelope fields are RUNNER-owned and were stripped from the schema the
+        # agent saw, so they are set here rather than trusted from the reply --
+        # the same rule the sandbox runner applies when it reads result.json.
+        result.demigod_name = slugify_domain_name(name)
+        result.domain_name = name
+        result.status = "ok"
+        result.tool_trace = trace
+        result.isolation_violations = artifact_leaks
+        if artifact_leaks:
+            result.blockers = [
+                *result.blockers,
+                f"used native terms {artifact_leaks}; some reasoning may "
+                f"have left the domain",
+            ]
+
+        conclusion = result.payload.get("conclusion") or result.claim
+        self.tracer.emit(lane, "REASON", summarize(result.justification))
         if conclusion:
             confidence = result.confidence
             message = summarize(conclusion)
@@ -192,6 +198,7 @@ def _envelope_user(envelope: ContextEnvelope) -> str:
         f"Task: {envelope.problem.task}\n"
         f"Forbidden: {forbidden}\n"
         f"Tools:\n" + "\n".join(tool_lines) + "\n"
-        f"Artifact schema: {envelope.artifact_schema}\n"
+        f"Artifact schema -- this is the shape of `payload`, not of your "
+        f"whole reply: {envelope.artifact_schema}\n"
         f"Budget steps: {envelope.budget.max_steps}\n"
     )

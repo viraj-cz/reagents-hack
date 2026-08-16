@@ -7,12 +7,12 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
+from demigod.result import DemiGodResult
 from reagents.contracts import Budget
 from reagents.god.integrator import IntegrationDraft
 from reagents.god.planner import CriticVerdict, InventedDomains
 from reagents.god.transformer import TransformDraft
 from reagents.llm.client import LLMError
-from reagents.demigod.runtime import DemigodDraft
 from reagents.tools.registry import BoundToolPack
 from reagents.toy import toy_domains
 
@@ -36,9 +36,17 @@ class ScriptedLLM:
                     representation={
                         "tokens": ["s1", "s2", "s3", "s4", "c1", "c2"],
                         "edges": [
-                            {"id": "r1", "in": {"s1": 1, "c1": 1}, "out": {"s2": 1, "c2": 1}},
+                            {
+                                "id": "r1",
+                                "in": {"s1": 1, "c1": 1},
+                                "out": {"s2": 1, "c2": 1},
+                            },
                             {"id": "r2", "in": {"s2": 1}, "out": {"s3": 1}},
-                            {"id": "r3", "in": {"s3": 1, "c1": 1}, "out": {"s4": 1, "c2": 1}},
+                            {
+                                "id": "r3",
+                                "in": {"s3": 1, "c1": 1},
+                                "out": {"s4": 1, "c2": 1},
+                            },
                         ],
                     },
                     task=(
@@ -84,7 +92,12 @@ class ScriptedLLM:
                 ),
                 "transform:rate_orbit": TransformDraft(
                     representation={
-                        "state": {"x_mid": 0.2, "x_out": 0.05, "g_in": 5.0, "g_out": 0.15},
+                        "state": {
+                            "x_mid": 0.2,
+                            "x_out": 0.05,
+                            "g_in": 5.0,
+                            "g_out": 0.15,
+                        },
                         "rates": {
                             "x_mid": {"g_in": 1.0, "g_out": -1.0, "x_mid": -0.05},
                             "x_out": {"g_out": 1.0},
@@ -121,7 +134,9 @@ class ScriptedLLM:
                         "rate_orbit": "Inflated hexokinase inflow does not lift the small PFK outflow.",
                     },
                     conflicts=[],
-                    gaps=["Product inhibition of hexokinase by G6P was not represented."],
+                    gaps=[
+                        "Product inhibition of hexokinase by G6P was not represented."
+                    ],
                 ),
             }
         )
@@ -145,16 +160,21 @@ class ScriptedLLM:
         response_model: type[T],
         budget: Budget,
         phase: str = "",
+        response_schema: dict[str, Any] | None = None,
     ) -> tuple[T, list[dict[str, Any]]]:
         del budget
         raw = self.scripts.get(phase)
         if callable(raw):
-            result = raw(tools=tools, system=system, user=user, response_model=response_model)
+            result = raw(
+                tools=tools, system=system, user=user, response_model=response_model
+            )
             if isinstance(result, tuple):
                 draft, trace = result
                 return _coerce(draft, response_model), trace
             return _coerce(result, response_model), []
-        return self._resolve(phase, response_model, system=system, user=user, tools=tools), []
+        return self._resolve(
+            phase, response_model, system=system, user=user, tools=tools
+        ), []
 
     def _resolve(self, phase: str, response_model: type[T], **kwargs: Any) -> T:
         raw = self.scripts.get(phase, self.scripts.get("default"))
@@ -179,8 +199,12 @@ def _coerce(value: Any, response_model: type[T]) -> T:
     raise LLMError(f"cannot coerce {type(value)} to {response_model}")
 
 
-def _conservation_demigod(*, tools: BoundToolPack, **_: Any) -> tuple[DemigodDraft, list[dict[str, Any]]]:
-    cancelled = tools.call("simplify", expr={"terms": {"c1": -2, "c2": 2, "s_tokens": 0}})
+def _conservation_demigod(
+    *, tools: BoundToolPack, **_: Any
+) -> tuple[DemiGodResult, list[dict[str, Any]]]:
+    cancelled = tools.call(
+        "simplify", expr={"terms": {"c1": -2, "c2": 2, "s_tokens": 0}}
+    )
     dims = tools.call(
         "dimensional_check",
         terms=[
@@ -192,20 +216,23 @@ def _conservation_demigod(*, tools: BoundToolPack, **_: Any) -> tuple[DemigodDra
         {"tool": "simplify", "result": cancelled},
         {"tool": "dimensional_check", "result": dims},
     ]
+    payload = {
+        "findings": [
+            "Each r1/r3 hyperedge exchanges one c1 token for one c2 token.",
+            "Sugar tokens gain the same P-count that c1 loses.",
+            f"Linear cancellation leaves terms={cancelled['terms']}.",
+        ],
+        "conclusion": (
+            "The {c1,c2} pair is conserved as a transfer, not a source. "
+            "Net phosphate tokens are internally rearranged, not created."
+        ),
+    }
     return (
-        DemigodDraft(
-            payload={
-                "findings": [
-                    "Each r1/r3 hyperedge exchanges one c1 token for one c2 token.",
-                    "Sugar tokens gain the same P-count that c1 loses.",
-                    f"Linear cancellation leaves terms={cancelled['terms']}.",
-                ],
-                "conclusion": (
-                    "The {c1,c2} pair is conserved as a transfer, not a source. "
-                    "Net phosphate tokens are internally rearranged, not created."
-                ),
-                "confidence": 0.9,
-            },
+        DemiGodResult(
+            claim=payload["conclusion"],
+            confidence=0.9,
+            method="scripted in-process demigod (reagents.llm.scripted)",
+            payload=payload,
             justification=(
                 "r1 and r3 are balanced hyperedges on (s*, c*). simplify shows a pure "
                 "c1->c2 transfer; dimensional_check places P on the sugar tokens that "
@@ -216,7 +243,9 @@ def _conservation_demigod(*, tools: BoundToolPack, **_: Any) -> tuple[DemigodDra
     )
 
 
-def _topology_demigod(*, tools: BoundToolPack, **_: Any) -> tuple[DemigodDraft, list[dict[str, Any]]]:
+def _topology_demigod(
+    *, tools: BoundToolPack, **_: Any
+) -> tuple[DemiGodResult, list[dict[str, Any]]]:
     graph = tools.call(
         "build_graph",
         nodes=["v1", "v2", "v3", "v4"],
@@ -232,19 +261,22 @@ def _topology_demigod(*, tools: BoundToolPack, **_: Any) -> tuple[DemigodDraft, 
         {"tool": "build_graph", "result": graph},
         {"tool": "cut", "result": cut_graph},
     ]
+    payload = {
+        "findings": [
+            "The only path v1->v4 uses e3 as its last edge.",
+            f"Cutting v3 removes access to v4; remaining destinations={sorted(remaining_dsts)}.",
+            "e3 is the unique gated cut edge on that path.",
+        ],
+        "conclusion": (
+            "Inflating e1 cannot increase flow into v4 while e3 remains the cut."
+        ),
+    }
     return (
-        DemigodDraft(
-            payload={
-                "findings": [
-                    "The only path v1->v4 uses e3 as its last edge.",
-                    f"Cutting v3 removes access to v4; remaining destinations={sorted(remaining_dsts)}.",
-                    "e3 is the unique gated cut edge on that path.",
-                ],
-                "conclusion": (
-                    "Inflating e1 cannot increase flow into v4 while e3 remains the cut."
-                ),
-                "confidence": 0.88,
-            },
+        DemiGodResult(
+            claim=payload["conclusion"],
+            confidence=0.88,
+            method="scripted in-process demigod (reagents.llm.scripted)",
+            payload=payload,
             justification=(
                 "The DAG is a single chain. cut(v3) disconnects v4, so e3 is committed."
             ),
@@ -253,7 +285,9 @@ def _topology_demigod(*, tools: BoundToolPack, **_: Any) -> tuple[DemigodDraft, 
     )
 
 
-def _dynamics_demigod(*, tools: BoundToolPack, **_: Any) -> tuple[DemigodDraft, list[dict[str, Any]]]:
+def _dynamics_demigod(
+    *, tools: BoundToolPack, **_: Any
+) -> tuple[DemiGodResult, list[dict[str, Any]]]:
     system = {
         "state": {"x_mid": 0.2, "x_out": 0.05, "g_in": 5.0, "g_out": 0.15},
         "rates": {
@@ -268,20 +302,23 @@ def _dynamics_demigod(*, tools: BoundToolPack, **_: Any) -> tuple[DemigodDraft, 
         {"tool": "simulate", "result": traj},
         {"tool": "sample", "result": weights},
     ]
+    payload = {
+        "findings": [
+            f"Final x_mid={final['x_mid']:.3f} grew under inflated g_in.",
+            f"Final x_out={final['x_out']:.3f} tracks only g_out.",
+            f"Gate sample mass is dominated by g_in: {weights['draws']}.",
+        ],
+        "conclusion": (
+            "The orbit stores extra inflow in x_mid; committed production of x_out "
+            "stays locked to the small g_out gate."
+        ),
+    }
     return (
-        DemigodDraft(
-            payload={
-                "findings": [
-                    f"Final x_mid={final['x_mid']:.3f} grew under inflated g_in.",
-                    f"Final x_out={final['x_out']:.3f} tracks only g_out.",
-                    f"Gate sample mass is dominated by g_in: {weights['draws']}.",
-                ],
-                "conclusion": (
-                    "The orbit stores extra inflow in x_mid; committed production of x_out "
-                    "stays locked to the small g_out gate."
-                ),
-                "confidence": 0.84,
-            },
+        DemiGodResult(
+            claim=payload["conclusion"],
+            confidence=0.84,
+            method="scripted in-process demigod (reagents.llm.scripted)",
+            payload=payload,
             justification=(
                 "simulate shows x_mid absorbing g_in - g_out. sample confirms the gate "
                 "mass is unbalanced toward inflow, so outflow cannot match."

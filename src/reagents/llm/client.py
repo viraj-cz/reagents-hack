@@ -36,7 +36,12 @@ class LLMClient(Protocol):
         response_model: type[T],
         budget: Budget,
         phase: str = "",
+        response_schema: dict[str, Any] | None = None,
     ) -> tuple[T, list[dict[str, Any]]]: ...
+    """`response_schema` replaces the schema derived from `response_model` in
+    the prompt. Used to compose a per-domain artifact shape INTO the generic
+    envelope, so the model is shown one schema rather than two unrelated ones.
+    Validation still happens against `response_model`."""
 
 
 def make_llm() -> LLMClient:
