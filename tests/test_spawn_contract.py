@@ -349,12 +349,16 @@ def test_sandbox_runtime_constructs_with_defaults():
 
     Constructing the class with nothing but a run_id is the cheapest possible
     guard against a signature/body mismatch."""
-    from reagents.demigod.sandbox_runtime import SandboxDemigodRuntime
+    from reagents.demigod.sandbox_runtime import SandboxDemigodRuntime, _Auto
 
     runtime = SandboxDemigodRuntime(run_id="r1")
     assert runtime.run_id == "r1"
     assert runtime.restrict_egress is False
-    assert runtime.toolbox is None
+    # AUTO, not None: a session is resolved when the run starts, so building
+    # this object stays offline and cheap. None would mean "no tools, ever".
+    assert isinstance(runtime.toolbox, _Auto)
+
+    assert SandboxDemigodRuntime(run_id="r1", toolbox=None).toolbox is None
 
 
 # --- refusal handling --------------------------------------------------------

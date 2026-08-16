@@ -289,13 +289,13 @@ def main() -> int:
     )
     parser.add_argument("--run-id", default=None)
     parser.add_argument(
-        "--broker",
-        action="store_true",
-        help="publish each demigod's lease to the deployed TOOLBOX_BROKER and "
-        "hand it the URL, so it can call brokered tools instead of writing its "
-        "own Python. Requires `uv run modal deploy -m broker.service` (or "
-        "TOOLBOX_BROKER_URL pointing at a `modal serve` URL). Off by default: "
-        "minting a live credential should be an explicit act.",
+        "--no-broker",
+        dest="broker",
+        action="store_false",
+        help="do NOT publish a lease; each demigod reasons from shared/ and "
+        "whatever Python it writes itself. The broker is on by default -- a "
+        "demigod that can reach its tools should. Use this to exercise the "
+        "spawn path alone, or when no broker is deployed.",
     )
     args = parser.parse_args()
 

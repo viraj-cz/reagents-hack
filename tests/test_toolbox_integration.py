@@ -358,9 +358,16 @@ def test_a_broker_outage_does_not_stop_the_demigod(monkeypatch, pack_registry):
 def test_without_a_toolbox_the_runtime_behaves_exactly_as_before(
     monkeypatch, pack_registry
 ):
+    """`toolbox=None` is now EXPLICIT. The default is AUTO.
+
+    This used to construct with no argument, which is the same thing the
+    production callers did -- and why runs reported zero brokered tool calls
+    with a whole toolbox deployed. Opting out is still supported; it just has
+    to be said.
+    """
     env = FakeRuntimeEnv()
     monkeypatch.setattr("reagents.demigod.sandbox_runtime.spawn_demigod", env.spawn)
-    runtime = SandboxDemigodRuntime(run_id="r1")
+    runtime = SandboxDemigodRuntime(run_id="r1", toolbox=None)
 
     result = asyncio.run(
         runtime.run(make_envelope(), bind(pack_registry, ["formal.z3_solve"]))
@@ -369,3 +376,47 @@ def test_without_a_toolbox_the_runtime_behaves_exactly_as_before(
     assert env.spec.toolbox is None
     assert env.spec.egress_domains is None
     assert result.tool_trace == []
+
+
+def test_toolbox_is_on_by_default(monkeypatch, pack_registry):
+    """AUTO, not None. A demigod that can reach its tools should get them.
+
+    The old default was None, so every caller that did not pass `toolbox=`
+    silently ran with no brokered tools -- which is exactly what happened live:
+    a run reported `brokered tool calls: 0` with the whole toolbox deployed and
+    healthy, because the default said so.
+    """
+    from reagents.demigod.sandbox_runtime import AUTO, SandboxDemigodRuntime
+
+    assert SandboxDemigodRuntime(run_id="r1").toolbox is AUTO
+    assert SandboxDemigodRuntime(run_id="r1", toolbox=None).toolbox is None
+
+
+def test_an_unreachable_broker_degrades_instead_of_failing_the_run(
+    monkeypatch, pack_registry
+):
+    """No broker deployed must cost the tools, not the demigod.
+
+    Same reasoning as a failed `grant`: an artifact with an honest note about
+    missing tools is worth more than no artifact.
+    """
+    import reagents.demigod.sandbox_runtime as mod
+
+    env = FakeRuntimeEnv()
+    monkeypatch.setattr(mod, "spawn_demigod", env.spawn)
+
+    def explode() -> None:
+        raise RuntimeError("no deployed router")
+
+    monkeypatch.setattr(
+        "broker.session.modal_session", lambda *a, **k: explode(), raising=False
+    )
+
+    runtime = SandboxDemigodRuntime(run_id="r1")  # AUTO
+    result = asyncio.run(
+        runtime.run(make_envelope(), bind(pack_registry, ["formal.z3_solve"]))
+    )
+
+    assert runtime.toolbox is None, "an unreachable broker must resolve to None"
+    assert result.status == "ok", "the run died instead of degrading"
+    assert env.spec.toolbox is None

@@ -69,6 +69,25 @@ class ToolboxProvider(Protocol):
     def revoke(self, lease_id: str) -> None: ...
 
 
+class _Auto:
+    """Sentinel for "resolve a toolbox session when the run starts".
+
+    A distinct value from None because the two mean opposite things and both
+    have to be expressible: None is "this demigod gets no tools, deliberately",
+    AUTO is "give it the broker if one is reachable". Defaulting to None made
+    the second case require an argument nobody passed, so runs quietly used no
+    tools at all -- a live run reported `brokered tool calls: 0` while the
+    lease had been published and the whole toolbox sat idle.
+    """
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return "AUTO"
+
+
+AUTO = _Auto()
+"""Default for `SandboxDemigodRuntime(toolbox=...)`. See _Auto."""
+
+
 LEAKED_CONFIDENCE_CEILING = 0.5
 """Confidence cap for an artifact that used native terms.
 
@@ -87,7 +106,7 @@ class SandboxDemigodRuntime:
         *,
         run_id: str,
         tool_map: dict[str, str] | None = None,
-        toolbox: ToolboxProvider | None = None,
+        toolbox: ToolboxProvider | _Auto | None = AUTO,
         shared_files: list[str] | None = None,
         runner_kind: str = "inside",
         cpu: float = 1.0,
@@ -105,9 +124,13 @@ class SandboxDemigodRuntime:
     ) -> None:
         self.run_id = run_id
         self.tool_map = tool_map or {}
-        # None means "no brokered tools this run" -- see the module docstring.
-        # `broker.session.modal_session()` is the production one.
+        # AUTO by default: a demigod that CAN reach the toolbox should, and
+        # requiring an argument for that made the useful case the rare one.
+        # Pass `toolbox=None` to mean it explicitly. Resolution is deferred to
+        # the first run so constructing this object stays cheap and offline --
+        # `modal_session()` reaches out to find the deployed router.
         self.toolbox = toolbox
+        self._toolbox_resolved = not isinstance(toolbox, _Auto)
         # Pins sandbox egress to the agent API plus the broker. Off by default:
         # see envelope_to_spec.
         self.restrict_egress = restrict_egress
@@ -161,6 +184,8 @@ class SandboxDemigodRuntime:
                 run_id=self.run_id,
                 isolation_violations=violations,
             )
+
+        self._resolve_toolbox(lane)
 
         # Publish the lease BEFORE the sandbox exists. A demigod is handed its
         # credential at spawn time and has no channel to be given one later.
@@ -277,6 +302,29 @@ class SandboxDemigodRuntime:
         )
         return result
 
+    def _resolve_toolbox(self, lane: str) -> None:
+        """Turn AUTO into a real session, or into None if none is reachable.
+
+        Degrades rather than raises. A broker that is not deployed should cost
+        the demigod its tools and an honest note in the trace, not the run --
+        the same reasoning as `grant` failure being non-fatal below.
+        """
+        if self._toolbox_resolved:
+            return
+        self._toolbox_resolved = True
+        try:
+            from broker.session import modal_session
+
+            self.toolbox = modal_session()
+            self.tracer.emit(lane, "TOOLBOX", f"brokering tools via {self.toolbox.url}")
+        except Exception as exc:
+            self.toolbox = None
+            self.tracer.emit(
+                lane,
+                "TOOLBOX",
+                f"no reachable broker; this demigod gets no brokered tools ({exc})",
+            )
+
     # --- lease lifecycle ----------------------------------------------------
 
     async def _finish_lease(
@@ -306,7 +354,7 @@ class SandboxDemigodRuntime:
             return
         try:
             self.toolbox.revoke(grant.lease_id)
-        except Exception as exc:  # noqa: BLE001 - never fail a run on cleanup
+        except Exception as exc:
             print(f"[toolbox] revoke failed for {grant.lease_id}: {exc}")
 
 

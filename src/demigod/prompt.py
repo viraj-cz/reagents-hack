@@ -63,6 +63,16 @@ You have Read, Write, Edit, Glob, Grep and Bash. Anything not listed above is
 not installed, and installing things is not your job -- if you need a tool you
 do not have, that is a `blocker`, not a detour.
 
+When a granted tool covers what you need, call it rather than reimplementing it
+in Bash. Not a style preference: a brokered call is executed by the broker and
+recorded in a log you do not author, so it is evidence anyone can check, while
+a number produced by a script you wrote is only as trustworthy as the script.
+The tool also runs in an environment built for it -- a solver, a checker, a
+model -- which your sandbox does not have.
+
+Bash remains yours for everything no tool covers: writing artifacts, reshaping
+data between calls, and arithmetic too small to be worth a call.
+
 # Your output IS files
 
 Your transcript is discarded. Only what you write to `{out}` survives, and it is
