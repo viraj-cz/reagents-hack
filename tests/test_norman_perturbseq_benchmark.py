@@ -13,6 +13,8 @@ from benchmarks.perturbseq_norman.benchmark import (
 )
 from benchmarks.perturbseq_norman.compare import _artifact_answer
 from benchmarks.perturbseq_norman.run_base import public_prompt
+from benchmarks.perturbseq_norman.run_code_base import _public_hash as code_public_hash
+from benchmarks.perturbseq_norman.run_code_base import context as code_context
 from benchmarks.perturbseq_norman.run_controls import _public_hash
 from reagents.contracts import NativeSolution
 from reagents.tools.registry import default_registry
@@ -179,3 +181,10 @@ def test_no_tool_base_uses_the_same_frozen_public_problem_hash():
     assert digest == _public_hash()
     assert "No tools, files, code execution" in prompt
     assert "you cannot call them" in prompt
+
+
+def test_code_harness_base_has_same_problem_and_explicitly_no_broker():
+    assert code_public_hash() == _public_hash()
+    prompt = code_context()
+    assert "no Broker lease" in prompt
+    assert "do not call those names" in prompt

@@ -40,15 +40,21 @@ python -m benchmarks.perturbseq_norman.run_controls --samples 4 --turns 12 \
 python -m benchmarks.perturbseq_norman.run_base \
   --output benchmarks/perturbseq_norman/runs/base.json
 
+python -m benchmarks.perturbseq_norman.run_code_base \
+  --output benchmarks/perturbseq_norman/runs/code-base.json
+
 python -m benchmarks.perturbseq_norman.compare \
   benchmarks/perturbseq_norman/runs/pipeline.json \
   benchmarks/perturbseq_norman/runs/controls.json \
   --base benchmarks/perturbseq_norman/runs/base.json \
+  --code-base benchmarks/perturbseq_norman/runs/code-base.json \
   --output benchmarks/perturbseq_norman/runs/comparison.json
 ```
 
 The direct base call receives the frozen public problem but no tools or agent
-loop. The first native control is the prespecified single-Claude
+loop. The Claude Code base receives the same problem and standard local
+file/shell utilities, but no Broker lease or domain tools. The first native
+control is the prespecified single-Claude
 tool-augmented baseline. The arithmetic mean / majority-class result across all
 valid independent controls is the deployable multi-Claude comparison. The best
 individual score is labeled oracle-only and is never used as a deployable

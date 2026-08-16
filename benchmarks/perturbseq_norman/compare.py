@@ -54,11 +54,17 @@ def main() -> int:
     parser.add_argument("pipeline", type=Path)
     parser.add_argument("controls", type=Path)
     parser.add_argument("--base", type=Path)
+    parser.add_argument("--code-base", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     pipeline = json.loads(args.pipeline.read_text(encoding="utf-8"))
     controls = json.loads(args.controls.read_text(encoding="utf-8"))
     base = json.loads(args.base.read_text(encoding="utf-8")) if args.base else None
+    code_base = (
+        json.loads(args.code_base.read_text(encoding="utf-8"))
+        if args.code_base
+        else None
+    )
     artifact_diagnostics = [
         {
             "domain_name": artifact.get("domain_name"),
@@ -105,6 +111,9 @@ def main() -> int:
             ),
         },
         "base_claude_no_tools": base.get("score") if base else None,
+        "base_claude_code_no_domain_tools": (
+            code_base.get("score") if code_base else None
+        ),
         "single_native_tool_augmented": controls.get("single_sample_score"),
         "independent_native_ensemble": controls.get("independent_ensemble_score"),
         "oracle_best_native_diagnostic": controls.get("oracle_best_sample_score"),
