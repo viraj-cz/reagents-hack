@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
@@ -27,6 +28,15 @@ Use the bare alias, never a date-suffixed variant -- the suffixed forms are
 snapshot IDs and guessing one 404s the same way. Note this model rejects
 `temperature`/`top_p`/`top_k` and `thinking.budget_tokens` with a 400; this
 client passes none of them, so no other change was needed.
+"""
+
+REFUSAL_RETRIES = 1
+"""Extra attempts after a `stop_reason: "refusal"`.
+
+Refusals here are classifier false positives on abstract mathematics -- the run
+that motivated this was cut off mid-way through tank state-update equations. One
+retry is cheap and usually enough; more than that means the prompt itself is
+tripping a classifier, and retrying harder will not fix that.
 """
 
 PLANNING_MAX_TOKENS = 16000
@@ -55,13 +65,42 @@ class AnthropicLLM:
     ) -> T:
         del phase
         schema = json.dumps(response_model.model_json_schema())
-        message = await self._client.messages.create(
-            model=self.model,
-            max_tokens=PLANNING_MAX_TOKENS,
-            system=f"{system}\n\nRespond with JSON only matching this schema:\n{schema}",
-            messages=[{"role": "user", "content": user}],
+        system_full = (
+            f"{system}\n\nRespond with JSON only matching this schema:\n{schema}"
         )
-        return _parse_model(_text_blocks(message), response_model, message)
+
+        last_refusal: str | None = None
+        for attempt in range(REFUSAL_RETRIES + 1):
+            message = await self._client.messages.create(
+                model=self.model,
+                max_tokens=PLANNING_MAX_TOKENS,
+                system=system_full,
+                messages=[{"role": "user", "content": user}],
+            )
+            if getattr(message, "stop_reason", None) != "refusal":
+                return _parse_model(_text_blocks(message), response_model, message)
+
+            # A safety classifier declined mid-generation. This is NOT a
+            # malformed reply: the JSON is simply cut off wherever the
+            # classifier fired, so parsing it reports a truncation whose real
+            # cause is a refusal. Seen on a water-tank flow problem whose
+            # content was abstract state-update equations -- i.e. a false
+            # positive, and false positives are worth one retry.
+            last_refusal = _describe_refusal(message)
+            print(
+                f"[llm] {response_model.__name__}: refusal on attempt "
+                f"{attempt + 1}/{REFUSAL_RETRIES + 1} ({last_refusal})",
+                file=sys.stderr,
+                flush=True,
+            )
+
+        raise LLMError(
+            f"{response_model.__name__}: the model refused "
+            f"{REFUSAL_RETRIES + 1} times ({last_refusal}). A refusal truncates "
+            f"the response, so this surfaces as incomplete JSON if unhandled. "
+            f"If it persists, the prompt is triggering a classifier -- rephrase "
+            f"it rather than retrying harder."
+        )
 
     async def run_tool_loop(
         self,
@@ -78,9 +117,7 @@ class AnthropicLLM:
         messages: list[dict[str, Any]] = [{"role": "user", "content": user}]
         anthropic_tools = _to_anthropic_tools(tools)
         trace: list[dict[str, Any]] = []
-        system_full = (
-            f"{system}\n\nWhen finished, respond with JSON only matching this schema:\n{schema}"
-        )
+        system_full = f"{system}\n\nWhen finished, respond with JSON only matching this schema:\n{schema}"
 
         for _ in range(budget.max_steps):
             message = await self._client.messages.create(
@@ -92,7 +129,9 @@ class AnthropicLLM:
             )
             if message.stop_reason == "tool_use":
                 tool_results = []
-                aliases = {_anthropic_tool_name(tool_id): tool_id for tool_id in tools.ids()}
+                aliases = {
+                    _anthropic_tool_name(tool_id): tool_id for tool_id in tools.ids()
+                }
                 for block in message.content:
                     if getattr(block, "type", None) != "tool_use":
                         continue
@@ -139,7 +178,8 @@ def _to_anthropic_tools(tools: BoundToolPack) -> list[dict[str, Any]]:
             {
                 "name": transport_name,
                 "description": spec.description,
-                "input_schema": spec.parameters_schema or {"type": "object", "properties": {}},
+                "input_schema": spec.parameters_schema
+                or {"type": "object", "properties": {}},
             }
         )
     return converted
@@ -237,3 +277,20 @@ def _parse_model(text: str, response_model: type[T], message: Any = None) -> T:
             f"did not match the schema (stop_reason="
             f"{getattr(message, 'stop_reason', None)!r}): {e}"
         ) from e
+
+
+def _describe_refusal(message: Any) -> str:
+    """Human-readable summary of a refusal, including the category when present.
+
+    `stop_details` is populated only for refusals and can still be None, so
+    every access is guarded -- reading it unconditionally is its own crash.
+    """
+    details = getattr(message, "stop_details", None)
+    if details is None:
+        return "no stop_details"
+    category = getattr(details, "category", None)
+    explanation = getattr(details, "explanation", None)
+    parts = [f"category={category!r}"]
+    if explanation:
+        parts.append(str(explanation)[:200])
+    return "; ".join(parts)

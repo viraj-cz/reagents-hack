@@ -36,6 +36,7 @@ from reagents.demigod.sandbox_runtime import SandboxDemigodRuntime
 from reagents.god.orchestrator import God
 from reagents.llm.client import make_llm
 from reagents.toy import simple_problem, toy_problem
+from reagents.tracing import TerminalTracer
 
 _T0 = time.monotonic()
 
@@ -102,13 +103,21 @@ async def run_once(domains: int, turns: int, run_id: str, problem_name: str) -> 
     stage(f"START run_id={run_id} domains={domains} turns={turns}")
     stage(f"PROBLEM: {problem.id} -- {problem.question}")
 
+    # TerminalTracer multiplexes GOD and every DEMI_GOD lane into ONE stream,
+    # lane-labelled, so a parallel fan-out is readable in a single terminal --
+    # no tmux, no per-sandbox tail. The orchestrator and SandboxDemigodRuntime
+    # already emit into it; God.__init__ forwards the sink to the runtime.
     god = God(
         make_llm(),
         domain_count=domains,
         # The seam. Swap for the default in-process runtime and the same God
         # loop runs without any infrastructure at all.
         runtime=SandboxDemigodRuntime(run_id=run_id, max_turns=turns),
+        tracer=TerminalTracer(),
     )
+    # The `stage()` markers stay for coarse timing; the tracer carries the
+    # narrative. They interleave rather than duplicate: stage() reports phase
+    # boundaries with elapsed time, the tracer reports what happened inside one.
     instrument(god)
 
     solution = await god.solve(problem)
