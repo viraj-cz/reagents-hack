@@ -135,3 +135,51 @@ async def test_one_domain_refusal_does_not_kill_the_whole_run():
     # And the surviving domains still did their work.
     assert len(trace.artifacts) == len(trace.specs) - 1
     assert trace.artifacts, "every domain was lost to a single refusal"
+
+
+@pytest.mark.asyncio
+async def test_forbidden_list_leak_is_repaired_not_fatal():
+    """A native term in `forbidden` costs the wording, not the domain.
+
+    Regression for a live run that returned one artifact instead of two. The
+    planner wrote `forbidden=['... the outlet ...']` -- an anti-leak warning
+    that names the thing it forbids -- and the whole domain was discarded
+    before its transform was even attempted. The final answer then listed the
+    missing domain as a gap.
+
+    `forbidden` is advisory text shown to the demigod, so the leak is real and
+    must not be ignored; but it is not the domain definition, and the
+    domain-agnostic wording says the same thing without naming anything.
+    """
+    from reagents.god.orchestrator import ABSTRACT_FORBIDDEN
+
+    problem = toy_problem()
+    god = God(ScriptedLLM.for_toy_pathway())
+
+    real_plan = god.planner.plan
+
+    async def plan_leaking_forbidden(prob, n=3):
+        specs = await real_plan(prob, n=n)
+        # Exactly the shape seen live: a warning naming a native entity.
+        specs[0].forbidden = [f"Do not mention {prob.entities[0]} anywhere."]
+        return specs
+
+    god.planner.plan = plan_leaking_forbidden
+
+    solution = await god.solve(problem)
+    trace = god.last_trace
+
+    # The domain survived rather than being discarded...
+    assert len(trace.artifacts) == len(trace.specs), (
+        "a leaky forbidden-list still cost a whole domain"
+    )
+    assert not any(
+        "forbidden" in (f.error or "") for f in trace.failures
+    )
+    # ...and it survived REPAIRED, not by ignoring the leak: the native term is
+    # gone from what the demigod was shown.
+    repaired = [e for e in trace.envelopes if e.domain.name == trace.specs[0].name]
+    assert repaired, "the repaired domain produced no envelope"
+    assert repaired[0].forbidden == list(ABSTRACT_FORBIDDEN)
+    assert problem.entities[0] not in " ".join(repaired[0].forbidden)
+    assert isinstance(solution, NativeSolution)

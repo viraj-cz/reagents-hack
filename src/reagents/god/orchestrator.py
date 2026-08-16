@@ -137,6 +137,34 @@ class God:
             # transform call had been spent -- and would read as a transform
             # leak, which it is not.
             spec_leaks = find_spec_leaks(spec, terms)
+            # A leak confined to `forbidden` is REPAIRABLE, and repairing it is
+            # strictly better than losing the domain. That field is a list of
+            # warnings shown to the demigod -- so a planner that writes "do not
+            # mention the outlet" really does leak "outlet", and the check is
+            # right to see it. But it is advisory text, not the domain
+            # definition: `language`, `transform_prompt` and `artifact_schema`
+            # are what make the domain what it is, and none of them are touched
+            # by swapping in the domain-agnostic wording that says the same
+            # thing without naming anything.
+            #
+            # Observed live, and it cost half a run: the planner leaked
+            # `forbidden=['outlet']`, the whole `transient_saturation_dynamics`
+            # domain was discarded before the transform, and the final answer
+            # had to report "the dedicated dynamics domain produced no
+            # artifact" as a gap. One artifact instead of two, because a
+            # warning list mentioned a word.
+            if spec_leaks and set(spec_leaks) == {"forbidden"}:
+                self.tracer.emit(
+                    GOD_LANE,
+                    "REPAIR",
+                    f"{spec.name} forbidden-list named native terms; "
+                    f"replaced with domain-agnostic wording",
+                    data=sorted({t for ts in spec_leaks.values() for t in ts}),
+                )
+                spec = spec.model_copy(
+                    update={"forbidden": list(ABSTRACT_FORBIDDEN)}
+                )
+                spec_leaks = find_spec_leaks(spec, terms)
             if spec_leaks:
                 flat = sorted({t for ts in spec_leaks.values() for t in ts})
                 leaks.extend(flat)
