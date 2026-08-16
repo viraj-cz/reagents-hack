@@ -1,0 +1,29 @@
+{
+  "name": "colony-morphometry",
+  "domain": "quantitative morphometry of imaged objects: counts, areas, intensity distributions, spatial arrangement, and the segmentation decisions those numbers rest on. NOT biological interpretation, NOT treatment recommendations.",
+  "tools": [
+    "pandas",
+    "imaging"
+  ],
+  "toolbox": {
+    "url": "https://example-broker.modal.run",
+    "lease_id": "lease_replace_me",
+    "tool_ids": [
+      "vision.read_image"
+    ]
+  },
+  "problem": {
+    "context": "shared/plate01.ome.tif is a single-channel 16-bit widefield scan of a 24-well plate, one field per well. Pixel size is recorded in the OME metadata. Wells were seeded identically; the operator suspects an edge effect but the plate was also imaged in two sessions.",
+    "goal": "Report per-well object counts and area distributions, and determine whether the between-well variation is better explained by well position on the plate than by chance.",
+    "success_criteria": [
+      "A per-well table of object count and median object area, in physical units, with the pixel size you used stated.",
+      "The segmentation method named, with the thresholding parameters or cellpose settings that produced the reported counts.",
+      "An overlay image per well, checked against `vision.read_image`, so a count that came from debris rather than colonies is caught and said so.",
+      "A stated test of position versus chance, with the statistic and its assumptions."
+    ]
+  },
+  "files": [
+    "plate01.ome.tif"
+  ],
+  "max_turns": 24
+}

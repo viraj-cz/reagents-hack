@@ -35,9 +35,11 @@ WHAT RUNS WHERE
     router  (this image, no GPU, small)   cheap LOCAL tools, inline
     exec_*  (one per tool class)          everything else, on its own image
 
-The router holds no tool state and no credentials beyond the Modal identity
-every Function has. The demigod holds a URL and a lease id -- see
-`demigod/toolbox/protocol.py` for why that asymmetry is the entire security
+The router holds no tool state. It does hold the credentials of the tools that
+run INLINE in it -- see BROKER_CREDENTIAL_ENV_VARS -- and that is the point
+rather than a leak: a key on the broker is a key the demigod cannot spend
+outside its lease. The demigod holds a URL and a lease id, and nothing else --
+see `demigod/toolbox/protocol.py` for why that asymmetry is the entire security
 model.
 """
 
@@ -76,6 +78,36 @@ one executor cold start."""
 PYDANTIC_PIN = "pydantic==2.13.4"
 """Matches `demigod.images.AGENT_RUNTIME`, so the wire types serialize
 identically on both ends of the protocol."""
+
+BROKER_CREDENTIAL_ENV_VARS = ("OPENAI_API_KEY",)
+"""Caller-side credentials that a tool needs IN THE ROUTER to run.
+
+`vision.read_image` is `ToolProvider.LOCAL`, so `DispatchPolicy` keeps it inline
+in this replica -- which means the key has to be here, not on an executor tier
+and definitely not in a demigod sandbox.
+
+`Secret.from_dict` off the deploying shell's environment rather than
+`Secret.from_name`. Two reasons, and the second is the one that matters:
+
+* It is where the credential already lives. `.env.example` puts sponsor tool
+  keys in the caller's `.env` and says outright that they belong to the broker;
+  this is the missing wire between those two sentences.
+* `Secret.from_name` of a Secret nobody created fails the whole `modal deploy`.
+  That would mean adding a vision tool takes Z3, RDKit and Lean offline for
+  every collaborator without an OpenAI account. Missing here is instead an empty
+  string, and `reagents.tools.vision` turns that into one refused call with an
+  error naming the fix.
+
+Load `.env` before deploying, or the router gets an empty key:
+    set -a && . ./.env && set +a && uv run modal deploy -m broker.service
+"""
+
+
+def broker_credentials() -> modal.Secret:
+    """The router's credential mount, built from whatever the deployer has."""
+    return modal.Secret.from_dict(
+        {name: os.environ.get(name, "") for name in BROKER_CREDENTIAL_ENV_VARS}
+    )
 
 
 BROKER_ENV: dict[str, str] = {
@@ -735,6 +767,9 @@ async def _dispatch_remote(tool_id: str, arguments: dict[str, Any]) -> Any:
 
 @app.function(
     image=broker_image(),
+    # Inline tools run HERE, so their credentials are mounted here. See
+    # BROKER_CREDENTIAL_ENV_VARS.
+    secrets=[broker_credentials()],
     timeout=ROUTER_TIMEOUT_S,
     max_containers=ROUTER_MAX_CONTAINERS,
     scaledown_window=ROUTER_SCALEDOWN_WINDOW,
@@ -780,10 +815,12 @@ def endpoint_url() -> str:
 __all__ = [
     "ALL_EXECUTOR_CLASSES",
     "APP_NAME",
+    "BROKER_CREDENTIAL_ENV_VARS",
     "BROKER_ENV",
     "EXECUTOR_CLASSES",
     "ExecutorClass",
     "app",
+    "broker_credentials",
     "broker_image",
     "build_registry",
     "build_router",

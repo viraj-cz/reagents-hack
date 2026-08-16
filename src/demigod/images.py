@@ -159,6 +159,30 @@ class PrebakedImage:
     base_apt: tuple[str, ...] = field(default_factory=tuple)
     description: str = ""
 
+    base_pip: tuple[str, ...] = field(default_factory=tuple)
+    """Pip specs installed BEFORE the tool specs, from `base_pip_index_url`.
+
+    An image concern, not a tool concern, which is why it lives here and not on
+    `ToolEntry`. The entry says what the agent gets (`cellpose`); this says how
+    this image chooses to satisfy it.
+
+    It exists for exactly one situation, and torch is the situation: a package
+    whose PyPI wheel is not the one you want. `pip install torch` on linux pulls
+    the CUDA build -- several GB of NVIDIA runtime baked into an image that
+    `spawn_demigod` runs with no GPU, paid for on every cold sandbox. Installing
+    `torch==X+cpu` from the PyTorch index first means cellpose's own `torch`
+    requirement is already satisfied when it is installed, so pip never reaches
+    for the CUDA wheel.
+    """
+
+    base_pip_index_url: str = ""
+    """Extra index for `base_pip`. Empty means PyPI only.
+
+    `extra_index_url` rather than `index_url`: the `+cpu` local version exists
+    ONLY on the PyTorch index, so the pin resolves there unambiguously while
+    everything else still comes from PyPI.
+    """
+
     @property
     def size_rank(self) -> int:
         """Proxy for image size. Fewer tools == smaller == preferred.
@@ -202,6 +226,16 @@ class PrebakedImage:
         if apt:
             image = image.apt_install(*sorted(set(apt)))
         image = _install_agent_runtime(image)
+        # Before the tool specs, and in its own layer: these are the heaviest
+        # wheels in any image that has them, and they change only when this
+        # catalog does -- so a registry edit must not re-download torch.
+        if self.base_pip:
+            kwargs = (
+                {"extra_index_url": self.base_pip_index_url}
+                if self.base_pip_index_url
+                else {}
+            )
+            image = image.pip_install(*sorted(set(self.base_pip)), **kwargs)
         if pip:
             image = image.pip_install(*sorted(set(pip)))
         # Ship our own package last, so edits to it do not bust the (expensive)
@@ -229,7 +263,33 @@ DATA = PrebakedImage(
     description="Tabular analysis. pandas + numpy + pyarrow.",
 )
 
-CATALOG: tuple[PrebakedImage, ...] = (BASE, DATA)
+TORCH_CPU_INDEX = "https://download.pytorch.org/whl/cpu"
+TORCH_CPU = ("torch==2.13.0+cpu", "torchvision==0.28.0+cpu")
+"""cellpose's backend, pinned to the CPU build. See PrebakedImage.base_pip.
+
+Both wheels are published for cp312 on manylinux_2_28 (x86_64 and aarch64),
+which is what `debian_slim(python_version="3.12")` is. Verified against the
+index, not assumed -- a `+cpu` pin that does not exist for the image's
+interpreter fails the bake with a resolution error rather than falling back.
+"""
+
+IMAGING = PrebakedImage(
+    name="demigod-imaging",
+    # A strict SUPERSET of DATA's keys, which is what keeps the catalog nested
+    # the way `resolve_image` needs: a demigod asking for {pandas} still gets
+    # the small image, and one asking for {pandas, imaging} has somewhere to go.
+    # It is also not optional -- scikit-image measurements are tables, and
+    # regionprops_table hands back something you want a DataFrame for.
+    tool_keys=frozenset({"pandas", "imaging"}),
+    base_pip=TORCH_CPU,
+    base_pip_index_url=TORCH_CPU_INDEX,
+    description=(
+        "Image analysis. scikit-image, cellpose (CPU torch), tifffile, "
+        "imagecodecs, OME-Zarr, dask, matplotlib -- on top of pandas."
+    ),
+)
+
+CATALOG: tuple[PrebakedImage, ...] = (BASE, DATA, IMAGING)
 
 
 class ImageResolutionError(RuntimeError):

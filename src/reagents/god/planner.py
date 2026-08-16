@@ -38,6 +38,14 @@ Each domain MUST:
 - choose 2-4 tools from the allowed tool list only
 - use tool descriptions to bind one coherent representation family; when the
   catalog is large enough, keep tool sets disjoint across domains
+- include `vision.read_image` in EVERY domain whose evidence is an image
+  (micrographs, plate photographs, gels and blots, slides, chromatograms,
+  scanned figures or plots, instrument screenshots). It is the only tool that
+  can read a picture, so a domain that needs one and does not hold it produces
+  an agent guessing at pixels it never looked at. This is the exception to
+  keeping tool sets disjoint: share it across every domain that needs it rather
+  than making one domain the designated looker -- each artifact must stand
+  alone.
 - include an artifact JSON schema requiring candidate_solution (object),
   constraint_results (object), certificate (object), and conclusion (string)
 - list abstract forbidden rules

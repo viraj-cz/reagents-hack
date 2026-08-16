@@ -85,6 +85,7 @@ src/godbox/        >>> THE GOD SANDBOX <<<
 scripts/
   bake.py  smoke_test.py  bootstrap.sh
   preflight_live.py  preflight_toolbox.py  preflight_god.py  preflight_nested.py
+  preflight_vision.py
 ```
 
 ## Three sandbox types
@@ -233,10 +234,13 @@ uv run python scripts/preflight_live.py      # one DEMI_GOD sandbox, no agent
 uv run python scripts/preflight_toolbox.py   # Dict, Queue, asgi_app, egress
 uv run python scripts/preflight_god.py       # one GOD sandbox, no agent
 uv run python scripts/preflight_nested.py    # can a sandbox spawn a sandbox?
+uv run python scripts/preflight_vision.py    # is the image path live? (needs OPENAI_API_KEY)
 ```
 
-All four are cheap — one small sandbox each, no agent loop, zero Anthropic
-tokens. They exist because the offline suite cannot catch a server-side API
+The first four are cheap — one small sandbox each, no agent loop, zero Anthropic
+tokens. `preflight_vision.py` costs a few hundred OpenAI tokens instead of a
+sandbox, and asserts on what the model *saw*: a 200 carrying "I cannot determine
+that" is the failure a status-code check waves through. They exist because the offline suite cannot catch a server-side API
 change: `sandbox.open()` passed every local check right up until the server
 retired it.
 

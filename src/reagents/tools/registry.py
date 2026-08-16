@@ -331,9 +331,19 @@ def default_registry() -> ToolRegistry:
 
     from reagents.tools import builtins as builtin_impls
 
+    from reagents.tools.vision import configure_vision_tools
+
     registry = ToolRegistry()
     for tool in builtin_impls.all_tools():
         registry.register(tool)
+    # UNGATED, unlike everything below it. The others are opt-in because they
+    # cost something to have registered -- a container runtime, a sponsor
+    # account, a benchmark's data. This one costs an entry in a dict until it is
+    # called, and gating it on $OPENAI_API_KEY would make the catalog differ
+    # between the caller that plans and the broker that executes: GOD would fail
+    # to bind a tool that the broker can run perfectly well. Missing credentials
+    # surface at call time, from the process that actually needed them.
+    configure_vision_tools(registry)
     if os.environ.get("REAGENTS_ENABLE_CONTAINERS", "").lower() in {"1", "true", "yes"}:
         from reagents.tools.container import configure_container_tools
 
