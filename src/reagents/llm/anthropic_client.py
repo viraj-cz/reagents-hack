@@ -151,7 +151,6 @@ class AnthropicLLM:
         phase: str = "",
         response_schema: dict[str, Any] | None = None,
     ) -> tuple[T, list[dict[str, Any]]]:
-        del phase
         # An explicit schema wins. The caller uses it to nest a domain's
         # artifact shape inside `payload`, which is the difference between
         # showing the model one schema and showing it two that it has to guess

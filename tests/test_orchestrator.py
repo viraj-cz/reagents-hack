@@ -97,7 +97,10 @@ async def test_inprocess_runtime_enforces_schema_tool_call_minimum():
     domain_problem, _ = await Transformer(llm).forward(toy_problem(), spec)
     envelope = God(llm).build_envelope(spec, domain_problem)
     envelope.artifact_schema = {**spec.artifact_schema, "x-min-tool-calls": 4}
-    draft = DemigodDraft(
+    draft = DemiGodResult(
+        claim="candidate",
+        confidence=0.5,
+        method="test stub",
         payload={
             "candidate_solution": {},
             "constraint_results": {},
