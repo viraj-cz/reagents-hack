@@ -116,7 +116,12 @@ def test_god_image_ships_orchestration_but_demigods_do_not() -> None:
 
 def test_god_image_excludes_evaluator_only_benchmark_data() -> None:
     """Held-out fixtures remain local to the post-run grader."""
-    assert GOD_SOURCE_IGNORE == ("**/private/**", "**/data/source/**")
+    assert GOD_SOURCE_IGNORE == ["**/private/**", "**/data/source/**"]
+    # A LIST, not a tuple. Modal only converts `isinstance(ignore, list)` into a
+    # pattern matcher; a tuple reaches the mount as a would-be callable and every
+    # sandbox creation dies with "'tuple' object is not callable" from inside
+    # Modal, naming nothing that would lead you here.
+    assert isinstance(GOD_SOURCE_IGNORE, list)
     tree = ast.parse((SRC / "godbox" / "images.py").read_text(encoding="utf-8"))
     source_calls = [
         node

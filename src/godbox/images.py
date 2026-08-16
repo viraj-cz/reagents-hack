@@ -60,8 +60,16 @@ GOD_LOCAL_SOURCES = ("reagents", "demigod", "broker", "godbox", "benchmarks")
     reports with `godbox`, and loads closed benchmark verifiers. None of these
     additional packages enter a DEMI_GOD image."""
 
-GOD_SOURCE_IGNORE = ("**/private/**", "**/data/source/**")
-"""Evaluator-only benchmark fixtures must not exist in GOD's filesystem."""
+GOD_SOURCE_IGNORE = ["**/private/**", "**/data/source/**"]
+"""Evaluator-only benchmark fixtures must not exist in GOD's filesystem.
+
+A LIST, and the type is load-bearing. Modal converts ignore patterns with
+`elif isinstance(ignore, list): ignore = FilePatternMatcher(*ignore)`
+(modal/mount.py). A tuple fails that check and is passed through as though it
+were already the predicate, so the first file Modal tests raises
+`TypeError: 'tuple' object is not callable` -- from inside mount resolution,
+naming neither this constant nor the image. Every GOD sandbox creation failed
+that way, 1.4s in, with a message that points at Modal's internals."""
 
 FORBIDDEN_IN_DEMIGOD_IMAGE = ("reagents", "broker", "godbox", "benchmarks")
 """Asserted offline in tests/test_package_boundary.py. Named here so the rule
