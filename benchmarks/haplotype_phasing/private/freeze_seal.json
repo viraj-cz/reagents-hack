@@ -1,0 +1,6 @@
+{
+  "benchmark_id": "giab-hg004-long-read-phasing-v1",
+  "private_expected_sha256": "7f0ea533d933b161df14c68f85e2df99dda377f47805c18d6f363e9e322f2637",
+  "frozen_before_model_calls": true,
+  "disclosed_to_agents": false
+}

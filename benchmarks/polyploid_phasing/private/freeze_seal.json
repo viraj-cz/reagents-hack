@@ -1,0 +1,6 @@
+{
+  "private_expected_sha256": "0557fb27dbde4437ebe7291c018de3086054d55f6c0af44d02912c2084d5e58d",
+  "reference_vcf_sha256": "6779fa2d18af0e8c43b4d0295a56224279813b0a3e46e03243d07b9508d3dbb8",
+  "frozen_before_model_calls": true,
+  "disclosed_to_agents": false
+}

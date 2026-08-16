@@ -1,0 +1,17 @@
+{
+  "benchmark_id": "real-human-tetraploid-long-read-phasing-v1",
+  "frozen_before_model_calls": true,
+  "heldout_reference_available_to_agents": false,
+  "public_question_sha256": "77ae6ecd6099cbabe6346acc75445c45a38eacd7fd69201e2585bc5201871de4",
+  "public_observations_sha256": "4a9d4de28e0d4319021ce93fc608b3fdc34287e35dbfbac574f176847581b3d2",
+  "source_files": {
+    "vcf": "8d81bb168ec37bd8206be0e4086c8bbdc579751600220597250414e2b87aa480",
+    "bam": "222c10061d2de3f746108ea57c9138aece1c032de2167b1db15e628a951c0b58"
+  },
+  "counts": {
+    "ploidy": 4,
+    "variants": 42,
+    "informative_reads": 18,
+    "calls": 385
+  }
+}

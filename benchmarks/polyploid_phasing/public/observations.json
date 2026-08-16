@@ -1,0 +1,2368 @@
+{
+  "schema_version": "1.0",
+  "benchmark_id": "real-human-tetraploid-long-read-phasing-v1",
+  "ploidy": 4,
+  "variants": [
+    {
+      "variant_id": "V001",
+      "contig": "chr22",
+      "position": 42000146,
+      "reference": "G",
+      "alternate": "A",
+      "alternate_dosage": 2
+    },
+    {
+      "variant_id": "V002",
+      "contig": "chr22",
+      "position": 42000367,
+      "reference": "G",
+      "alternate": "A",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V003",
+      "contig": "chr22",
+      "position": 42000564,
+      "reference": "C",
+      "alternate": "A",
+      "alternate_dosage": 2
+    },
+    {
+      "variant_id": "V004",
+      "contig": "chr22",
+      "position": 42001022,
+      "reference": "A",
+      "alternate": "G",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V005",
+      "contig": "chr22",
+      "position": 42001038,
+      "reference": "G",
+      "alternate": "T",
+      "alternate_dosage": 2
+    },
+    {
+      "variant_id": "V006",
+      "contig": "chr22",
+      "position": 42001465,
+      "reference": "G",
+      "alternate": "A",
+      "alternate_dosage": 3
+    },
+    {
+      "variant_id": "V007",
+      "contig": "chr22",
+      "position": 42002015,
+      "reference": "G",
+      "alternate": "A",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V008",
+      "contig": "chr22",
+      "position": 42002191,
+      "reference": "T",
+      "alternate": "C",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V009",
+      "contig": "chr22",
+      "position": 42002371,
+      "reference": "T",
+      "alternate": "C",
+      "alternate_dosage": 4
+    },
+    {
+      "variant_id": "V010",
+      "contig": "chr22",
+      "position": 42002471,
+      "reference": "C",
+      "alternate": "T",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V011",
+      "contig": "chr22",
+      "position": 42002602,
+      "reference": "G",
+      "alternate": "A",
+      "alternate_dosage": 4
+    },
+    {
+      "variant_id": "V012",
+      "contig": "chr22",
+      "position": 42002825,
+      "reference": "C",
+      "alternate": "T",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V013",
+      "contig": "chr22",
+      "position": 42003021,
+      "reference": "G",
+      "alternate": "C",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V014",
+      "contig": "chr22",
+      "position": 42003321,
+      "reference": "G",
+      "alternate": "A",
+      "alternate_dosage": 2
+    },
+    {
+      "variant_id": "V015",
+      "contig": "chr22",
+      "position": 42003392,
+      "reference": "C",
+      "alternate": "G",
+      "alternate_dosage": 2
+    },
+    {
+      "variant_id": "V016",
+      "contig": "chr22",
+      "position": 42003543,
+      "reference": "T",
+      "alternate": "A",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V017",
+      "contig": "chr22",
+      "position": 42003682,
+      "reference": "T",
+      "alternate": "C",
+      "alternate_dosage": 2
+    },
+    {
+      "variant_id": "V018",
+      "contig": "chr22",
+      "position": 42004116,
+      "reference": "T",
+      "alternate": "C",
+      "alternate_dosage": 4
+    },
+    {
+      "variant_id": "V019",
+      "contig": "chr22",
+      "position": 42004412,
+      "reference": "A",
+      "alternate": "G",
+      "alternate_dosage": 2
+    },
+    {
+      "variant_id": "V020",
+      "contig": "chr22",
+      "position": 42005251,
+      "reference": "C",
+      "alternate": "T",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V021",
+      "contig": "chr22",
+      "position": 42005349,
+      "reference": "A",
+      "alternate": "G",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V022",
+      "contig": "chr22",
+      "position": 42005510,
+      "reference": "C",
+      "alternate": "T",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V023",
+      "contig": "chr22",
+      "position": 42005745,
+      "reference": "G",
+      "alternate": "T",
+      "alternate_dosage": 2
+    },
+    {
+      "variant_id": "V024",
+      "contig": "chr22",
+      "position": 42005837,
+      "reference": "G",
+      "alternate": "A",
+      "alternate_dosage": 2
+    },
+    {
+      "variant_id": "V025",
+      "contig": "chr22",
+      "position": 42006001,
+      "reference": "A",
+      "alternate": "G",
+      "alternate_dosage": 4
+    },
+    {
+      "variant_id": "V026",
+      "contig": "chr22",
+      "position": 42006382,
+      "reference": "G",
+      "alternate": "A",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V027",
+      "contig": "chr22",
+      "position": 42006395,
+      "reference": "T",
+      "alternate": "A",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V028",
+      "contig": "chr22",
+      "position": 42006476,
+      "reference": "G",
+      "alternate": "A",
+      "alternate_dosage": 2
+    },
+    {
+      "variant_id": "V029",
+      "contig": "chr22",
+      "position": 42006718,
+      "reference": "A",
+      "alternate": "C",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V030",
+      "contig": "chr22",
+      "position": 42007442,
+      "reference": "C",
+      "alternate": "T",
+      "alternate_dosage": 4
+    },
+    {
+      "variant_id": "V031",
+      "contig": "chr22",
+      "position": 42007665,
+      "reference": "G",
+      "alternate": "C",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V032",
+      "contig": "chr22",
+      "position": 42007976,
+      "reference": "C",
+      "alternate": "T",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V033",
+      "contig": "chr22",
+      "position": 42009318,
+      "reference": "A",
+      "alternate": "G",
+      "alternate_dosage": 2
+    },
+    {
+      "variant_id": "V034",
+      "contig": "chr22",
+      "position": 42009653,
+      "reference": "C",
+      "alternate": "G",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V035",
+      "contig": "chr22",
+      "position": 42009655,
+      "reference": "A",
+      "alternate": "G",
+      "alternate_dosage": 2
+    },
+    {
+      "variant_id": "V036",
+      "contig": "chr22",
+      "position": 42009918,
+      "reference": "T",
+      "alternate": "C",
+      "alternate_dosage": 2
+    },
+    {
+      "variant_id": "V037",
+      "contig": "chr22",
+      "position": 42010367,
+      "reference": "C",
+      "alternate": "A",
+      "alternate_dosage": 2
+    },
+    {
+      "variant_id": "V038",
+      "contig": "chr22",
+      "position": 42010784,
+      "reference": "C",
+      "alternate": "T",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V039",
+      "contig": "chr22",
+      "position": 42010881,
+      "reference": "G",
+      "alternate": "A",
+      "alternate_dosage": 2
+    },
+    {
+      "variant_id": "V040",
+      "contig": "chr22",
+      "position": 42011003,
+      "reference": "C",
+      "alternate": "G",
+      "alternate_dosage": 1
+    },
+    {
+      "variant_id": "V041",
+      "contig": "chr22",
+      "position": 42011685,
+      "reference": "T",
+      "alternate": "C",
+      "alternate_dosage": 2
+    },
+    {
+      "variant_id": "V042",
+      "contig": "chr22",
+      "position": 42012075,
+      "reference": "T",
+      "alternate": "C",
+      "alternate_dosage": 2
+    }
+  ],
+  "reads": [
+    {
+      "read_id": "R001-a1add196e821",
+      "calls": [
+        {
+          "variant_id": "V001",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V002",
+          "bit": 0,
+          "weight": 2
+        },
+        {
+          "variant_id": "V003",
+          "bit": 0,
+          "weight": 2
+        },
+        {
+          "variant_id": "V005",
+          "bit": 0,
+          "weight": 5
+        }
+      ]
+    },
+    {
+      "read_id": "R002-02bfe5a0eba1",
+      "calls": [
+        {
+          "variant_id": "V001",
+          "bit": 0,
+          "weight": 3
+        },
+        {
+          "variant_id": "V002",
+          "bit": 0,
+          "weight": 2
+        },
+        {
+          "variant_id": "V003",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V004",
+          "bit": 0,
+          "weight": 1
+        },
+        {
+          "variant_id": "V005",
+          "bit": 0,
+          "weight": 3
+        },
+        {
+          "variant_id": "V006",
+          "bit": 0,
+          "weight": 7
+        },
+        {
+          "variant_id": "V007",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V008",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V009",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V011",
+          "bit": 1,
+          "weight": 3
+        },
+        {
+          "variant_id": "V012",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V013",
+          "bit": 1,
+          "weight": 1
+        },
+        {
+          "variant_id": "V014",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V015",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V016",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V017",
+          "bit": 0,
+          "weight": 1
+        },
+        {
+          "variant_id": "V018",
+          "bit": 0,
+          "weight": 2
+        },
+        {
+          "variant_id": "V019",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V020",
+          "bit": 0,
+          "weight": 4
+        },
+        {
+          "variant_id": "V021",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V022",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V023",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V024",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V025",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V026",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V027",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V028",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V029",
+          "bit": 1,
+          "weight": 5
+        },
+        {
+          "variant_id": "V030",
+          "bit": 0,
+          "weight": 7
+        },
+        {
+          "variant_id": "V031",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V032",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V033",
+          "bit": 0,
+          "weight": 4
+        },
+        {
+          "variant_id": "V034",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V035",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V037",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V038",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V039",
+          "bit": 0,
+          "weight": 1
+        },
+        {
+          "variant_id": "V040",
+          "bit": 0,
+          "weight": 1
+        }
+      ]
+    },
+    {
+      "read_id": "R003-993b7cc8e675",
+      "calls": [
+        {
+          "variant_id": "V001",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V002",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V003",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V004",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V005",
+          "bit": 1,
+          "weight": 13
+        },
+        {
+          "variant_id": "V006",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V007",
+          "bit": 1,
+          "weight": 14
+        },
+        {
+          "variant_id": "V008",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V009",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V010",
+          "bit": 1,
+          "weight": 11
+        },
+        {
+          "variant_id": "V011",
+          "bit": 0,
+          "weight": 7
+        },
+        {
+          "variant_id": "V012",
+          "bit": 1,
+          "weight": 12
+        },
+        {
+          "variant_id": "V013",
+          "bit": 1,
+          "weight": 13
+        },
+        {
+          "variant_id": "V014",
+          "bit": 0,
+          "weight": 6
+        },
+        {
+          "variant_id": "V015",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V016",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V017",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V018",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V019",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V020",
+          "bit": 1,
+          "weight": 10
+        },
+        {
+          "variant_id": "V021",
+          "bit": 1,
+          "weight": 13
+        },
+        {
+          "variant_id": "V022",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V023",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V024",
+          "bit": 0,
+          "weight": 6
+        },
+        {
+          "variant_id": "V025",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V026",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V027",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V028",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V029",
+          "bit": 1,
+          "weight": 7
+        },
+        {
+          "variant_id": "V030",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V031",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V032",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V033",
+          "bit": 0,
+          "weight": 3
+        },
+        {
+          "variant_id": "V034",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V035",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V036",
+          "bit": 0,
+          "weight": 6
+        },
+        {
+          "variant_id": "V037",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V038",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V039",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V040",
+          "bit": 1,
+          "weight": 10
+        }
+      ]
+    },
+    {
+      "read_id": "R004-a5e3961a80fd",
+      "calls": [
+        {
+          "variant_id": "V001",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V002",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V003",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V004",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V005",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V006",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V007",
+          "bit": 1,
+          "weight": 6
+        },
+        {
+          "variant_id": "V008",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V009",
+          "bit": 0,
+          "weight": 3
+        }
+      ]
+    },
+    {
+      "read_id": "R005-27fdbbb7f5df",
+      "calls": [
+        {
+          "variant_id": "V001",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V002",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V003",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V005",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V006",
+          "bit": 0,
+          "weight": 4
+        },
+        {
+          "variant_id": "V007",
+          "bit": 0,
+          "weight": 6
+        },
+        {
+          "variant_id": "V008",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V009",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V010",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V011",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V012",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V013",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V014",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V015",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V016",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V017",
+          "bit": 0,
+          "weight": 7
+        },
+        {
+          "variant_id": "V018",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V019",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V021",
+          "bit": 0,
+          "weight": 2
+        }
+      ]
+    },
+    {
+      "read_id": "R006-b65948f7c041",
+      "calls": [
+        {
+          "variant_id": "V001",
+          "bit": 0,
+          "weight": 7
+        },
+        {
+          "variant_id": "V002",
+          "bit": 1,
+          "weight": 14
+        },
+        {
+          "variant_id": "V003",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V004",
+          "bit": 1,
+          "weight": 13
+        },
+        {
+          "variant_id": "V005",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V007",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V008",
+          "bit": 1,
+          "weight": 11
+        },
+        {
+          "variant_id": "V009",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V010",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V011",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V012",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V013",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V014",
+          "bit": 0,
+          "weight": 1
+        },
+        {
+          "variant_id": "V015",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V016",
+          "bit": 0,
+          "weight": 6
+        },
+        {
+          "variant_id": "V018",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V019",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V020",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V021",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V023",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V025",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V026",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V027",
+          "bit": 1,
+          "weight": 12
+        },
+        {
+          "variant_id": "V028",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V029",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V030",
+          "bit": 0,
+          "weight": 4
+        },
+        {
+          "variant_id": "V032",
+          "bit": 1,
+          "weight": 7
+        }
+      ]
+    },
+    {
+      "read_id": "R007-3c20deb8f43d",
+      "calls": [
+        {
+          "variant_id": "V001",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V002",
+          "bit": 0,
+          "weight": 2
+        },
+        {
+          "variant_id": "V003",
+          "bit": 0,
+          "weight": 2
+        },
+        {
+          "variant_id": "V004",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V005",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V006",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V007",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V008",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V009",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V010",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V011",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V012",
+          "bit": 0,
+          "weight": 2
+        },
+        {
+          "variant_id": "V013",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V014",
+          "bit": 0,
+          "weight": 6
+        },
+        {
+          "variant_id": "V015",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V016",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V017",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V018",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V019",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V020",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V021",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V022",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V023",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V024",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V025",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V026",
+          "bit": 0,
+          "weight": 7
+        },
+        {
+          "variant_id": "V027",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V028",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V029",
+          "bit": 0,
+          "weight": 3
+        },
+        {
+          "variant_id": "V030",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V031",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V032",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V034",
+          "bit": 0,
+          "weight": 4
+        },
+        {
+          "variant_id": "V035",
+          "bit": 0,
+          "weight": 4
+        },
+        {
+          "variant_id": "V036",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V037",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V038",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V039",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V040",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V041",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V042",
+          "bit": 0,
+          "weight": 12
+        }
+      ]
+    },
+    {
+      "read_id": "R008-659a30babdbc",
+      "calls": [
+        {
+          "variant_id": "V001",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V003",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V004",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V005",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V007",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V008",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V009",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V010",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V011",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V012",
+          "bit": 0,
+          "weight": 4
+        },
+        {
+          "variant_id": "V013",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V014",
+          "bit": 0,
+          "weight": 4
+        },
+        {
+          "variant_id": "V015",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V016",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V017",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V018",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V019",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V020",
+          "bit": 0,
+          "weight": 3
+        },
+        {
+          "variant_id": "V021",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V022",
+          "bit": 0,
+          "weight": 1
+        },
+        {
+          "variant_id": "V023",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V024",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V025",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V026",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V027",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V028",
+          "bit": 0,
+          "weight": 1
+        },
+        {
+          "variant_id": "V029",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V030",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V031",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V032",
+          "bit": 0,
+          "weight": 13
+        }
+      ]
+    },
+    {
+      "read_id": "R009-633f4fc508d1",
+      "calls": [
+        {
+          "variant_id": "V001",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V003",
+          "bit": 0,
+          "weight": 1
+        },
+        {
+          "variant_id": "V005",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V006",
+          "bit": 1,
+          "weight": 12
+        },
+        {
+          "variant_id": "V007",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V008",
+          "bit": 1,
+          "weight": 11
+        },
+        {
+          "variant_id": "V009",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V010",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V011",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V012",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V013",
+          "bit": 0,
+          "weight": 12
+        }
+      ]
+    },
+    {
+      "read_id": "R010-f03aa119dfdd",
+      "calls": [
+        {
+          "variant_id": "V001",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V002",
+          "bit": 0,
+          "weight": 7
+        },
+        {
+          "variant_id": "V003",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V004",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V005",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V006",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V007",
+          "bit": 0,
+          "weight": 3
+        },
+        {
+          "variant_id": "V008",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V009",
+          "bit": 0,
+          "weight": 7
+        },
+        {
+          "variant_id": "V010",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V011",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V013",
+          "bit": 0,
+          "weight": 1
+        },
+        {
+          "variant_id": "V014",
+          "bit": 0,
+          "weight": 7
+        },
+        {
+          "variant_id": "V015",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V016",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V017",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V018",
+          "bit": 0,
+          "weight": 2
+        },
+        {
+          "variant_id": "V019",
+          "bit": 0,
+          "weight": 4
+        },
+        {
+          "variant_id": "V020",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V021",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V022",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V023",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V024",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V025",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V026",
+          "bit": 1,
+          "weight": 6
+        },
+        {
+          "variant_id": "V027",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V028",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V029",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V030",
+          "bit": 0,
+          "weight": 3
+        },
+        {
+          "variant_id": "V032",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V033",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V034",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V035",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V037",
+          "bit": 0,
+          "weight": 6
+        },
+        {
+          "variant_id": "V038",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V039",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V040",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V041",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V042",
+          "bit": 0,
+          "weight": 6
+        }
+      ]
+    },
+    {
+      "read_id": "R011-1480fbcd53df",
+      "calls": [
+        {
+          "variant_id": "V001",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V003",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V004",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V005",
+          "bit": 1,
+          "weight": 7
+        },
+        {
+          "variant_id": "V006",
+          "bit": 0,
+          "weight": 7
+        },
+        {
+          "variant_id": "V008",
+          "bit": 0,
+          "weight": 11
+        }
+      ]
+    },
+    {
+      "read_id": "R012-83452c7bd4d5",
+      "calls": [
+        {
+          "variant_id": "V001",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V002",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V003",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V005",
+          "bit": 1,
+          "weight": 11
+        },
+        {
+          "variant_id": "V006",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V007",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V008",
+          "bit": 0,
+          "weight": 13
+        }
+      ]
+    },
+    {
+      "read_id": "R013-e922dbc21194",
+      "calls": [
+        {
+          "variant_id": "V003",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V004",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V005",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V006",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V007",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V008",
+          "bit": 0,
+          "weight": 1
+        },
+        {
+          "variant_id": "V009",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V010",
+          "bit": 0,
+          "weight": 4
+        },
+        {
+          "variant_id": "V011",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V012",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V013",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V014",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V015",
+          "bit": 0,
+          "weight": 1
+        },
+        {
+          "variant_id": "V016",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V017",
+          "bit": 0,
+          "weight": 6
+        },
+        {
+          "variant_id": "V018",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V019",
+          "bit": 0,
+          "weight": 3
+        },
+        {
+          "variant_id": "V020",
+          "bit": 0,
+          "weight": 4
+        },
+        {
+          "variant_id": "V021",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V022",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V023",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V024",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V025",
+          "bit": 0,
+          "weight": 2
+        },
+        {
+          "variant_id": "V026",
+          "bit": 1,
+          "weight": 12
+        },
+        {
+          "variant_id": "V027",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V028",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V029",
+          "bit": 0,
+          "weight": 3
+        },
+        {
+          "variant_id": "V030",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V031",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V032",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V033",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V035",
+          "bit": 0,
+          "weight": 1
+        },
+        {
+          "variant_id": "V036",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V037",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V038",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V039",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V040",
+          "bit": 0,
+          "weight": 11
+        }
+      ]
+    },
+    {
+      "read_id": "R014-f7f81da71bb5",
+      "calls": [
+        {
+          "variant_id": "V015",
+          "bit": 0,
+          "weight": 3
+        },
+        {
+          "variant_id": "V017",
+          "bit": 0,
+          "weight": 2
+        },
+        {
+          "variant_id": "V018",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V019",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V020",
+          "bit": 0,
+          "weight": 4
+        },
+        {
+          "variant_id": "V021",
+          "bit": 0,
+          "weight": 3
+        },
+        {
+          "variant_id": "V022",
+          "bit": 0,
+          "weight": 3
+        },
+        {
+          "variant_id": "V023",
+          "bit": 0,
+          "weight": 6
+        },
+        {
+          "variant_id": "V024",
+          "bit": 0,
+          "weight": 3
+        },
+        {
+          "variant_id": "V025",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V026",
+          "bit": 0,
+          "weight": 2
+        },
+        {
+          "variant_id": "V027",
+          "bit": 0,
+          "weight": 1
+        },
+        {
+          "variant_id": "V028",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V029",
+          "bit": 0,
+          "weight": 7
+        },
+        {
+          "variant_id": "V030",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V031",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V032",
+          "bit": 0,
+          "weight": 3
+        },
+        {
+          "variant_id": "V033",
+          "bit": 0,
+          "weight": 7
+        },
+        {
+          "variant_id": "V034",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V035",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V036",
+          "bit": 0,
+          "weight": 1
+        },
+        {
+          "variant_id": "V037",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V038",
+          "bit": 0,
+          "weight": 4
+        },
+        {
+          "variant_id": "V039",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V040",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V041",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V042",
+          "bit": 0,
+          "weight": 13
+        }
+      ]
+    },
+    {
+      "read_id": "R015-795ec49e1975",
+      "calls": [
+        {
+          "variant_id": "V020",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V021",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V022",
+          "bit": 1,
+          "weight": 9
+        },
+        {
+          "variant_id": "V023",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V024",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V025",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V026",
+          "bit": 0,
+          "weight": 14
+        },
+        {
+          "variant_id": "V027",
+          "bit": 1,
+          "weight": 14
+        },
+        {
+          "variant_id": "V028",
+          "bit": 0,
+          "weight": 4
+        },
+        {
+          "variant_id": "V029",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V030",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V031",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V032",
+          "bit": 1,
+          "weight": 8
+        },
+        {
+          "variant_id": "V035",
+          "bit": 0,
+          "weight": 3
+        },
+        {
+          "variant_id": "V036",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V037",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V038",
+          "bit": 1,
+          "weight": 2
+        },
+        {
+          "variant_id": "V039",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V040",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V041",
+          "bit": 0,
+          "weight": 13
+        }
+      ]
+    },
+    {
+      "read_id": "R016-edf62f1c42f4",
+      "calls": [
+        {
+          "variant_id": "V030",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V031",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V032",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V033",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V034",
+          "bit": 0,
+          "weight": 2
+        },
+        {
+          "variant_id": "V035",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V036",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V037",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V038",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V039",
+          "bit": 0,
+          "weight": 13
+        },
+        {
+          "variant_id": "V040",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V041",
+          "bit": 0,
+          "weight": 3
+        },
+        {
+          "variant_id": "V042",
+          "bit": 0,
+          "weight": 5
+        }
+      ]
+    },
+    {
+      "read_id": "R017-7b78f3e064cd",
+      "calls": [
+        {
+          "variant_id": "V033",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V034",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V035",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V036",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V037",
+          "bit": 0,
+          "weight": 11
+        },
+        {
+          "variant_id": "V038",
+          "bit": 0,
+          "weight": 9
+        },
+        {
+          "variant_id": "V039",
+          "bit": 0,
+          "weight": 8
+        },
+        {
+          "variant_id": "V040",
+          "bit": 0,
+          "weight": 10
+        },
+        {
+          "variant_id": "V041",
+          "bit": 0,
+          "weight": 4
+        },
+        {
+          "variant_id": "V042",
+          "bit": 0,
+          "weight": 12
+        }
+      ]
+    },
+    {
+      "read_id": "R018-700d7708f43a",
+      "calls": [
+        {
+          "variant_id": "V036",
+          "bit": 0,
+          "weight": 7
+        },
+        {
+          "variant_id": "V037",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V038",
+          "bit": 0,
+          "weight": 6
+        },
+        {
+          "variant_id": "V039",
+          "bit": 0,
+          "weight": 12
+        },
+        {
+          "variant_id": "V040",
+          "bit": 0,
+          "weight": 7
+        },
+        {
+          "variant_id": "V041",
+          "bit": 0,
+          "weight": 5
+        },
+        {
+          "variant_id": "V042",
+          "bit": 0,
+          "weight": 3
+        }
+      ]
+    }
+  ],
+  "provenance": {
+    "source": "WhatsHap tests/data/polyploid.chr22.42M.12k",
+    "samples": [
+      "HG00514",
+      "NA19240"
+    ],
+    "evidence": "real PacBio reads pooled as an artificial tetraploid"
+  }
+}

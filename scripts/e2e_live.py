@@ -79,6 +79,18 @@ def load_problem(problem_name: str) -> tuple[NativeProblem, list[Path]]:
         # Public raw training primitives are mounted only inside the dedicated
         # Broker executor. No held-out response enters God or a demigod.
         return load_perturbseq_v2(), []
+    if problem_name == "phasing":
+        from benchmarks.haplotype_phasing import load_problem as load_phasing
+
+        # The native evidence and provenance stay with God. Demigods receive
+        # only sealed projections and representation-neutral binary.* tools.
+        return load_phasing(), []
+    if problem_name == "polyphase":
+        from benchmarks.polyploid_phasing import load_problem as load_polyphase
+
+        # Native sample/read metadata stays with God. Workers receive only
+        # sealed latent-factor coordinate systems and opaque symbols.
+        return load_polyphase(), []
     question = ADAPTIVE_DIR / "public" / "question.json"
     observations = ADAPTIVE_DIR / "public" / "observations.csv"
     return NativeProblem.model_validate_json(question.read_text()), [observations]
@@ -179,7 +191,18 @@ async def run_once(
         os.environ["REAGENTS_ENABLE_NORMAN_BENCHMARK"] = "1"
     elif problem_name == "perturbseq2":
         os.environ["REAGENTS_ENABLE_NORMAN_V2_BENCHMARK"] = "1"
+    elif problem_name == "phasing":
+        os.environ["REAGENTS_ENABLE_HAPLOTYPE_BENCHMARK"] = "1"
+    elif problem_name == "polyphase":
+        os.environ["REAGENTS_ENABLE_POLYPLOID_BENCHMARK"] = "1"
     problem, input_paths = load_problem(problem_name)
+    runtime_contract = problem.inputs.get("reasoning_contract", {}).get(
+        "runtime_budget", {}
+    )
+    if problem_name in {"phasing", "polyphase"}:
+        # Benchmark contracts are lower bounds. The generic CLI defaults are
+        # smoke-test limits and must not silently truncate a scientific run.
+        turns = max(turns, int(runtime_contract.get("max_demigod_turns", turns)))
     stage(f"START run_id={run_id} domains={domains} turns={turns}")
     stage(f"PROBLEM: {problem.id} -- {problem.question}")
     shared_files: list[str] = []
@@ -205,6 +228,14 @@ async def run_once(
         )
 
         verifier = NormanPerturbSeqV2Verifier()
+    elif problem_name == "phasing":
+        from benchmarks.haplotype_phasing import HaplotypePhasingVerifier
+
+        verifier = HaplotypePhasingVerifier()
+    elif problem_name == "polyphase":
+        from benchmarks.polyploid_phasing import PolyploidPhasingVerifier
+
+        verifier = PolyploidPhasingVerifier()
 
     registry = None
     if problem_name == "perturbseq":
@@ -218,6 +249,24 @@ async def run_once(
         registry = ToolRegistry()
         for tool_id in discovered.ids():
             if tool_id.startswith("screen."):
+                registry.register(discovered.get(tool_id))
+    elif problem_name == "phasing":
+        # Only abstract binary capabilities enter the planning catalog. Their
+        # specs and outputs contain no sample, genomic, or allele terminology.
+        from reagents.tools.registry import ToolRegistry
+
+        discovered = default_registry()
+        registry = ToolRegistry()
+        for tool_id in discovered.ids():
+            if tool_id.startswith("binary."):
+                registry.register(discovered.get(tool_id))
+    elif problem_name == "polyphase":
+        from reagents.tools.registry import ToolRegistry
+
+        discovered = default_registry()
+        registry = ToolRegistry()
+        for tool_id in discovered.ids():
+            if tool_id.startswith("latent."):
                 registry.register(discovered.get(tool_id))
 
     # TerminalTracer multiplexes GOD and every DEMI_GOD lane into ONE stream,
@@ -251,10 +300,10 @@ async def run_once(
         tracer=TerminalTracer(),
         verifier=verifier,
         budget=Budget(
-            max_tokens=4096,
+            max_tokens=int(runtime_contract.get("max_tokens_per_model_turn", 4096)),
             max_steps=turns,
-            wall_time_s=1200,
-            max_tool_calls=24,
+            wall_time_s=float(runtime_contract.get("demigod_wall_time_s", 1200)),
+            max_tool_calls=int(runtime_contract.get("max_broker_calls", 24)),
         ),
     )
     instrument(god)
@@ -441,6 +490,8 @@ def main() -> int:
             "flareguard",
             "perturbseq",
             "perturbseq2",
+            "phasing",
+            "polyphase",
         ),
         default="simple",
         help="simple = 5-entity valve pipeline (default, for testing the "
@@ -449,7 +500,9 @@ def main() -> int:
         "the complete-objective living-diagnostic design benchmark; "
         "perturbseq = v1 candidate-selection Norman benchmark; perturbseq2 = "
         "real held-out Norman responses from raw training primitives and "
-        "demigod-authored models",
+        "demigod-authored models; phasing = real HG004 long-read evidence "
+        "sealed into abstract binary coordinate systems; polyphase = harder "
+        "real-read four-factor reconstruction with dosage constraints",
     )
     parser.add_argument("--run-id", default=None)
     parser.add_argument(

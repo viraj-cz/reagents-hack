@@ -1,0 +1,91 @@
+{
+  "id": "real-human-tetraploid-long-read-phasing-v1",
+  "statement": "Reconstruct four haplotypes from a pooled tetraploid long-read experiment. The frozen benchmark combines real PacBio reads from human samples HG00514 and NA19240, as used by the official WhatsHap polyphase test and publication. Forty-two biallelic sites have known allele dosages, while noisy and incomplete reads ambiguously originate from one of four unordered haplotypes.",
+  "entities": [
+    "HG00514",
+    "NA19240",
+    "PacBio reads",
+    "tetraploid haplotypes",
+    "allele dosages",
+    "phase blocks"
+  ],
+  "constraints": [
+    "Return four complete binary haplotypes across exactly V001 through V042.",
+    "At every variant, the sum of alternate alleles across the four haplotypes must equal the frozen genotype dosage.",
+    "The four haplotype labels are exchangeable and are scored permutation-invariantly within each supported phase block.",
+    "Infer defensible phase-block boundaries rather than asserting unsupported continuity across evidence gaps.",
+    "Every alternative-domain worker must solve the complete four-haplotype problem, not one haplotype, block, or site subset.",
+    "Use only frozen public evidence and representation-neutral Broker computations. Held-out phased output is unavailable until scoring."
+  ],
+  "question": "What are the four dosage-consistent haplotypes and defensible phase blocks across all 42 sites?",
+  "inputs": {
+    "evidence_catalog": {
+      "observation_file": "observations.json",
+      "ploidy": 4,
+      "variant_count": 42,
+      "informative_read_count": 18,
+      "access": "Representation-neutral latent.* tools expose sealed full-problem projections."
+    },
+    "provenance": {
+      "source_project": "WhatsHap polyphase",
+      "samples": ["HG00514", "NA19240"],
+      "region": "GRCh38 chr22:42000000-42012000 benchmark slice",
+      "data_kind": "real PacBio alignments pooled into an artificial tetraploid benchmark"
+    },
+    "reasoning_contract": {
+      "artifact_required_keys": [
+        "candidate_solution",
+        "constraint_results",
+        "certificate",
+        "conclusion",
+        "experiments",
+        "model_comparison"
+      ],
+      "minimum_broker_calls": 4,
+      "minimum_model_configurations": 3,
+      "required_tool_prefix": "latent.",
+      "required_compute_suffix": "_compute",
+      "complete_problem_per_domain": true,
+      "runtime_budget": {
+        "max_demigod_turns": 40,
+        "max_broker_calls": 96,
+        "demigod_wall_time_s": 5400,
+        "max_tokens_per_model_turn": 8192
+      }
+    }
+  },
+  "required_outputs": [
+    "Four complete haplotypes over V001 through V042",
+    "Exact satisfaction of every public allele dosage",
+    "Phase-block boundaries with uncertainty",
+    "A non-empty method summary",
+    "A public objective and robustness certificate"
+  ],
+  "answer_schema": {
+    "type": "object",
+    "required": ["haplotypes", "phase_blocks", "uncertain_variants", "method_summary"],
+    "properties": {
+      "haplotypes": {
+        "type": "array",
+        "minItems": 4,
+        "maxItems": 4,
+        "items": {"type": "object"}
+      },
+      "phase_blocks": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["variant_ids"],
+          "properties": {
+            "variant_ids": {"type": "array", "items": {"type": "string"}},
+            "confidence": {"type": "number"}
+          }
+        }
+      },
+      "uncertain_variants": {"type": "array", "items": {"type": "string"}},
+      "method_summary": {"type": "string"},
+      "public_objective": {"type": "object"}
+    },
+    "additionalProperties": true
+  }
+}

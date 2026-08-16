@@ -1,0 +1,17 @@
+{
+  "benchmark_id": "giab-hg004-long-read-phasing-v1",
+  "frozen_before_model_calls": true,
+  "heldout_reference_available_to_agents": false,
+  "public_question_sha256": "a4ffdb7e7f739e686f38e10feac95d194e1e321d993b0dfd2500988bc5ced855",
+  "public_observations_sha256": "bfcd9286f6d416cf33d069d47b621aec7e50fff3270f911fc390a91fed91236d",
+  "source_files": {
+    "variants.vcf": "ae494f6193c43574b8f4f7dca98aea5ba77179a01ddcb1210bf3c83884b43bbd",
+    "pacbio.bam": "3232249e48f69428211f7ecca632b0ddda9c61a6364ed7df9b003c33925a3651",
+    "phased.vcf": "bed1f6d468890304eeed7d3084c470b6f701190e5fcd45b5ad60b36f8723c86d"
+  },
+  "counts": {
+    "variants": 49,
+    "reads": 25,
+    "allele_calls": 477
+  }
+}

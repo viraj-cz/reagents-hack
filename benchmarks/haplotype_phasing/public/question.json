@@ -1,0 +1,101 @@
+{
+  "id": "giab-hg004-long-read-phasing-v1",
+  "statement": "Infer a diploid haplotype phase from noisy long-read allele observations. The public evidence is a frozen real PacBio slice from Genome in a Bottle sample HG004. Each read reports reference/alternate calls at a subset of 49 heterozygous SNVs; sequencing errors make some calls mutually inconsistent.",
+  "entities": [
+    "HG004",
+    "PacBio reads",
+    "heterozygous SNVs",
+    "haplotype A",
+    "haplotype B"
+  ],
+  "sensitive_terms": [],
+  "constraints": [
+    "Return exactly one binary haplotype-A allele for every public variant ID V001 through V049.",
+    "Allele 0 denotes the reference allele and allele 1 denotes the alternate allele; haplotype B is the complement.",
+    "The global swap of haplotype A and B is biologically equivalent and is scored identically.",
+    "Every alternative-domain worker must solve the complete 49-variant problem rather than a chromosome segment or partial subproblem.",
+    "Use only the frozen public read observations and public broker computations. The held-out reference phase is unavailable until scoring.",
+    "Report uncertain variants and a non-empty method summary; do not omit low-confidence positions."
+  ],
+  "question": "What are the two phased haplotypes across all 49 variants, after reconciling noisy long-read observations end-to-end?",
+  "inputs": {
+    "evidence_catalog": {
+      "observation_file": "observations.json",
+      "variant_count": 49,
+      "read_count": 25,
+      "allele_call_count": 477,
+      "allele_encoding": {
+        "0": "reference",
+        "1": "alternate"
+      },
+      "access": "Representation-neutral binary.* Broker tools expose sealed projections of the frozen observations."
+    },
+    "provenance": {
+      "source_project": "WhatsHap",
+      "sample": "Genome in a Bottle HG004 / NA24143",
+      "region": "GRCh37 chromosome 6 source interval 10029001-10055081",
+      "fixture": "whatshap/tests/data/pacbio",
+      "data_kind": "real PacBio reads cropped and downsampled by the WhatsHap test fixture"
+    },
+    "reasoning_contract": {
+      "artifact_required_keys": [
+        "candidate_solution",
+        "constraint_results",
+        "certificate",
+        "conclusion",
+        "experiments",
+        "model_comparison"
+      ],
+      "minimum_broker_calls": 3,
+      "minimum_model_configurations": 2,
+      "required_tool_prefix": "binary.",
+      "required_compute_suffix": "_compute",
+      "complete_problem_per_domain": true,
+      "runtime_budget": {
+        "max_demigod_turns": 30,
+        "max_broker_calls": 64,
+        "demigod_wall_time_s": 3600,
+        "max_tokens_per_model_turn": 8192
+      },
+      "candidate_solution_contract": {
+        "phase_assignment": "object with exactly V001..V049 mapped to 0 or 1",
+        "uncertain_variants": "array containing only public variant IDs",
+        "method_summary": "non-empty string"
+      }
+    }
+  },
+  "required_outputs": [
+    "A complete phase_assignment object for V001 through V049",
+    "The complementary haplotype implied by the assignment",
+    "A list of uncertain variant IDs",
+    "A non-empty method summary",
+    "A public-evidence objective certificate"
+  ],
+  "answer_schema": {
+    "type": "object",
+    "required": [
+      "phase_assignment",
+      "uncertain_variants",
+      "method_summary"
+    ],
+    "properties": {
+      "phase_assignment": {
+        "type": "object",
+        "description": "Exactly V001..V049 mapped to haplotype-A allele 0 or 1."
+      },
+      "uncertain_variants": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "method_summary": {
+        "type": "string"
+      },
+      "public_objective": {
+        "type": "object"
+      }
+    },
+    "additionalProperties": true
+  }
+}
