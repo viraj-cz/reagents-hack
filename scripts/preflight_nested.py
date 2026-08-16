@@ -25,8 +25,33 @@ from __future__ import annotations
 
 import sys
 
-from demigod.images import resolve_image
+from demigod.images import PYTHON_VERSION
 from demigod.runner.inside import MODAL_APP_NAME
+
+MODAL_CLIENT = "modal==1.5.4"
+"""Pinned to match uv.lock, like every other image dependency."""
+
+
+def god_image():
+    """The image GOD runs in. NOT the demigod image, and that is the point.
+
+    A GOD sandbox needs the modal client in order to spawn demigods. A DEMI_GOD
+    image deliberately does NOT have it -- `demigod.images.AGENT_RUNTIME`
+    installs only the Agent SDK and pydantic. That asymmetry is a safety
+    property, not an oversight: without the client, a demigod that somehow
+    obtained a Modal token still could not spawn sandboxes or read a sibling's
+    output volume. Keep the two images separate.
+
+    (This preflight originally used the demigod image and failed with
+    `ModuleNotFoundError: No module named 'modal'`, which looked like nested
+    spawning being unsupported. It was not.)
+    """
+    import modal
+
+    return modal.Image.debian_slim(python_version=PYTHON_VERSION).pip_install(
+        MODAL_CLIENT
+    )
+
 
 MODAL_TOKEN_SECRET_NAME = "demigod-modal-token"
 """Modal Secret carrying MODAL_TOKEN_ID / MODAL_TOKEN_SECRET for the GOD sandbox.
@@ -93,8 +118,7 @@ def main() -> int:
     try:
         outer = modal.Sandbox.create(
             app=app,
-            # The demigod image already carries the modal client via our package.
-            image=resolve_image([]).build(),
+            image=god_image(),
             secrets=[modal.Secret.from_name(MODAL_TOKEN_SECRET_NAME)],
             timeout=300,
             idle_timeout=120,
@@ -128,9 +152,12 @@ def main() -> int:
     if failures:
         print(f"\n{len(failures)} FAILURE(S): {failures}", file=sys.stderr)
         print(
-            "Nested spawning does not work as assumed. GOD-in-a-sandbox needs a "
-            "different shape -- consider GOD as a Modal Function, or a local shim "
-            "that spawns demigods on GOD's behalf.",
+            "Before concluding nested spawning is unsupported, check WHY. A "
+            "ModuleNotFoundError for `modal` means the outer image lacks the "
+            "client (see god_image), not that Modal forbids nesting. A genuine "
+            "permission or API rejection is the signal that GOD-in-a-sandbox "
+            "needs a different shape -- GOD as a Modal Function, or a local "
+            "shim that spawns demigods on GOD's behalf.",
             file=sys.stderr,
         )
         return 1
